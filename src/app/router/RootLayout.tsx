@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { useMemo } from 'react';
 import { BottomNav } from '@/components/BottomNav';
+import { Sidebar } from '@/components/Sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { useRoleStore } from '@/stores/roleStore';
 
@@ -37,9 +38,18 @@ export function RootLayout() {
   const canAccessAdmin = hasPermission('admin', 'view');
   
   return (
-    <div className="w-full min-h-screen bg-white dark:bg-slate-950 relative">
-      <div className="w-full md:px-6 lg:px-8 mx-auto">
-        <Outlet />
+    <div className="w-full min-h-screen bg-white dark:bg-slate-950 relative flex">
+      {/* Sidebar for desktop */}
+      <Sidebar 
+        availableModules={availableModules}
+        canAccessAdmin={canAccessAdmin}
+      />
+
+      {/* Main content */}
+      <div className="flex-1 w-full md:pl-64">
+        <div className="w-full mx-auto md:px-6 lg:px-8 py-4 md:py-8">
+          <Outlet />
+        </div>
       </div>
       
       {shouldShowBottomNav && (

@@ -212,7 +212,7 @@ export function AdminScreen({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 px-4 pt-4 pb-2 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
         <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4">Управление</h1>

@@ -60,7 +60,7 @@ export function TicketListScreen({
   const displayedTickets = getTicketsForTab();
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 px-4 pt-4 pb-2 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
         <div className="flex items-center justify-between mb-4">
@@ -117,14 +117,14 @@ export function TicketListScreen({
       </div>
 
       {/* Ticket List */}
-      <div className="p-4 space-y-3 max-w-4xl mx-auto">
+      <div className="p-4 mx-auto">
         {displayedTickets.length === 0 ? (
           <EmptyState 
             title="Ничего не найдено"
             description="Попробуйте изменить параметры поиска или фильтры"
           />
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {displayedTickets.map((ticket) => (
               <TicketCard
                 key={ticket.id}

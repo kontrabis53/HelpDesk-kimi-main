@@ -77,7 +77,7 @@ export function DocumentsScreen({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 px-4 pt-4 pb-2 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
         <div className="flex items-center justify-between mb-4">
@@ -133,14 +133,14 @@ export function DocumentsScreen({
       </div>
 
       {/* Documents List */}
-      <div className="p-4 space-y-3 max-w-4xl mx-auto">
+      <div className="p-4 mx-auto">
         {displayedDocuments.length === 0 ? (
           <EmptyState 
             title="Нет документов"
             description="Создайте первый документ"
           />
         ) : (
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {displayedDocuments.map((doc) => {
               const Icon = typeIcons[doc.type];
               return (

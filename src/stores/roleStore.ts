@@ -34,6 +34,36 @@ const mockUsers: UserWithRole[] = [
     createdAt: '2024-03-10T00:00:00',
     lastLogin: '2025-02-03T09:15:00',
   },
+  {
+    id: '4',
+    name: 'Елена Козлова',
+    email: 'elena@medin.ru',
+    roleId: 'viewer',
+    department: 'Администрация',
+    isActive: false,
+    createdAt: '2024-06-01T00:00:00',
+    lastLogin: '2025-01-20T11:00:00',
+  },
+  {
+    id: '5',
+    name: 'Дмитрий Соколов',
+    email: 'dmitry@medin.ru',
+    roleId: 'technician',
+    department: 'IT-отдел',
+    isActive: true,
+    createdAt: '2024-07-15T00:00:00',
+    lastLogin: '2025-02-03T08:45:00',
+  },
+  {
+    id: '6',
+    name: 'Ольга Морозова',
+    email: 'olga@medin.ru',
+    roleId: 'user',
+    department: 'Бухгалтерия',
+    isActive: true,
+    createdAt: '2024-05-20T00:00:00',
+    lastLogin: '2025-02-02T17:30:00',
+  },
 ];
 
 // Mock current user (в реальности из Auth)

@@ -39,7 +39,7 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 px-4 py-4 border-b border-slate-100 dark:border-slate-700">
         <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Профиль</h1>

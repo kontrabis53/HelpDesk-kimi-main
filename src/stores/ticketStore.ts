@@ -6,6 +6,7 @@ interface TicketStats {
   total: number;
   new: number;
   in_progress: number;
+  waiting: number;
   resolved: number;
   my_tickets: number;
 }
@@ -93,6 +94,7 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       total: tickets.length,
       new: tickets.filter(t => t.status === 'new').length,
       in_progress: tickets.filter(t => t.status === 'in_progress').length,
+      waiting: tickets.filter(t => t.status === 'waiting').length,
       resolved: tickets.filter(t => t.status === 'resolved').length,
       my_tickets: tickets.filter(t => t.author.id === currentUser.id).length,
     };

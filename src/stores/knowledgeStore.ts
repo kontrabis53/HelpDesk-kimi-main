@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import type { KnowledgeGuide, KnowledgeCategory } from '@/types';
-import { mockGuides } from '@/data/mock';
+import type { KnowledgeGuide, GuideCategory } from '@/types';
+import { mockGuides } from '@/data/mockDocuments';
 
 interface KnowledgeFilter {
-  category?: KnowledgeCategory;
+  category?: GuideCategory;
   search?: string;
 }
 
@@ -52,7 +52,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         const matchesSearch =
           guide.title.toLowerCase().includes(searchLower) ||
           guide.description.toLowerCase().includes(searchLower) ||
-          guide.content.toLowerCase().includes(searchLower);
+          guide.tags.some(tag => tag.toLowerCase().includes(searchLower));
         if (!matchesSearch) return false;
       }
       return true;

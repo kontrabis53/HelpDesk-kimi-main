@@ -13,9 +13,7 @@ import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateInventoryPage } from '@/pages/CreateInventoryPage';
 import { KnowledgePage } from '@/pages/KnowledgePage';
 import { GuideDetailPage } from '@/pages/GuideDetailPage';
-import { ProfilePage } from '@/pages/ProfilePage';
-import { AdminPage } from '@/pages/AdminPage';
-import { SettingsPage } from '@/pages/SettingsPage';
+import { ProfilePage, AdminPage, SettingsPage } from '@/pages';
 
 export const router = createBrowserRouter([
   {

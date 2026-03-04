@@ -86,7 +86,7 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
   stats: () => {
     const { items } = get();
     const lowStock = items.filter(item => item.quantity <= item.minQuantity);
-    const totalValue = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const totalValue = items.reduce((sum, item) => sum + ((item.price ?? 0) * item.quantity), 0);
     
     const categories: Record<InventoryCategory, number> = {
       spare_parts: 0,

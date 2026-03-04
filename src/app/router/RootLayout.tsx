@@ -1,4 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom';
+import { useMemo } from 'react';
 import { BottomNav } from '@/components/BottomNav';
 import { Toaster } from '@/components/ui/sonner';
 import { useRoleStore } from '@/stores/roleStore';
@@ -18,8 +19,16 @@ const ROUTES_WITHOUT_NAV_PATTERNS = [
 
 export function RootLayout() {
   const location = useLocation();
-  const availableModules = useRoleStore((state) => state.availableModules());
+  const currentUserRole = useRoleStore((state) => state.currentUserRole());
   const hasPermission = useRoleStore((state) => state.hasPermission);
+
+  const availableModules = useMemo(() => {
+    if (!currentUserRole) return [];
+    
+    return currentUserRole.permissions
+      .filter(p => p.canView)
+      .map(p => p.moduleId);
+  }, [currentUserRole]);
   
   // Determine if we should show bottom nav
   const shouldShowBottomNav = !ROUTES_WITHOUT_NAV.includes(location.pathname) &&
@@ -29,7 +38,7 @@ export function RootLayout() {
   
   return (
     <div className="w-full min-h-screen bg-white dark:bg-slate-950 relative">
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full md:px-6 lg:px-8 mx-auto">
         <Outlet />
       </div>
       

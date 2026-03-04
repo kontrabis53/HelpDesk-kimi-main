@@ -2,13 +2,14 @@ import { ProfileScreen } from '@/screens/ProfileScreen';
 import { AdminScreen } from '@/screens/AdminScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useTicketStore } from '@/stores/ticketStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useRoleStore } from '@/stores/roleStore';
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const stats = useTicketStore((state) => state.stats());
+  const stats = useTicketStore(useShallow((state) => state.stats()));
   const theme = useThemeStore((state) => state.theme);
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const currentUserRole = useRoleStore((state) => state.currentUserRole());

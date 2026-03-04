@@ -46,12 +46,12 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
   return (
     <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 z-50">
       <div className="p-6">
-        <div className="flex items-center gap-2 mb-8">
+        <NavLink to="/knowledge" className="flex items-center gap-2 mb-8 hover:opacity-80 transition-opacity">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
             H
           </div>
           <span className="text-xl font-bold text-slate-800 dark:text-slate-100">HelpDesk</span>
-        </div>
+        </NavLink>
         
         <nav className="space-y-1">
           {visibleTabs.map((tab) => {

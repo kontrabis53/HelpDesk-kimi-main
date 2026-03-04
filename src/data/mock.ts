@@ -28,6 +28,18 @@ export const users: User[] = [
     role: 'admin',
     department: 'Администрация',
   },
+  {
+    id: '5',
+    name: 'Дмитрий Соколов',
+    role: 'technician',
+    department: 'IT-отдел',
+  },
+  {
+    id: '6',
+    name: 'Ольга Морозова',
+    role: 'user',
+    department: 'Бухгалтерия',
+  },
 ];
 
 export const mockTickets: Ticket[] = [

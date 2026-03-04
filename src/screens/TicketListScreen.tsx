@@ -95,7 +95,7 @@ export function TicketListScreen({
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap',
+                  'flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap',
                   isActive 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
@@ -104,7 +104,7 @@ export function TicketListScreen({
                 {tab.label}
                 {count !== undefined && count > 0 && (
                   <span className={cn(
-                    'ml-1.5 text-xs',
+                    'ml-0.5 text-xs',
                     isActive ? 'text-blue-100' : 'text-slate-400'
                   )}>
                     {count}

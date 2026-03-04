@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { TicketListScreen } from '@/screens/TicketListScreen';
 import { useTicketStore } from '@/stores/ticketStore';
 import { useNavigate } from 'react-router-dom';
+import { useRoleStore } from '@/stores/roleStore';
+import { toast } from 'sonner';
 
 export function TicketsPage() {
   const navigate = useNavigate();
@@ -9,6 +11,7 @@ export function TicketsPage() {
   const filter = useTicketStore((state) => state.filter);
   const setFilter = useTicketStore((state) => state.setFilter);
   const setSelectedTicket = useTicketStore((state) => state.setSelectedTicket);
+  const hasPermission = useRoleStore((state) => state.hasPermission);
 
   const tickets = useMemo(() => {
     return allTickets.filter((ticket) => {
@@ -45,6 +48,14 @@ export function TicketsPage() {
   const handleSearch = (query: string) => {
     setFilter({ search: query });
   };
+
+  const handleCreateClick = () => {
+    if (!hasPermission('tickets', 'create')) {
+      toast.error('Нет прав', { description: 'У вас нет прав для создания заявок' });
+      return;
+    }
+    navigate('/tickets/create');
+  };
   
   return (
     <TicketListScreen
@@ -52,6 +63,7 @@ export function TicketsPage() {
       ticketsByStatus={ticketsByStatus}
       onTicketClick={handleTicketClick}
       onSearch={handleSearch}
+      onCreateClick={handleCreateClick}
     />
   );
 }

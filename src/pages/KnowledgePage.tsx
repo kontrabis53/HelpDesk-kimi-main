@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { useMemo } from 'react';
 import { KnowledgeScreen } from '@/screens/KnowledgeScreen';
 import { useKnowledgeStore } from '@/stores/knowledgeStore';
+import { useRoleStore } from '@/stores/roleStore';
+import { toast } from 'sonner';
 
 export function KnowledgePage() {
   const navigate = useNavigate();
@@ -11,6 +13,7 @@ export function KnowledgePage() {
   const setFilter = useKnowledgeStore((state) => state.setFilter);
   const setSelectedGuide = useKnowledgeStore((state) => state.setSelectedGuide);
   const incrementViews = useKnowledgeStore((state) => state.incrementViews);
+  const hasPermission = useRoleStore((state) => state.hasPermission);
 
   const guides = useMemo(() => {
     return allGuides.filter((guide) => {
@@ -47,6 +50,14 @@ export function KnowledgePage() {
   const handleSearch = (query: string) => {
     setFilter({ search: query });
   };
+
+  const handleCreateClick = () => {
+    if (!hasPermission('knowledge', 'create')) {
+      toast.error('Нет прав', { description: 'У вас нет прав для создания статей' });
+      return;
+    }
+    navigate('/knowledge/create');
+  };
   
   return (
     <KnowledgeScreen
@@ -54,6 +65,7 @@ export function KnowledgePage() {
       guidesByCategory={guidesByCategory}
       onGuideClick={handleGuideClick}
       onSearch={handleSearch}
+      onCreateClick={handleCreateClick}
     />
   );
 }

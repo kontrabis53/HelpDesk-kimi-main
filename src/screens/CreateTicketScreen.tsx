@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import type { TicketCategory, TicketPriority } from '@/types';
+import { useState, useMemo } from 'react';
+import type { TicketCategory, TicketPriority, User } from '@/types';
 import { categoryLabels, priorityLabels } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Check } from 'lucide-react';
+import { ArrowLeft, Check, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useRoleStore } from '@/stores/roleStore';
+import { useTicketStore } from '@/stores/ticketStore';
 
 interface CreateTicketScreenProps {
   onBack: () => void;
@@ -15,6 +17,7 @@ interface CreateTicketScreenProps {
     description: string;
     category: TicketCategory;
     priority: TicketPriority;
+    assigneeId?: string;
   }) => void;
 }
 
@@ -38,7 +41,21 @@ export function CreateTicketScreen({ onBack, onSubmit }: CreateTicketScreenProps
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<TicketCategory>('hardware');
   const [priority, setPriority] = useState<TicketPriority>('medium');
+  const [assigneeId, setAssigneeId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const currentUser = useRoleStore((state) => state.currentUser());
+  // Use useMemo to prevent infinite loop from getAvailableAssignees returning a new array
+  const getAvailableAssignees = useTicketStore((state) => state.getAvailableAssignees);
+  const users = useMemo(() => getAvailableAssignees(), [getAvailableAssignees]);
+  
+  const canAssign = currentUser?.roleId === 'admin';
+
+  const assignableUsers = useMemo(() => {
+    return users.filter(user => 
+      ['admin', 'technician'].includes(user.role)
+    );
+  }, [users]);
 
   const handleSubmit = () => {
     if (!title.trim() || !description.trim()) return;
@@ -49,6 +66,7 @@ export function CreateTicketScreen({ onBack, onSubmit }: CreateTicketScreenProps
       description: description.trim(),
       category,
       priority,
+      assigneeId: canAssign ? assigneeId : undefined,
     });
   };
 
@@ -143,6 +161,52 @@ export function CreateTicketScreen({ onBack, onSubmit }: CreateTicketScreenProps
             ))}
           </div>
         </div>
+
+        {/* Assignee - Only for Admin */}
+        {canAssign && (
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Исполнитель</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={() => setAssigneeId('')}
+                className={cn(
+                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-left flex items-center gap-2',
+                  assigneeId === ''
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                )}
+              >
+                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                  <UserIcon className="w-4 h-4" />
+                </div>
+                <span>Не назначен</span>
+              </button>
+              
+              {assignableUsers.map((user) => (
+                <button
+                  key={user.id}
+                  onClick={() => setAssigneeId(user.id)}
+                  className={cn(
+                    'px-4 py-3 rounded-lg text-sm font-medium transition-all text-left flex items-center gap-2',
+                    assigneeId === user.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                  )}
+                >
+                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold uppercase">
+                    {user.name.substring(0, 2)}
+                  </div>
+                  <div className="flex flex-col">
+                    <span>{user.name}</span>
+                    <span className={cn("text-xs", assigneeId === user.id ? "text-blue-100" : "text-slate-400")}>
+                      {user.role === 'admin' ? 'Администратор' : 'Техник'}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Submit Button */}
         <div className="pt-4">

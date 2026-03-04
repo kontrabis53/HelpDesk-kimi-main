@@ -16,6 +16,13 @@ export function CreateTicketPage() {
   
   const handleSubmit = (data: any) => {
     const newTicket = createTicket(data);
+    
+    // If assignee is provided, assign the ticket
+    if (data.assigneeId) {
+      const useAssignTicket = useTicketStore.getState().assignTicket;
+      useAssignTicket(newTicket.id, data.assigneeId);
+    }
+
     addLog('ticket.created', 'ticket', newTicket.id, newTicket.number, `Создана заявка: ${newTicket.title}`);
     toast.success('Заявка создана', {
       description: `Заявка ${newTicket.number} успешно создана`,

@@ -10,6 +10,7 @@ const ROUTES_WITHOUT_NAV = [
   '/tickets/create',
   '/documents/create',
   '/inventory/create',
+  '/knowledge/create',
 ];
 
 const ROUTES_WITHOUT_NAV_PATTERNS = [

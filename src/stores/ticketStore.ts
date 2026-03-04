@@ -249,6 +249,9 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
   },
   
   getAvailableAssignees: () => {
+    // Return users with roles 'technician' or 'admin' from mock.ts
+    // We should ideally fetch this from roleStore, but for now we use the mock data
+    // filtering by role property which exists on User type
     return users.filter(u => u.role === 'technician' || u.role === 'admin');
   },
 }));

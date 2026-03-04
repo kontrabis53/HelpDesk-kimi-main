@@ -13,6 +13,7 @@ import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateInventoryPage } from '@/pages/CreateInventoryPage';
 import { KnowledgePage } from '@/pages/KnowledgePage';
 import { GuideDetailPage } from '@/pages/GuideDetailPage';
+import { CreateGuideScreen } from '@/screens/CreateGuideScreen';
 import { ProfilePage, AdminPage, SettingsPage } from '@/pages';
 
 export const router = createBrowserRouter([
@@ -28,6 +29,14 @@ export const router = createBrowserRouter([
       {
         path: 'knowledge',
         element: <KnowledgePage />,
+      },
+      {
+        path: 'knowledge/create',
+        element: (
+          <ProtectedRoute moduleId="knowledge" action="create">
+            <CreateGuideScreen />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'knowledge/:id',

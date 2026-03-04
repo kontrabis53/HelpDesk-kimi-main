@@ -2,8 +2,9 @@ import { useState } from 'react';
 import type { KnowledgeGuide, GuideCategory } from '@/types';
 import { guideCategoryLabels } from '@/types';
 import { EmptyState } from '@/components/EmptyState';
-import { Search, BookOpen, CheckCircle, Eye, ChevronRight, Monitor, Wifi, Printer, Cpu, HelpCircle } from 'lucide-react';
+import { Search, BookOpen, CheckCircle, Eye, ChevronRight, Monitor, Wifi, Printer, Cpu, HelpCircle, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface KnowledgeScreenProps {
@@ -18,6 +19,7 @@ interface KnowledgeScreenProps {
   };
   onGuideClick: (guide: KnowledgeGuide) => void;
   onSearch: (query: string) => void;
+  onCreateClick?: () => void;
 }
 
 type TabType = 'all' | 'hardware' | 'software' | 'network' | 'printer' | 'common';
@@ -51,7 +53,8 @@ export function KnowledgeScreen({
   guides, 
   guidesByCategory, 
   onGuideClick,
-  onSearch 
+  onSearch,
+  onCreateClick
 }: KnowledgeScreenProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,9 +74,17 @@ export function KnowledgeScreen({
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 px-4 pt-4 pb-2 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
-        <div className="mb-4">
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">База знаний</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Решения частых проблем</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">База знаний</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Решения частых проблем</p>
+          </div>
+          {onCreateClick && (
+            <Button onClick={onCreateClick} size="sm" className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="w-4 h-4 mr-1" />
+              Создать
+            </Button>
+          )}
         </div>
         
         {/* Search */}

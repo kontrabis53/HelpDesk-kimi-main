@@ -42,5 +42,12 @@ export const ticketService = {
     ticket.updatedAt = new Date().toISOString();
     
     return ticket;
+  },
+
+  delete: (id: string): void => {
+    const index = mockTickets.findIndex(t => t.id === id);
+    if (index !== -1) {
+      mockTickets.splice(index, 1);
+    }
   }
 };

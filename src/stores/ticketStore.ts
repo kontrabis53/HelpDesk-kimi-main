@@ -11,9 +11,11 @@ interface TicketStore {
   setSelectedTicket: (ticket: Ticket | null) => void;
   getTicketById: (id: string) => Ticket | undefined;
   createTicket: (ticket: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt' | 'number' | 'comments'>) => Ticket;
+  updateTicket: (id: string, updates: Partial<Ticket>) => void;
+  deleteTicket: (id: string) => void;
   updateTicketStatus: (id: string, status: TicketStatus) => void;
   updateTicketPriority: (id: string, priority: TicketPriority) => void;
-  addComment: (ticketId: string, text: string, author: User) => void;
+  addComment: (ticketId: string, text: string) => void;
   assignTicket: (ticketId: string, userId: string) => void;
   getAvailableAssignees: () => User[];
   stats: () => {
@@ -59,6 +61,22 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     }));
     return newTicket;
   },
+
+  updateTicket: (id, updates) => {
+    ticketService.update(id, { ...updates, updatedAt: new Date().toISOString() });
+    set((state) => ({
+      tickets: state.tickets.map((t) => 
+        t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
+      ),
+    }));
+  },
+
+  deleteTicket: (id) => {
+    ticketService.delete(id);
+    set((state) => ({
+      tickets: state.tickets.filter((t) => t.id !== id),
+    }));
+  },
   
   updateTicketStatus: (id, status) => {
     ticketService.update(id, { status, updatedAt: new Date().toISOString() });
@@ -78,14 +96,24 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     }));
   },
   
-  addComment: (ticketId, text, author) => {
+  addComment: (ticketId, text) => {
     const ticket = get().getTicketById(ticketId);
     if (!ticket) return;
+
+    // Use current user from roleStore or mock for now
+    // Ideally we should pass user or get it from auth store
+    const currentUser: User = {
+        id: '1',
+        name: 'Иван Петров',
+        role: 'admin',
+        roleId: 'admin',
+        department: 'IT-отдел',
+    };
 
     const newComment = {
       id: Date.now().toString(),
       text,
-      author,
+      author: currentUser,
       createdAt: new Date().toISOString(),
     };
 

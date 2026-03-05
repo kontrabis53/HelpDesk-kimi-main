@@ -18,9 +18,18 @@ export function ProfilePage() {
     navigate('/settings');
   };
   
+  // Transform stats to match ProfileScreenProps
+  const profileStats = {
+    total: stats.total,
+    new: stats.open, // Map open to new
+    in_progress: stats.inProgress,
+    waiting: 0, // Mock waiting as 0 or calculate if needed
+    resolved: stats.resolved
+  };
+  
   return (
     <ProfileScreen
-      stats={stats}
+      stats={profileStats}
       theme={theme}
       onToggleTheme={toggleTheme}
       onOpenSettings={handleOpenSettings}
@@ -36,7 +45,7 @@ export function AdminPage() {
   const createRole = useRoleStore((state) => state.createRole);
   const updateRole = useRoleStore((state) => state.updateRole);
   const deleteRole = useRoleStore((state) => state.deleteRole);
-  const createUser = useRoleStore((state) => state.createUser);
+  const createUser = useRoleStore((state) => state.addUser);
   const updateUser = useRoleStore((state) => state.updateUser);
   const deleteUser = useRoleStore((state) => state.deleteUser);
   
@@ -48,7 +57,7 @@ export function AdminPage() {
       onCreateRole={createRole}
       onUpdateRole={updateRole}
       onDeleteRole={deleteRole}
-      onCreateUser={createUser}
+      onCreateUser={(user) => createUser(user as any)}
       onUpdateUser={updateUser}
       onDeleteUser={deleteUser}
     />

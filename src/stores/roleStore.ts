@@ -40,6 +40,9 @@ interface RoleStore {
   updateUser: (userId: string, data: Partial<User>) => void;
   addUser: (user: User) => void;
   deleteUser: (userId: string) => void;
+  createRole: (role: Omit<Role, 'id'>) => void;
+  updateRole: (id: string, role: Partial<Role>) => void;
+  deleteRole: (id: string) => void;
 }
 
 export const useRoleStore = create<RoleStore>((set, get) => ({
@@ -153,7 +156,25 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
   
   deleteUser: (userId) => {
     set((state) => ({
-      users: state.users.filter(u => u.id !== userId)
+      users: state.users.filter((u) => u.id !== userId),
+    }));
+  },
+
+  createRole: (roleData) => {
+    set((state) => ({
+      roles: [...state.roles, { ...roleData, id: Date.now().toString() }],
+    }));
+  },
+
+  updateRole: (id, roleData) => {
+    set((state) => ({
+      roles: state.roles.map((r) => (r.id === id ? { ...r, ...roleData } : r)),
+    }));
+  },
+
+  deleteRole: (id) => {
+    set((state) => ({
+      roles: state.roles.filter((r) => r.id !== id),
     }));
   },
 }));

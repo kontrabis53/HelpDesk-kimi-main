@@ -122,7 +122,7 @@ export function AdminScreen({
         email: user.email || '',
         roleId: user.roleId,
         department: user.department,
-        isActive: user.isActive,
+        isActive: user.isActive || false,
       });
     } else {
       setEditingUser(null);
@@ -174,7 +174,13 @@ export function AdminScreen({
     if (editingUser) {
       onUpdateUser(editingUser.id, userFormData);
     } else {
-      onCreateUser(userFormData);
+      // Find role object to get role name
+      const role = roles.find(r => r.id === userFormData.roleId);
+      
+      onCreateUser({
+        ...userFormData,
+        role: (role?.id as any) || 'user', // This is a workaround, ideally we should type this properly
+      });
     }
     setShowUserForm(false);
     setEditingUser(null);

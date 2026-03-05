@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import type { TicketCategory, TicketPriority, User } from '@/types';
+import { useMemo } from 'react';
+import type { TicketCategory, TicketPriority } from '@/types';
 import { categoryLabels, priorityLabels } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,41 +9,16 @@ import { ArrowLeft, Check, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRoleStore } from '@/stores/roleStore';
 import { useTicketStore } from '@/stores/ticketStore';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { ticketSchema, type TicketFormValues } from '@/lib/schemas';
 
 interface CreateTicketScreenProps {
   onBack: () => void;
-  onSubmit: (data: {
-    title: string;
-    description: string;
-    category: TicketCategory;
-    priority: TicketPriority;
-    assigneeId?: string;
-  }) => void;
+  onSubmit: (data: TicketFormValues) => void;
 }
 
-const categories: { id: TicketCategory; label: string }[] = [
-  { id: 'hardware', label: categoryLabels.hardware },
-  { id: 'software', label: categoryLabels.software },
-  { id: 'network', label: categoryLabels.network },
-  { id: 'printer', label: categoryLabels.printer },
-  { id: 'other', label: categoryLabels.other },
-];
-
-const priorities: { id: TicketPriority; label: string; color: string }[] = [
-  { id: 'low', label: priorityLabels.low, color: 'bg-slate-400' },
-  { id: 'medium', label: priorityLabels.medium, color: 'bg-blue-500' },
-  { id: 'high', label: priorityLabels.high, color: 'bg-amber-500' },
-  { id: 'critical', label: priorityLabels.critical, color: 'bg-red-500' },
-];
-
 export function CreateTicketScreen({ onBack, onSubmit }: CreateTicketScreenProps) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<TicketCategory>('hardware');
-  const [priority, setPriority] = useState<TicketPriority>('medium');
-  const [assigneeId, setAssigneeId] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const currentUser = useRoleStore((state) => state.currentUser());
   // Use useMemo to prevent infinite loop from getAvailableAssignees returning a new array
   const getAvailableAssignees = useTicketStore((state) => state.getAvailableAssignees);
@@ -57,174 +32,186 @@ export function CreateTicketScreen({ onBack, onSubmit }: CreateTicketScreenProps
     );
   }, [users]);
 
-  const handleSubmit = () => {
-    if (!title.trim() || !description.trim()) return;
-    
-    setIsSubmitting(true);
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<TicketFormValues>({
+    resolver: zodResolver(ticketSchema),
+    defaultValues: {
+      category: 'hardware',
+      priority: 'medium',
+      assigneeId: '',
+    },
+  });
+
+  const selectedCategory = watch('category');
+  const selectedPriority = watch('priority');
+  const selectedAssigneeId = watch('assigneeId');
+
+  const onFormSubmit = (data: TicketFormValues) => {
     onSubmit({
-      title: title.trim(),
-      description: description.trim(),
-      category,
-      priority,
-      assigneeId: canAssign ? assigneeId : undefined,
+      ...data,
+      assigneeId: canAssign && data.assigneeId ? data.assigneeId : undefined,
     });
   };
 
-  const isValid = title.trim().length > 0 && description.trim().length > 0;
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-800 px-4 py-3 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
-        <button 
-          onClick={onBack}
-          className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-        </button>
-        <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Новая заявка</h1>
+      <div className="bg-white dark:bg-slate-800 px-4 py-4 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={onBack}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Новая заявка</h1>
+          </div>
+        </div>
       </div>
 
-      <div className="p-4 space-y-6 max-w-2xl mx-auto">
-        {/* Title */}
-        <div className="space-y-2">
-          <Label htmlFor="title" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Тема <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Краткое описание проблемы"
-            className="h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
-          />
-        </div>
+      <div className="max-w-3xl mx-auto p-4 space-y-6">
+        {/* Form */}
+        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Описание проблемы</h2>
+            
+            <div className="space-y-2">
+              <Label htmlFor="title">Заголовок</Label>
+              <Input
+                id="title"
+                {...register('title')}
+                placeholder="Кратко опишите проблему"
+                className={cn("bg-slate-50 dark:bg-slate-900", errors.title && "border-red-500")}
+              />
+              {errors.title && <span className="text-xs text-red-500">{errors.title.message}</span>}
+            </div>
 
-        {/* Description */}
-        <div className="space-y-2">
-          <Label htmlFor="description" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Описание <span className="text-red-500">*</span>
-          </Label>
-          <Textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Подробно опишите проблему..."
-            className="min-h-[120px] resize-none dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
-          />
-        </div>
-
-        {/* Category */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Категория</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setCategory(cat.id)}
-                className={cn(
-                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-left',
-                  category === cat.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
-                )}
-              >
-                {cat.label}
-              </button>
-            ))}
+            <div className="space-y-2">
+              <Label htmlFor="description">Подробное описание</Label>
+              <Textarea
+                id="description"
+                {...register('description')}
+                placeholder="Опишите детали проблемы, чтобы мы могли быстрее помочь"
+                className={cn("bg-slate-50 dark:bg-slate-900 min-h-[120px]", errors.description && "border-red-500")}
+              />
+              {errors.description && <span className="text-xs text-red-500">{errors.description.message}</span>}
+            </div>
           </div>
-        </div>
 
-        {/* Priority */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Приоритет</Label>
-          <div className="space-y-2">
-            {priorities.map((prio) => (
-              <button
-                key={prio.id}
-                onClick={() => setPriority(prio.id)}
-                className={cn(
-                  'w-full px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-3',
-                  priority === prio.id
-                    ? 'bg-white dark:bg-slate-800 border-2 border-blue-600'
-                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
-                )}
-              >
-                <span className={cn('w-3 h-3 rounded-full', prio.color)} />
-                <span className={priority === prio.id ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'}>
-                  {prio.label}
-                </span>
-                {priority === prio.id && (
-                  <Check className="w-4 h-4 text-blue-600 ml-auto" />
-                )}
-              </button>
-            ))}
+          {/* Details */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Детали заявки</h2>
+            
+            <div className="space-y-2">
+              <Label>Категория</Label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {(Object.keys(categoryLabels) as TicketCategory[]).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setValue('category', cat)}
+                    className={cn(
+                      'px-4 py-2 rounded-lg text-sm font-medium transition-colors text-center border',
+                      selectedCategory === cat
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                    )}
+                  >
+                    {categoryLabels[cat]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Приоритет</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {(Object.keys(priorityLabels) as TicketPriority[]).map((prio) => (
+                  <button
+                    key={prio}
+                    type="button"
+                    onClick={() => setValue('priority', prio)}
+                    className={cn(
+                      'px-4 py-2 rounded-lg text-sm font-medium transition-colors text-center border relative',
+                      selectedPriority === prio
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                    )}
+                  >
+                    {priorityLabels[prio]}
+                    {selectedPriority === prio && (
+                      <div className="absolute top-1 right-1">
+                        <Check className="w-3 h-3" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Assignee - Only for Admin */}
-        {canAssign && (
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Исполнитель</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                onClick={() => setAssigneeId('')}
-                className={cn(
-                  'px-4 py-3 rounded-lg text-sm font-medium transition-all text-left flex items-center gap-2',
-                  assigneeId === ''
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
-                )}
-              >
-                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
-                  <UserIcon className="w-4 h-4" />
-                </div>
-                <span>Не назначен</span>
-              </button>
-              
-              {assignableUsers.map((user) => (
+          {/* Assignee - Only for Admin */}
+          {canAssign && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Исполнитель</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
-                  key={user.id}
-                  onClick={() => setAssigneeId(user.id)}
+                  type="button"
+                  onClick={() => setValue('assigneeId', '')}
                   className={cn(
                     'px-4 py-3 rounded-lg text-sm font-medium transition-all text-left flex items-center gap-2',
-                    assigneeId === user.id
+                    !selectedAssigneeId
                       ? 'bg-blue-600 text-white'
                       : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
                   )}
                 >
-                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold uppercase">
-                    {user.name.substring(0, 2)}
+                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                    <UserIcon className="w-4 h-4" />
                   </div>
-                  <div className="flex flex-col">
-                    <span>{user.name}</span>
-                    <span className={cn("text-xs", assigneeId === user.id ? "text-blue-100" : "text-slate-400")}>
-                      {user.role === 'admin' ? 'Администратор' : 'Техник'}
-                    </span>
-                  </div>
+                  <span>Не назначен</span>
                 </button>
-              ))}
+                
+                {assignableUsers.map((user) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => setValue('assigneeId', user.id)}
+                    className={cn(
+                      'px-4 py-3 rounded-lg text-sm font-medium transition-all text-left flex items-center gap-2',
+                      selectedAssigneeId === user.id
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                    )}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold uppercase">
+                      {user.name.substring(0, 2)}
+                    </div>
+                    <div className="flex flex-col">
+                      <span>{user.name}</span>
+                      <span className={cn("text-xs", selectedAssigneeId === user.id ? "text-blue-100" : "text-slate-400")}>
+                        {user.role === 'admin' ? 'Администратор' : 'Техник'}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Submit Button */}
-        <div className="pt-4">
-          <Button
-            onClick={handleSubmit}
-            disabled={!isValid || isSubmitting}
-            className="w-full h-12 text-base font-medium"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Создание...
-              </span>
-            ) : (
-              'Создать заявку'
-            )}
-          </Button>
-        </div>
+          {/* Submit Button */}
+          <div className="pt-4">
+            <Button 
+              type="submit" 
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 text-lg rounded-xl shadow-lg shadow-blue-600/20"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Создание...' : 'Создать заявку'}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );

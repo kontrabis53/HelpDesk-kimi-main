@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { DocumentType } from '@/types';
 import { documentTypeLabels } from '@/types';
-import { ArrowLeft, Calendar, MapPin, DollarSign, FileText } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, DollarSign, FileText, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface CreateDocumentScreenProps {
   onBack: () => void;
@@ -19,6 +20,8 @@ interface CreateDocumentScreenProps {
     repairDate?: string;
     repairCost?: number;
     partsUsed?: string[];
+    fileUrl?: string;
+    fileName?: string;
   }) => void;
 }
 
@@ -39,12 +42,57 @@ export function CreateDocumentScreen({ onBack, onSubmit }: CreateDocumentScreenP
   const [repairDate, setRepairDate] = useState('');
   const [repairCost, setRepairCost] = useState('');
   const [partsUsed, setPartsUsed] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    // Validate file size (max 10MB)
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      toast.error('Файл слишком большой', { description: 'Максимальный размер файла 10 МБ' });
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = [
+      'application/pdf', 
+      'image/jpeg', 
+      'image/jpg', 
+      'text/plain',
+      'application/msword', // .doc
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
+    ];
+    
+    if (!allowedTypes.includes(selectedFile.type)) {
+      toast.error('Неверный формат файла', { description: 'Разрешены PDF, JPG, TXT, Word и Excel' });
+      return;
+    }
+
+    setFile(selectedFile);
+  };
+
+  const removeFile = () => {
+    setFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = () => {
     if (!title.trim() || !description.trim()) return;
     
     setIsSubmitting(true);
+    
+    // In a real app, we would upload the file to a server here and get a URL back.
+    // For this mock, we'll create a fake URL or object URL.
+    const fileUrl = file ? URL.createObjectURL(file) : undefined;
+    
     onSubmit({
       title: title.trim(),
       type,
@@ -54,6 +102,8 @@ export function CreateDocumentScreen({ onBack, onSubmit }: CreateDocumentScreenP
       repairDate: repairDate || undefined,
       repairCost: repairCost ? parseFloat(repairCost) : undefined,
       partsUsed: partsUsed.trim() ? partsUsed.split(',').map(p => p.trim()) : undefined,
+      fileUrl,
+      fileName: file ? file.name : undefined,
     });
   };
 
@@ -108,6 +158,58 @@ export function CreateDocumentScreen({ onBack, onSubmit }: CreateDocumentScreenP
                 {docType.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* File Upload */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Файл документа</Label>
+          <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.txt,.doc,.docx,.xls,.xlsx"
+              onChange={handleFileChange}
+            />
+            
+            {file ? (
+              <div className="flex items-center gap-3 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 rounded-lg w-full max-w-sm">
+                <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                    {file.name}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+                <button
+                  onClick={removeFile}
+                  className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded-full transition-colors text-slate-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center">
+                  <Upload className="w-6 h-6 text-slate-400" />
+                </div>
+                <div>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="mt-2"
+                  >
+                    Выберите файл
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                    PDF, JPG, TXT, Word или Excel (макс. 10 MB)
+                  </p>
+              </div>
+            )}
           </div>
         </div>
 

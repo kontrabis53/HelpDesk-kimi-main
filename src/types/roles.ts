@@ -1,5 +1,7 @@
 // Система ролей и прав доступа
 
+import type { User } from './index';
+
 export type ModuleId = 'knowledge' | 'tickets' | 'documents' | 'inventory' | 'admin' | 'profile';
 
 export interface ModulePermission {
@@ -19,17 +21,8 @@ export interface Role {
   isSystem?: boolean; // Системная роль нельзя удалить
 }
 
-export interface UserWithRole {
-  id: string;
-  name: string;
-  email?: string;
-  avatar?: string;
-  roleId: string;
-  department: string;
-  isActive: boolean;
-  createdAt: string;
-  lastLogin?: string;
-}
+// Deprecated: Use User from '@/types/index' instead
+export type UserWithRole = User;
 
 export interface ActivityLog {
   id: string;

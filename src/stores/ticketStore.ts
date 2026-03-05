@@ -1,257 +1,131 @@
 import { create } from 'zustand';
-import type { Ticket, TicketStatus, TicketFilter, TicketPriority, TicketCategory } from '@/types';
-import { mockTickets, currentUser, users } from '@/data/mock';
-
-interface TicketStats {
-  total: number;
-  new: number;
-  in_progress: number;
-  waiting: number;
-  resolved: number;
-  my_tickets: number;
-}
+import type { Ticket, TicketFilter, TicketStatus, TicketPriority, User } from '@/types';
+import { ticketService } from '@/api/tickets';
+import { userService } from '@/api/users';
 
 interface TicketStore {
-  // State
   tickets: Ticket[];
-  selectedTicket: Ticket | null;
   filter: TicketFilter;
-  
-  // Computed
-  filteredTickets: () => Ticket[];
-  ticketsByStatus: () => {
-    all: Ticket[];
-    new: Ticket[];
-    in_progress: Ticket[];
-    waiting: Ticket[];
-    resolved: Ticket[];
-  };
-  stats: () => TicketStats;
-  
-  // Actions
-  setTickets: (tickets: Ticket[]) => void;
+  selectedTicket: Ticket | null;
+  setFilter: (filter: Partial<TicketFilter>) => void;
   setSelectedTicket: (ticket: Ticket | null) => void;
-  setFilter: (filter: TicketFilter) => void;
   getTicketById: (id: string) => Ticket | undefined;
-  createTicket: (data: {
-    title: string;
-    description: string;
-    category: TicketCategory;
-    priority: TicketPriority;
-  }) => Ticket;
-  updateTicket: (ticketId: string, data: {
-    title: string;
-    description: string;
-    category: TicketCategory;
-    priority: TicketPriority;
-  }) => void;
-  updateTicketStatus: (ticketId: string, status: TicketStatus) => void;
-  assignTicket: (ticketId: string, assigneeId: string) => void;
-  deleteTicket: (ticketId: string) => void;
-  addComment: (ticketId: string, text: string) => void;
-  getAvailableAssignees: () => typeof users;
+  createTicket: (ticket: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt' | 'number' | 'comments'>) => Ticket;
+  updateTicketStatus: (id: string, status: TicketStatus) => void;
+  updateTicketPriority: (id: string, priority: TicketPriority) => void;
+  addComment: (ticketId: string, text: string, author: User) => void;
+  assignTicket: (ticketId: string, userId: string) => void;
+  getAvailableAssignees: () => User[];
+  stats: () => {
+    total: number;
+    open: number;
+    inProgress: number;
+    resolved: number;
+  };
 }
 
 export const useTicketStore = create<TicketStore>((set, get) => ({
-  // Initial state
-  tickets: mockTickets,
-  selectedTicket: null,
+  tickets: ticketService.getAll(),
   filter: {},
+  selectedTicket: null,
   
-  // Computed selectors
-  filteredTickets: () => {
-    const { tickets, filter } = get();
-    return tickets.filter((ticket) => {
-      if (filter.status && ticket.status !== filter.status) return false;
-      if (filter.priority && ticket.priority !== filter.priority) return false;
-      if (filter.category && ticket.category !== filter.category) return false;
-      if (filter.search) {
-        const searchLower = filter.search.toLowerCase();
-        const matchesSearch = 
-          ticket.number.toLowerCase().includes(searchLower) ||
-          ticket.title.toLowerCase().includes(searchLower) ||
-          ticket.description.toLowerCase().includes(searchLower);
-        if (!matchesSearch) return false;
-      }
-      return true;
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  },
-  
-  ticketsByStatus: () => {
-    const filtered = get().filteredTickets();
-    return {
-      all: filtered,
-      new: filtered.filter(t => t.status === 'new'),
-      in_progress: filtered.filter(t => t.status === 'in_progress'),
-      waiting: filtered.filter(t => t.status === 'waiting'),
-      resolved: filtered.filter(t => t.status === 'resolved'),
-    };
-  },
+  setFilter: (newFilter) => set((state) => ({ 
+    filter: { ...state.filter, ...newFilter } 
+  })),
   
   stats: () => {
     const { tickets } = get();
     return {
       total: tickets.length,
-      new: tickets.filter(t => t.status === 'new').length,
-      in_progress: tickets.filter(t => t.status === 'in_progress').length,
-      waiting: tickets.filter(t => t.status === 'waiting').length,
+      open: tickets.filter(t => t.status === 'new' || t.status === 'waiting').length,
+      inProgress: tickets.filter(t => t.status === 'in_progress').length,
       resolved: tickets.filter(t => t.status === 'resolved').length,
-      my_tickets: tickets.filter(t => t.author.id === currentUser.id).length,
     };
   },
-  
-  // Actions
-  setTickets: (tickets) => set({ tickets }),
   
   setSelectedTicket: (ticket) => set({ selectedTicket: ticket }),
   
-  setFilter: (filter) => set({ filter }),
-  
   getTicketById: (id) => {
-    return get().tickets.find(t => t.id === id);
+    return ticketService.getById(id);
   },
   
-  createTicket: (data) => {
-    const { tickets } = get();
-    const newTicket: Ticket = {
-      id: Date.now().toString(),
-      number: `#${1000 + tickets.length + 1}`,
-      title: data.title,
-      description: data.description,
-      category: data.category,
-      priority: data.priority,
-      status: 'new',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      author: currentUser,
+  createTicket: (ticketData) => {
+    const newTicket = ticketService.create({
+      ...ticketData,
       comments: [],
-    };
-    set({ tickets: [newTicket, ...tickets] });
+    });
+    set((state) => ({
+      tickets: [...state.tickets, newTicket]
+    }));
     return newTicket;
   },
   
-  updateTicket: (ticketId, data) => {
+  updateTicketStatus: (id, status) => {
+    ticketService.update(id, { status, updatedAt: new Date().toISOString() });
     set((state) => ({
-      tickets: state.tickets.map((ticket) => {
-        if (ticket.id === ticketId) {
-          return {
-            ...ticket,
-            ...data,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return ticket;
-      }),
+      tickets: state.tickets.map((t) => 
+        t.id === id ? { ...t, status, updatedAt: new Date().toISOString() } : t
+      ),
+    }));
+  },
+  
+  updateTicketPriority: (id, priority) => {
+    ticketService.update(id, { priority, updatedAt: new Date().toISOString() });
+    set((state) => ({
+      tickets: state.tickets.map((t) => 
+        t.id === id ? { ...t, priority, updatedAt: new Date().toISOString() } : t
+      ),
+    }));
+  },
+  
+  addComment: (ticketId, text, author) => {
+    const ticket = get().getTicketById(ticketId);
+    if (!ticket) return;
+
+    const newComment = {
+      id: Date.now().toString(),
+      text,
+      author,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedComments = [...(ticket.comments || []), newComment];
+    ticketService.update(ticketId, { comments: updatedComments });
+
+    set((state) => ({
+      tickets: state.tickets.map((t) => 
+        t.id === ticketId ? { ...t, comments: updatedComments } : t
+      ),
     }));
     
-    // Update selected ticket if it's the one being updated
+    // Update selected ticket if it's the one being modified
     const { selectedTicket } = get();
     if (selectedTicket?.id === ticketId) {
-      const updated = get().getTicketById(ticketId);
-      if (updated) set({ selectedTicket: updated });
+      set({ selectedTicket: { ...selectedTicket, comments: updatedComments } });
     }
   },
   
-  updateTicketStatus: (ticketId, status) => {
-    set((state) => ({
-      tickets: state.tickets.map((ticket) => {
-        if (ticket.id === ticketId) {
-          return {
-            ...ticket,
-            status,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return ticket;
-      }),
-    }));
-    
-    // Update selected ticket if it's the one being updated
-    const { selectedTicket } = get();
-    if (selectedTicket?.id === ticketId) {
-      const updated = get().getTicketById(ticketId);
-      if (updated) set({ selectedTicket: updated });
-    }
-  },
-  
-  assignTicket: (ticketId, assigneeId) => {
-    set((state) => ({
-      tickets: state.tickets.map((ticket) => {
-        if (ticket.id === ticketId) {
-          if (!assigneeId) {
-            // Remove assignee
-            const { assignee: _, ...rest } = ticket;
-            return {
-              ...rest,
-              updatedAt: new Date().toISOString(),
-            };
-          }
-          // Assign new assignee
-          const assignee = users.find(u => u.id === assigneeId);
-          return {
-            ...ticket,
-            assignee,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return ticket;
-      }),
-    }));
-    
-    // Update selected ticket if it's the one being updated
-    const { selectedTicket } = get();
-    if (selectedTicket?.id === ticketId) {
-      const updated = get().getTicketById(ticketId);
-      if (updated) set({ selectedTicket: updated });
-    }
-  },
-  
-  deleteTicket: (ticketId) => {
-    set((state) => ({
-      tickets: state.tickets.filter(t => t.id !== ticketId),
-    }));
-    
-    // Clear selected ticket if it's the one being deleted
-    const { selectedTicket } = get();
-    if (selectedTicket?.id === ticketId) {
-      set({ selectedTicket: null });
-    }
-  },
-  
-  addComment: (ticketId, text) => {
-    set((state) => ({
-      tickets: state.tickets.map((ticket) => {
-        if (ticket.id === ticketId) {
-          return {
-            ...ticket,
-            comments: [
-              ...ticket.comments,
-              {
-                id: Date.now().toString(),
-                author: currentUser,
-                text,
-                createdAt: new Date().toISOString(),
-              },
-            ],
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return ticket;
-      }),
-    }));
-    
-    // Update selected ticket if it's the one being updated
-    const { selectedTicket } = get();
-    if (selectedTicket?.id === ticketId) {
-      const updated = get().getTicketById(ticketId);
-      if (updated) set({ selectedTicket: updated });
+  assignTicket: (ticketId, userId) => {
+    const assignee = userService.getById(userId);
+    if (!assignee) return;
+
+    const updatedTicket = ticketService.assign(ticketId, assignee);
+    if (updatedTicket) {
+      set((state) => ({
+        tickets: state.tickets.map((t) => 
+          t.id === ticketId ? updatedTicket : t
+        ),
+      }));
+      
+      const { selectedTicket } = get();
+      if (selectedTicket?.id === ticketId) {
+        set({ selectedTicket: updatedTicket });
+      }
     }
   },
   
   getAvailableAssignees: () => {
-    // Return users with roles 'technician' or 'admin' from mock.ts
-    // We should ideally fetch this from roleStore, but for now we use the mock data
-    // filtering by role property which exists on User type
-    return users.filter(u => u.role === 'technician' || u.role === 'admin');
+    // Return users with roles 'technician' or 'admin'
+    return userService.getByRole('technician').concat(userService.getByRole('admin'));
   },
 }));

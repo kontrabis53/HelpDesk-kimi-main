@@ -23,10 +23,14 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
   const visibleTabs = allTabs.filter(tab => {
     // Profile is always visible
     if (tab.id === 'profile') return true;
-    // Admin only for admins
-    if (tab.id === 'admin') return canAccessAdmin;
-    // Other modules based on permissions
-    return availableModules.includes(tab.moduleId);
+    
+    // Check module permission
+    if (availableModules.includes(tab.moduleId)) return true;
+    
+    // Fallback for Admin (if not in availableModules but user is admin)
+    if (tab.id === 'admin' && canAccessAdmin) return true;
+    
+    return false;
   });
   
   // Determine active tab based on current path

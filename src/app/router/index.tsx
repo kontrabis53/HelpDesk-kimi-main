@@ -94,6 +94,15 @@ export const router = createBrowserRouter([
         path: 'profile',
         element: <ProfilePage />,
       },
+      // Admin
+      {
+        path: 'admin',
+        element: (
+          <ProtectedRoute moduleId="admin" action="view">
+            <AdminPage />
+          </ProtectedRoute>
+        ),
+      },
       // Settings
       {
         path: 'settings',

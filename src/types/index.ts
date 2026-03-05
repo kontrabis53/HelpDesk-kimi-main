@@ -8,9 +8,14 @@ export type TicketCategory = 'hardware' | 'software' | 'network' | 'printer' | '
 export interface User {
   id: string;
   name: string;
+  email?: string;
   avatar?: string;
-  role: 'user' | 'technician' | 'admin';
+  role: 'user' | 'technician' | 'admin' | 'viewer' | 'manager'; // Added viewer and manager
+  roleId: string; // Added for compatibility with RoleStore
   department: string;
+  isActive?: boolean;
+  createdAt?: string;
+  lastLogin?: string;
 }
 
 export interface Comment {
@@ -121,6 +126,23 @@ export interface KnowledgeGuide {
   createdAt: string;
   updatedAt: string;
   author: User;
+}
+
+export interface DocumentFilter {
+  type?: DocumentType;
+  status?: DocumentStatus;
+  search?: string;
+}
+
+export interface InventoryFilter {
+  category?: InventoryCategory;
+  lowStock?: boolean;
+  search?: string;
+}
+
+export interface KnowledgeFilter {
+  category?: GuideCategory;
+  search?: string;
 }
 
 // ===== МЕТКИ =====

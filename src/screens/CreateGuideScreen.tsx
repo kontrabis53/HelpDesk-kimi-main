@@ -85,6 +85,7 @@ export function CreateGuideScreen() {
       tags,
       steps: validSteps,
       successRate: 0,
+      views: 0,
       author: currentUser,
     });
 

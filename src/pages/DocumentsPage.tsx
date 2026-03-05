@@ -43,9 +43,7 @@ export function DocumentsPage() {
   }, [documents]);
   
   const handleDocumentClick = (doc: any) => {
-    toast.info(doc.title, {
-      description: `${doc.number} • ${doc.description.slice(0, 100)}...`,
-    });
+    navigate(`/documents/${doc.id}`);
   };
   
   const handleCreateClick = () => {

@@ -9,6 +9,8 @@ import { CreateTicketPage } from '@/pages/CreateTicketPage';
 import { EditTicketPage } from '@/pages/EditTicketPage';
 import { DocumentsPage } from '@/pages/DocumentsPage';
 import { CreateDocumentPage } from '@/pages/CreateDocumentPage';
+import { DocumentDetailPage } from '@/pages/DocumentDetailPage';
+import { EditDocumentPage } from '@/pages/EditDocumentPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateInventoryPage } from '@/pages/CreateInventoryPage';
 import { KnowledgePage } from '@/pages/KnowledgePage';
@@ -73,6 +75,18 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute moduleId="documents" action="create">
             <CreateDocumentPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'documents/:id',
+        element: <DocumentDetailPage />,
+      },
+      {
+        path: 'documents/:id/edit',
+        element: (
+          <ProtectedRoute moduleId="documents" action="edit">
+            <EditDocumentPage />
           </ProtectedRoute>
         ),
       },

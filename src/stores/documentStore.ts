@@ -6,7 +6,8 @@ interface DocumentStore {
   documents: Document[];
   filter: DocumentFilter;
   setFilter: (filter: Partial<DocumentFilter>) => void;
-  createDocument: (doc: Omit<Document, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  createDocument: (doc: Omit<Document, 'id' | 'createdAt' | 'updatedAt'>) => Document;
+  updateDocument: (id: string, updates: Partial<Document>) => void;
   deleteDocument: (id: string) => void;
 }
 
@@ -22,6 +23,16 @@ export const useDocumentStore = create<DocumentStore>((set) => ({
     const newDoc = documentService.create(docData);
     set((state) => ({
       documents: [...state.documents, newDoc]
+    }));
+    return newDoc;
+  },
+
+  updateDocument: (id, updates) => {
+    documentService.update(id, updates);
+    set((state) => ({
+      documents: state.documents.map((d) => 
+        d.id === id ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d
+      ),
     }));
   },
   

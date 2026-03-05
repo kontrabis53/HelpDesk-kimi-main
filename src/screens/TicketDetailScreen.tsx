@@ -190,16 +190,16 @@ export function TicketDetailScreen({
               </Label>
               <div className="flex gap-2">
                 <Select
-                  value={ticket.assignee?.id || ''}
+                  value={ticket.assignee?.id || 'unassigned'}
                   onValueChange={(value) => {
-                    onAssign(ticket.id, value || '');
+                    onAssign(ticket.id, value === 'unassigned' ? '' : value);
                   }}
                 >
                   <SelectTrigger className="flex-1 dark:bg-slate-700 dark:border-slate-600">
                     <SelectValue placeholder="Выберите исполнителя" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Не назначен</SelectItem>
+                    <SelectItem value="unassigned">Не назначен</SelectItem>
                     {availableAssignees.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.name} ({user.department})

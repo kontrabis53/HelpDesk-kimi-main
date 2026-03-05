@@ -10,6 +10,7 @@ interface KnowledgeStore {
   setSelectedGuide: (guide: KnowledgeGuide | null) => void;
   createGuide: (guide: Omit<KnowledgeGuide, 'id' | 'createdAt' | 'updatedAt'>) => void;
   incrementViews: (id: string) => void;
+  getGuideById: (id: string) => KnowledgeGuide | undefined;
 }
 
 export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
@@ -17,6 +18,10 @@ export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
   filter: {},
   selectedGuide: null,
   
+  getGuideById: (id) => {
+    return knowledgeService.getById(id);
+  },
+
   setFilter: (newFilter) => set((state) => ({ 
     filter: { ...state.filter, ...newFilter } 
   })),

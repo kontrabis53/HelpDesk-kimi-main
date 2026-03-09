@@ -7,21 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { inventorySchema, type InventoryFormValues } from '@/lib/schemas';
 
 interface CreateInventoryScreenProps {
   onBack: () => void;
-  onSubmit: (data: {
-    sku: string;
-    name: string;
-    category: InventoryCategory;
-    description: string;
-    quantity: number;
-    minQuantity: number;
-    unit: InventoryUnit;
-    location: string;
-    supplier?: string;
-    price?: number;
-  }) => void;
+  onSubmit: (data: InventoryFormValues) => void;
 }
 
 const categories: { id: InventoryCategory; label: string }[] = [
@@ -41,37 +33,28 @@ const units: { id: InventoryUnit; label: string }[] = [
 ];
 
 export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScreenProps) {
-  const [sku, setSku] = useState('');
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<InventoryCategory>('consumables');
-  const [description, setDescription] = useState('');
-  const [quantity, setQuantity] = useState('0');
-  const [minQuantity, setMinQuantity] = useState('5');
-  const [unit, setUnit] = useState<InventoryUnit>('pcs');
-  const [location, setLocation] = useState('');
-  const [supplier, setSupplier] = useState('');
-  const [price, setPrice] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<InventoryFormValues>({
+    resolver: zodResolver(inventorySchema),
+    defaultValues: {
+      category: 'consumables',
+      quantity: 0,
+      minQuantity: 5,
+      unit: 'pcs',
+    },
+  });
 
-  const handleSubmit = () => {
-    if (!sku.trim() || !name.trim() || !location.trim()) return;
-    
-    setIsSubmitting(true);
-    onSubmit({
-      sku: sku.trim(),
-      name: name.trim(),
-      category,
-      description: description.trim(),
-      quantity: parseInt(quantity) || 0,
-      minQuantity: parseInt(minQuantity) || 5,
-      unit,
-      location: location.trim(),
-      supplier: supplier.trim() || undefined,
-      price: price ? parseFloat(price) : undefined,
-    });
+  const selectedCategory = watch('category');
+  const selectedUnit = watch('unit');
+
+  const onFormSubmit = (data: InventoryFormValues) => {
+    onSubmit(data);
   };
-
-  const isValid = sku.trim().length > 0 && name.trim().length > 0 && location.trim().length > 0;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -86,7 +69,7 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
         <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Новый товар</h1>
       </div>
 
-      <div className="p-4 space-y-6">
+      <form onSubmit={handleSubmit(onFormSubmit)} className="p-4 space-y-6">
         {/* SKU */}
         <div className="space-y-2">
           <Label htmlFor="sku" className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -94,11 +77,11 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
           </Label>
           <Input
             id="sku"
-            value={sku}
-            onChange={(e) => setSku(e.target.value)}
+            {...register('sku')}
             placeholder="Например: CRT-HP-85A"
-            className="h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+            className={cn("h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100", errors.sku && "border-red-500")}
           />
+          {errors.sku && <span className="text-xs text-red-500">{errors.sku.message}</span>}
         </div>
 
         {/* Name */}
@@ -108,11 +91,11 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
           </Label>
           <Input
             id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            {...register('name')}
             placeholder="Например: Картридж HP 85A"
-            className="h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+            className={cn("h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100", errors.name && "border-red-500")}
           />
+          {errors.name && <span className="text-xs text-red-500">{errors.name.message}</span>}
         </div>
 
         {/* Category */}
@@ -122,10 +105,11 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
             {categories.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => setCategory(cat.id)}
+                type="button"
+                onClick={() => setValue('category', cat.id)}
                 className={cn(
                   'px-4 py-3 rounded-lg text-sm font-medium transition-all text-left',
-                  category === cat.id
+                  selectedCategory === cat.id
                     ? 'bg-blue-600 text-white'
                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
                 )}
@@ -134,6 +118,7 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
               </button>
             ))}
           </div>
+          {errors.category && <span className="text-xs text-red-500">{errors.category.message}</span>}
         </div>
 
         {/* Description */}
@@ -143,8 +128,7 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
           </Label>
           <Textarea
             id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            {...register('description')}
             placeholder="Подробное описание товара..."
             className="min-h-[80px] resize-none dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
           />
@@ -160,10 +144,10 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
               id="quantity"
               type="number"
               min="0"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+              {...register('quantity', { valueAsNumber: true })}
+              className={cn("h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100", errors.quantity && "border-red-500")}
             />
+            {errors.quantity && <span className="text-xs text-red-500">{errors.quantity.message}</span>}
           </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Единица</Label>
@@ -171,10 +155,11 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
               {units.map((u) => (
                 <button
                   key={u.id}
-                  onClick={() => setUnit(u.id)}
+                  type="button"
+                  onClick={() => setValue('unit', u.id)}
                   className={cn(
                     'px-2 py-3 rounded-lg text-sm font-medium transition-all',
-                    unit === u.id
+                    selectedUnit === u.id
                       ? 'bg-blue-600 text-white'
                       : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                   )}
@@ -195,10 +180,10 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
             id="minQuantity"
             type="number"
             min="0"
-            value={minQuantity}
-            onChange={(e) => setMinQuantity(e.target.value)}
-            className="h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+            {...register('minQuantity', { valueAsNumber: true })}
+            className={cn("h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100", errors.minQuantity && "border-red-500")}
           />
+          {errors.minQuantity && <span className="text-xs text-red-500">{errors.minQuantity.message}</span>}
         </div>
 
         {/* Location */}
@@ -209,11 +194,11 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
           </Label>
           <Input
             id="location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
+            {...register('location')}
             placeholder="Например: Склад А, стеллаж 3"
-            className="h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+            className={cn("h-12 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100", errors.location && "border-red-500")}
           />
+          {errors.location && <span className="text-xs text-red-500">{errors.location.message}</span>}
         </div>
 
         {/* Supplier and Price */}
@@ -229,8 +214,7 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
             </Label>
             <Input
               id="supplier"
-              value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
+              {...register('supplier')}
               placeholder="Название поставщика"
               className="h-11 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
             />
@@ -244,8 +228,7 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
             <Input
               id="price"
               type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
+              {...register('price', { valueAsNumber: true })}
               placeholder="0"
               className="h-11 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
             />
@@ -255,8 +238,8 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
         {/* Submit Button */}
         <div className="pt-4">
           <Button
-            onClick={handleSubmit}
-            disabled={!isValid || isSubmitting}
+            type="submit"
+            disabled={isSubmitting}
             className="w-full h-12 text-base font-medium"
           >
             {isSubmitting ? (
@@ -272,7 +255,7 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
             )}
           </Button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

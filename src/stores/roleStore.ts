@@ -3,9 +3,7 @@ import type { Role, ActivityLog, ModuleId, SystemSettings } from '@/types/roles'
 import type { User } from '@/types';
 import { defaultRoles } from '@/types/roles';
 import { users } from '@/data/mock';
-
-// Mock current user (в реальности из Auth)
-const CURRENT_USER_ID = '1';
+import { useAuthStore } from './authStore';
 
 const defaultSettings: SystemSettings = {
   companyName: 'Медин',
@@ -21,7 +19,6 @@ interface RoleStore {
   roles: Role[];
   users: User[];
   logs: ActivityLog[];
-  currentUserId: string;
   settings: SystemSettings;
   
   // Computed
@@ -60,13 +57,12 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
       createdAt: '2025-02-03T10:30:00',
     }
   ],
-  currentUserId: CURRENT_USER_ID,
   settings: defaultSettings,
   
   // Computed selectors
   currentUser: () => {
-    const { users, currentUserId } = get();
-    return users.find(u => u.id === currentUserId);
+    // Get current user from AuthStore
+    return useAuthStore.getState().user || undefined;
   },
   
   currentUserRole: () => {

@@ -1,4 +1,4 @@
-import type { Ticket, User } from '@/types';
+import type { Ticket, User, RegistrationRequest } from '@/types';
 
 export const currentUser: User = {
   id: '1',
@@ -11,6 +11,8 @@ export const currentUser: User = {
   isActive: true,
   createdAt: '2024-01-01T00:00:00',
   lastLogin: '2025-02-03T10:30:00',
+  username: 'admin',
+  password: 'password',
 };
 
 export const users: User[] = [
@@ -25,6 +27,8 @@ export const users: User[] = [
     isActive: true,
     createdAt: '2024-02-15T00:00:00',
     lastLogin: '2025-02-02T16:45:00',
+    username: 'maria',
+    password: 'password',
   },
   {
     id: '3',
@@ -36,6 +40,8 @@ export const users: User[] = [
     isActive: true,
     createdAt: '2024-03-10T00:00:00',
     lastLogin: '2025-02-03T09:15:00',
+    username: 'alexey',
+    password: 'password',
   },
   {
     id: '4',
@@ -47,6 +53,8 @@ export const users: User[] = [
     isActive: true,
     createdAt: '2024-06-01T00:00:00',
     lastLogin: '2025-01-20T11:00:00',
+    username: 'elena',
+    password: 'password',
   },
   {
     id: '5',
@@ -58,6 +66,8 @@ export const users: User[] = [
     isActive: true,
     createdAt: '2024-07-15T00:00:00',
     lastLogin: '2025-02-03T08:45:00',
+    username: 'dmitry',
+    password: 'password',
   },
   {
     id: '6',
@@ -69,6 +79,29 @@ export const users: User[] = [
     isActive: true,
     createdAt: '2024-05-20T00:00:00',
     lastLogin: '2025-02-02T17:30:00',
+    username: 'olga',
+    password: 'password',
+  },
+];
+
+export const mockRequests: RegistrationRequest[] = [
+  {
+    id: '1',
+    name: 'Анна Новикова',
+    email: 'anna@medin.ru',
+    department: 'Кардиология',
+    reason: 'Новый сотрудник, врач-кардиолог',
+    status: 'pending',
+    createdAt: '2025-02-04T09:00:00',
+  },
+  {
+    id: '2',
+    name: 'Сергей Петров',
+    email: 'sergey@medin.ru',
+    department: 'Хирургия',
+    reason: 'Доступ к базе знаний для интерна',
+    status: 'pending',
+    createdAt: '2025-02-05T14:30:00',
   },
 ];
 

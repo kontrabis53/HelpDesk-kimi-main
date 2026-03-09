@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useTicketStore } from '@/stores/ticketStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useRoleStore } from '@/stores/roleStore';
+import { useAuthStore } from '@/stores/authStore';
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -48,18 +49,26 @@ export function AdminPage() {
   const createUser = useRoleStore((state) => state.addUser);
   const updateUser = useRoleStore((state) => state.updateUser);
   const deleteUser = useRoleStore((state) => state.deleteUser);
+  const requests = useAuthStore((state) => state.requests);
+  const approveRequest = useAuthStore((state) => state.approveRequest);
+  const rejectRequest = useAuthStore((state) => state.rejectRequest);
+  const deleteRequest = useAuthStore((state) => state.deleteRequest);
   
   return (
     <AdminScreen
       roles={roles}
       users={users}
       logs={logs}
+      requests={requests}
       onCreateRole={createRole}
       onUpdateRole={updateRole}
       onDeleteRole={deleteRole}
       onCreateUser={(user) => createUser(user as any)}
       onUpdateUser={updateUser}
       onDeleteUser={deleteUser}
+      onApproveRequest={approveRequest}
+      onRejectRequest={rejectRequest}
+      onDeleteRequest={deleteRequest}
     />
   );
 }

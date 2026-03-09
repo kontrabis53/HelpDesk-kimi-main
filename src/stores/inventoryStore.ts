@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { InventoryItem, InventoryFilter } from '@/types';
+import type { InventoryItem, InventoryFilter, InventoryMovement } from '@/types';
 import { inventoryService } from '@/api/inventory';
 
 interface InventoryStore {
   items: InventoryItem[];
+  movements: InventoryMovement[];
   filter: InventoryFilter;
   setFilter: (filter: Partial<InventoryFilter>) => void;
   createItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => InventoryItem;
@@ -14,6 +15,7 @@ interface InventoryStore {
 
 export const useInventoryStore = create<InventoryStore>((set, get) => ({
   items: inventoryService.getAll(),
+  movements: inventoryService.getAllMovements(),
   filter: {},
   
   setFilter: (newFilter) => set((state) => ({ 
@@ -51,10 +53,18 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
     const newQuantity = type === 'in' ? item.quantity + quantity : item.quantity - quantity;
     get().updateItemQuantity(itemId, newQuantity);
     
-    // Log movement details to console to avoid unused vars warning
-    console.log(`Inventory movement: ${type} ${quantity} for ${itemId} (${reason}) [Ticket: ${ticketId || 'none'}]`);
-    
-    // Here we would also normally record the movement in a separate collection
-    // inventoryService.createMovement(...)
+    const newMovement = inventoryService.createMovement({
+      itemId,
+      type,
+      quantity,
+      reason,
+      ticketId,
+    });
+
+    if (newMovement) {
+      set((state) => ({
+        movements: [...state.movements, newMovement]
+      }));
+    }
   },
 }));

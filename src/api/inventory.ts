@@ -1,10 +1,15 @@
-import { mockInventory } from '@/data/mockDocuments';
-import type { InventoryItem } from '@/types';
+import { mockInventory, mockInventoryMovements } from '@/data/mockDocuments';
+import type { InventoryItem, InventoryMovement } from '@/types';
+import { currentUser } from '@/data/mock';
 
 // In a real application, this would be an API client making HTTP requests
 export const inventoryService = {
   getAll: (): InventoryItem[] => {
     return mockInventory;
+  },
+
+  getAllMovements: (): InventoryMovement[] => {
+    return mockInventoryMovements;
   },
 
   create: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>): InventoryItem => {
@@ -17,6 +22,22 @@ export const inventoryService = {
     
     mockInventory.push(newItem);
     return newItem;
+  },
+
+  createMovement: (movement: Omit<InventoryMovement, 'id' | 'createdAt' | 'author' | 'item'>): InventoryMovement | undefined => {
+    const item = mockInventory.find(i => i.id === movement.itemId);
+    if (!item) return undefined;
+
+    const newMovement: InventoryMovement = {
+      ...movement,
+      id: Date.now().toString(),
+      item,
+      createdAt: new Date().toISOString(),
+      author: currentUser, // Using imported currentUser mock
+    };
+    
+    mockInventoryMovements.push(newMovement);
+    return newMovement;
   },
 
   update: (id: string, updates: Partial<InventoryItem>): InventoryItem | undefined => {

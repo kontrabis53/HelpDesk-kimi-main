@@ -100,15 +100,10 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     const ticket = get().getTicketById(ticketId);
     if (!ticket) return;
 
-    // Use current user from roleStore or mock for now
-    // Ideally we should pass user or get it from auth store
-    const currentUser: User = {
-        id: '1',
-        name: 'Иван Петров',
-        role: 'admin',
-        roleId: 'admin',
-        department: 'IT-отдел',
-    };
+    // Use current user from roleStore
+    const currentUser = useRoleStore.getState().currentUser();
+    
+    if (!currentUser) return;
 
     const newComment = {
       id: Date.now().toString(),

@@ -1,73 +1,68 @@
-# React + TypeScript + Vite
+# HelpDesk CRM - Медицинская Система Поддержки
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Современная система управления заявками (Help Desk) и ресурсами, специально разработанная для медицинских организаций.
 
-Currently, two official plugins are available:
+## 🚀 Технологический стек
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Frontend**: React 19, TypeScript, Vite
+- **Стилизация**: Tailwind CSS, Shadcn UI
+- **Управление состоянием**: Zustand
+- **Маршрутизация**: React Router 7
+- **Формы и валидация**: React Hook Form, Zod
+- **Иконки**: Lucide React
+- **Работа с датами**: date-fns
 
-## React Compiler
+## 🛠 Основные модули
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 🎫 Заявки (Tickets)
+- Создание и редактирование заявок на техническую поддержку.
+- Назначение исполнителей (администраторов или техников).
+- Комментирование заявок для обсуждения проблем.
+- Фильтрация по статусам (Новая, В работе, Решена) и приоритетам.
 
-## Expanding the ESLint configuration
+### 📄 Документы (Documents)
+- Управление медицинскими и административными документами.
+- Календарное представление сроков действия документов.
+- Категоризация и отслеживание статусов документов.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 📦 Инвентаризация (Inventory)
+- Учет медицинского оборудования и ИТ-активов.
+- Отслеживание состояния и местоположения оборудования.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 📚 База знаний (Knowledge Base)
+- Создание инструкций и руководств для персонала.
+- Быстрый доступ к решениям типичных проблем.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 🔐 Роли и Доступ
+- **Администратор**: Полный доступ ко всем модулям и управлению пользователями.
+- **Техник**: Работа с заявками и инвентарем.
+- **Пользователь**: Создание заявок и просмотр базы знаний.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 📁 Структура проекта
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+- `src/api`: Имитация API-сервисов (Mock API).
+- `src/app`: Конфигурация приложения, роутинг и глобальные стили.
+- `src/components`: Переиспользуемые UI-компоненты (Shadcn UI + кастомные).
+- `src/data`: Мок-данные для демонстрации.
+- `src/hooks`: Кастомные React-хуки для бизнес-логики.
+- `src/pages`: Высокоуровневые компоненты страниц.
+- `src/screens`: Детальная реализация интерфейсов страниц.
+- `src/stores`: Zustand-хранилища для управления состоянием.
+- `src/types`: TypeScript определения типов и интерфейсов.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 🏁 Начало работы
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. Установите зависимости:
+   ```bash
+   npm install
+   ```
+
+2. Запустите в режиме разработки:
+   ```bash
+   npm run dev
+   ```
+
+3. Соберите проект:
+   ```bash
+   npm run build
+   ```

@@ -16,12 +16,27 @@ import { CreateInventoryPage } from '@/pages/CreateInventoryPage';
 import { KnowledgePage } from '@/pages/KnowledgePage';
 import { GuideDetailPage } from '@/pages/GuideDetailPage';
 import { CreateGuideScreen } from '@/screens/CreateGuideScreen';
+import { EditGuidePage } from '@/pages/EditGuidePage';
 import { ProfilePage, AdminPage, SettingsPage } from '@/pages';
+import { LoginPage } from '@/pages/LoginPage';
+import { RequestAccountPage } from '@/pages/RequestAccountPage';
 
 export const router = createBrowserRouter([
   {
+    path: '/login',
+    element: <LoginPage />,
+  },
+  {
+    path: '/request-account',
+    element: <RequestAccountPage />,
+  },
+  {
     path: '/',
-    element: <RootLayout />,
+    element: (
+      <ProtectedRoute>
+        <RootLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         index: true,
@@ -43,6 +58,14 @@ export const router = createBrowserRouter([
       {
         path: 'knowledge/:id',
         element: <GuideDetailPage />,
+      },
+      {
+        path: 'knowledge/:id/edit',
+        element: (
+          <ProtectedRoute moduleId="knowledge" action="edit">
+            <EditGuidePage />
+          </ProtectedRoute>
+        ),
       },
       // Tickets
       {

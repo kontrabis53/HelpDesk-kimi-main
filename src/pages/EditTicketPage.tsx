@@ -4,6 +4,7 @@ import { EditTicketScreen } from '@/screens/EditTicketScreen';
 import { useTicketStore } from '@/stores/ticketStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { toast } from 'sonner';
+import type { TicketCategory, TicketPriority } from '@/types';
 
 export function EditTicketPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,7 +38,12 @@ export function EditTicketPage() {
     navigate(`/tickets/${id}`);
   };
   
-  const handleUpdate = (ticketId: string, data: any) => {
+  const handleUpdate = (ticketId: string, data: {
+    title: string;
+    description: string;
+    category: TicketCategory;
+    priority: TicketPriority;
+  }) => {
     updateTicket(ticketId, data);
     addLog('ticket.updated', 'ticket', ticketId, undefined, `Заявка обновлена: ${data.title}`);
     toast.success('Заявка обновлена', {

@@ -9,6 +9,8 @@ interface KnowledgeStore {
   setFilter: (filter: Partial<KnowledgeFilter>) => void;
   setSelectedGuide: (guide: KnowledgeGuide | null) => void;
   createGuide: (guide: Omit<KnowledgeGuide, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateGuide: (id: string, updates: Partial<KnowledgeGuide>) => void;
+  deleteGuide: (id: string) => void;
   incrementViews: (id: string) => void;
   getGuideById: (id: string) => KnowledgeGuide | undefined;
 }
@@ -32,6 +34,22 @@ export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
     const newGuide = knowledgeService.create(guideData);
     set((state) => ({
       guides: [...state.guides, newGuide]
+    }));
+  },
+
+  updateGuide: (id, updates) => {
+    knowledgeService.update(id, updates);
+    set((state) => ({
+      guides: state.guides.map((g) => 
+        g.id === id ? { ...g, ...updates, updatedAt: new Date().toISOString() } : g
+      ),
+    }));
+  },
+
+  deleteGuide: (id) => {
+    knowledgeService.delete(id);
+    set((state) => ({
+      guides: state.guides.filter((g) => g.id !== id),
     }));
   },
   

@@ -3,6 +3,7 @@ import { CreateTicketScreen } from '@/screens/CreateTicketScreen';
 import { useTicketStore } from '@/stores/ticketStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { toast } from 'sonner';
+import type { TicketFormValues } from '@/lib/schemas';
 
 export function CreateTicketPage() {
   const navigate = useNavigate();
@@ -14,13 +15,13 @@ export function CreateTicketPage() {
     navigate(-1);
   };
   
-  const handleSubmit = (data: any) => {
+  const handleSubmit = (data: TicketFormValues) => {
     const newTicket = createTicket(data);
     
     // If assignee is provided, assign the ticket
     if (data.assigneeId) {
-      const useAssignTicket = useTicketStore.getState().assignTicket;
-      useAssignTicket(newTicket.id, data.assigneeId);
+      const assignTicket = useTicketStore.getState().assignTicket;
+      assignTicket(newTicket.id, data.assigneeId);
     }
 
     addLog('ticket.created', 'ticket', newTicket.id, newTicket.number, `Создана заявка: ${newTicket.title}`);

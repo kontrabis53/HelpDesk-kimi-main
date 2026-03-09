@@ -9,13 +9,7 @@ export function EditDocumentPage() {
   const navigate = useNavigate();
   const documents = useDocumentStore((state) => state.documents);
   const addLog = useRoleStore((state) => state.addLog);
-  // We need to implement updateDocument in documentStore first, 
-  // but for now let's assume we can just simulate it or use delete+create approach 
-  // (though delete+create changes ID which is bad, so we should add update action)
-  
-  // Actually, let's use a temporary solution until we add updateDocument to store
-  // We will modify the store in the next step.
-  const updateDocument = useDocumentStore((state) => (state as any).updateDocument); 
+  const updateDocument = useDocumentStore((state) => state.updateDocument); 
 
   const document = documents.find((d) => d.id === id);
 
@@ -39,16 +33,10 @@ export function EditDocumentPage() {
   };
   
   const handleSubmit = (data: any) => {
-    if (updateDocument) {
-      updateDocument(id, data);
-      addLog('document.updated', 'document', id, document.number, `Обновлен документ: ${data.title}`);
-      toast.success('Документ обновлен');
-      navigate(`/documents/${id}`);
-    } else {
-      // Fallback if updateDocument is not available yet (will be added in next step)
-      console.error("updateDocument action not found in store");
-      toast.error("Ошибка обновления");
-    }
+    updateDocument(id!, data);
+    addLog('document.updated', 'document', id!, document.number, `Обновлен документ: ${data.title}`);
+    toast.success('Документ обновлен');
+    navigate(`/documents/${id}`);
   };
   
   return (

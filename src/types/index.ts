@@ -16,6 +16,18 @@ export interface User {
   isActive?: boolean;
   createdAt?: string;
   lastLogin?: string;
+  username?: string;
+  password?: string;
+}
+
+export interface RegistrationRequest {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
 }
 
 export interface Comment {

@@ -1,24 +1,29 @@
 import { useState } from 'react';
 import type { KnowledgeGuide } from '@/types';
 import { guideCategoryLabels } from '@/types';
-import { ArrowLeft, CheckCircle, HelpCircle, ChevronRight, ChevronLeft, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ArrowLeft, CheckCircle, HelpCircle, ChevronRight, ChevronLeft, ThumbsUp, ThumbsDown, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useRoleStore } from '@/stores/roleStore';
 
 interface GuideDetailScreenProps {
   guide: KnowledgeGuide;
   onBack: () => void;
   onCreateTicket: () => void;
+  onEdit?: () => void;
 }
 
 export function GuideDetailScreen({ 
   guide, 
   onBack,
-  onCreateTicket 
+  onCreateTicket,
+  onEdit
 }: GuideDetailScreenProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [feedback, setFeedback] = useState<'helpful' | 'not_helpful' | null>(null);
+  const currentUser = useRoleStore((state) => state.currentUser());
+  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'technician';
 
   const step = guide.steps[currentStep];
   const isLastStep = currentStep === guide.steps.length - 1;
@@ -132,6 +137,11 @@ export function GuideDetailScreen({
             {guideCategoryLabels[guide.category]} • Шаг {currentStep + 1} из {guide.steps.length}
           </p>
         </div>
+        {canEdit && onEdit && (
+          <Button variant="ghost" size="icon" onClick={onEdit} className="text-slate-600 dark:text-slate-300">
+            <Edit className="w-4 h-4" />
+          </Button>
+        )}
       </div>
 
       {/* Progress */}

@@ -3,6 +3,7 @@ import { CreateInventoryScreen } from '@/screens/CreateInventoryScreen';
 import { useInventoryStore } from '@/stores/inventoryStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { toast } from 'sonner';
+import type { InventoryFormValues } from '@/lib/schemas';
 
 export function CreateInventoryPage() {
   const navigate = useNavigate();
@@ -13,7 +14,7 @@ export function CreateInventoryPage() {
     navigate('/inventory');
   };
   
-  const handleSubmit = (data: any) => {
+  const handleSubmit = (data: InventoryFormValues) => {
     const newItem = createItem(data);
     addLog('inventory.created', 'inventory', newItem.id, newItem.name, `Добавлен товар: ${newItem.name}`);
     toast.success('Товар добавлен', {

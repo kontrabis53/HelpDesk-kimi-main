@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Role, UserWithRole, ActivityLog, ModuleId, ModulePermission } from '@/types/roles';
+import type { RegistrationRequest } from '@/types';
 import { moduleLabels, actionLabels } from '@/types/roles';
 import { 
   Users, 
@@ -11,7 +12,10 @@ import {
   Trash2, 
   ChevronDown,
   ChevronUp,
-  Eye
+  Eye,
+  UserPlus,
+  Check,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,30 +38,38 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
-type AdminTab = 'users' | 'roles' | 'logs' | 'settings';
+type AdminTab = 'users' | 'roles' | 'requests' | 'logs' | 'settings';
 
 interface AdminScreenProps {
   roles: Role[];
   users: UserWithRole[];
   logs: ActivityLog[];
+  requests: RegistrationRequest[];
   onCreateRole: (_role: Omit<Role, 'id'>) => void;
   onUpdateRole: (_roleId: string, _data: Partial<Role>) => void;
   onDeleteRole: (roleId: string) => void;
   onCreateUser: (_user: Omit<UserWithRole, 'id' | 'createdAt'>) => void;
   onUpdateUser: (_userId: string, _data: Partial<UserWithRole>) => void;
   onDeleteUser: (userId: string) => void;
+  onApproveRequest: (id: string) => void;
+  onRejectRequest: (id: string) => void;
+  onDeleteRequest: (id: string) => void;
 }
 
 export function AdminScreen({
   roles,
   users,
   logs,
+  requests,
   onCreateRole,
   onUpdateRole,
   onDeleteRole,
   onCreateUser,
   onUpdateUser,
   onDeleteUser,
+  onApproveRequest,
+  onRejectRequest,
+  onDeleteRequest,
 }: AdminScreenProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,6 +82,7 @@ export function AdminScreen({
   const tabs = [
     { id: 'users' as const, label: 'Пользователи', icon: Users },
     { id: 'roles' as const, label: 'Роли', icon: Shield },
+    { id: 'requests' as const, label: 'Запросы', icon: UserPlus },
     { id: 'logs' as const, label: 'Логи', icon: ScrollText },
   ];
 
@@ -78,6 +91,13 @@ export function AdminScreen({
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.department.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Filter requests
+  const filteredRequests = requests.filter(r => 
+    r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.department.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Filter logs
@@ -438,6 +458,91 @@ export function AdminScreen({
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Requests Tab */}
+        {activeTab === 'requests' && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                Запросы на регистрацию ({filteredRequests.length})
+              </h2>
+            </div>
+
+            {filteredRequests.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                Нет новых запросов
+              </div>
+            ) : (
+              filteredRequests.map((request) => (
+                <div
+                  key={request.id}
+                  className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-700"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-slate-800 dark:text-slate-100">{request.name}</h3>
+                        <span className={cn(
+                          "text-xs px-2 py-0.5 rounded-full",
+                          request.status === 'pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                          request.status === 'approved' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                          "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        )}>
+                          {request.status === 'pending' ? 'Ожидает' : 
+                           request.status === 'approved' ? 'Одобрен' : 'Отклонен'}
+                        </span>
+                      </div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mb-2">
+                        {request.email} • {request.department}
+                      </div>
+                      <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 p-2 rounded-lg">
+                        <span className="font-medium text-xs text-slate-400 block mb-1">Причина запроса:</span>
+                        {request.reason}
+                      </div>
+                      <div className="text-xs text-slate-400 mt-2">
+                        Создан: {formatDate(request.createdAt)}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 ml-4">
+                      {request.status === 'pending' && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            onClick={() => onApproveRequest(request.id)}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                          >
+                            <Check className="w-4 h-4 mr-1" />
+                            Одобрить
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={() => onRejectRequest(request.id)}
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Отклонить
+                          </Button>
+                        </>
+                      )}
+                      {(request.status === 'approved' || request.status === 'rejected') && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => onDeleteRequest(request.id)}
+                          className="text-slate-500 hover:text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Удалить
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 

@@ -5,12 +5,24 @@ import { ArrowLeft, Calendar, MapPin, DollarSign, FileText, Download, Trash2, Ed
 import { cn } from '@/lib/utils';
 import { documentStatusLabels } from '@/types';
 import { toast } from 'sonner';
+import { useState } from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const documents = useDocumentStore((state) => state.documents);
   const deleteDocument = useDocumentStore((state) => state.deleteDocument);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   
   const document = documents.find((d) => d.id === id);
 
@@ -29,11 +41,9 @@ export function DocumentDetailPage() {
   };
 
   const handleDelete = () => {
-    if (confirm('Вы уверены, что хотите удалить этот документ?')) {
-      deleteDocument(document.id);
-      toast.success('Документ удален');
-      navigate('/documents');
-    }
+    deleteDocument(document.id);
+    toast.success('Документ удален');
+    navigate('/documents');
   };
 
   const formatDate = (dateString: string) => {
@@ -74,7 +84,7 @@ export function DocumentDetailPage() {
             <Button variant="outline" size="icon" onClick={handleEdit} className="text-slate-600 dark:text-slate-300">
               <Edit className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="icon" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={handleDelete}>
+            <Button variant="outline" size="icon" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setShowDeleteDialog(true)}>
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
@@ -175,6 +185,22 @@ export function DocumentDetailPage() {
           </div>
         )}
       </div>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие необратимо. Документ будет навсегда удален из базы данных.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600 text-white border-none">
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

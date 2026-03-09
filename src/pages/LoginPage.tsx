@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { useRoleStore } from '@/stores/roleStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -9,7 +10,7 @@ import { Stethoscope } from 'lucide-react';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const login = useAuthStore((state) => state.login);
+  const setUser = useAuthStore((state) => state.setUser);
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -29,9 +30,11 @@ export function LoginPage() {
     await new Promise(resolve => setTimeout(resolve, 800));
     
     try {
-      const success = await login(username, password);
+      const users = useRoleStore.getState().users;
+      const foundUser = users.find(u => u.username === username && u.password === password);
       
-      if (success) {
+      if (foundUser) {
+        setUser(foundUser);
         toast.success('Успешный вход');
         navigate('/');
       } else {

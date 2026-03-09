@@ -10,6 +10,7 @@ interface AuthState {
   
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
+  setUser: (user: User) => void;
   
   // Registration requests
   addRequest: (data: Omit<RegistrationRequest, 'id' | 'status' | 'createdAt'>) => void;
@@ -41,6 +42,10 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         set({ user: null, isAuthenticated: false });
+      },
+
+      setUser: (user) => {
+        set({ user, isAuthenticated: true });
       },
 
       addRequest: (data) => {

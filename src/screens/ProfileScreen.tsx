@@ -2,6 +2,8 @@ import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight } from
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import type { Role } from '@/types/roles';
+import { useAuthStore } from '@/stores/authStore';
+import { useNavigate } from 'react-router-dom';
 
 interface ProfileScreenProps {
   stats: {
@@ -17,18 +19,15 @@ interface ProfileScreenProps {
   userRole?: Role;
 }
 
-// Mock current user - in real app would come from auth
-const currentUser = {
-  id: '1',
-  name: 'Иван Петров',
-  email: 'ivan@medin.ru',
-  role: 'admin',
-  department: 'IT-отдел',
-  avatar: undefined,
-};
-
 export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, userRole }: ProfileScreenProps) {
   const isDark = theme === 'dark';
+  const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const statItems = [
     { label: 'Всего', value: stats.total, color: 'bg-slate-500' },
@@ -37,6 +36,8 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
     { label: 'Ожидание', value: stats.waiting, color: 'bg-violet-500' },
     { label: 'Решенные', value: stats.resolved, color: 'bg-emerald-500' },
   ];
+
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">
@@ -54,14 +55,14 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
               style={{ backgroundColor: userRole?.color || '#3B82F6' }}
             >
               <span className="text-2xl font-bold text-white">
-                {currentUser.name.charAt(0)}
+                {user.name.charAt(0)}
               </span>
             </div>
             <div className="flex-1">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{currentUser.name}</h2>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{user.name}</h2>
               <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mt-1">
                 <Building2 className="w-4 h-4" />
-                <span>{currentUser.department}</span>
+                <span>{user.department}</span>
               </div>
               <div className="mt-2">
                 <span 
@@ -168,7 +169,10 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
         </div>
 
         {/* Logout */}
-        <button className="w-full bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm flex items-center gap-3 text-red-600 dark:text-red-400 active:scale-[0.99] transition-transform">
+        <button 
+          onClick={handleLogout}
+          className="w-full bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm flex items-center gap-3 text-red-600 dark:text-red-400 active:scale-[0.99] transition-transform"
+        >
           <div className="w-9 h-9 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
             <LogOut className="w-4 h-4" />
           </div>

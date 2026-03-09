@@ -1,6 +1,7 @@
 import { Home, FileText, Package, BookOpen, User, Shield } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/authStore';
 
 interface SidebarProps {
   availableModules?: string[];
@@ -9,6 +10,7 @@ interface SidebarProps {
 
 export function Sidebar({ availableModules = [], canAccessAdmin = false }: SidebarProps) {
   const location = useLocation();
+  const user = useAuthStore(state => state.user);
   
   const allTabs = [
     { id: 'knowledge' as const, label: 'База знаний', icon: BookOpen, moduleId: 'knowledge', path: '/knowledge' },
@@ -87,10 +89,10 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-              Иван Петров
+              {user?.name || 'Пользователь'}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-              ivan@medin.ru
+              {user?.email || 'user@medin.ru'}
             </p>
           </div>
         </div>

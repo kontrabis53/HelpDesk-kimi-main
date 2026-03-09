@@ -124,6 +124,8 @@ export function AdminScreen({
     roleId: '',
     department: '',
     isActive: true,
+    username: '',
+    password: '',
   });
 
   // Role form state
@@ -143,6 +145,8 @@ export function AdminScreen({
         roleId: user.roleId,
         department: user.department,
         isActive: user.isActive || false,
+        username: user.username || '',
+        password: user.password || '',
       });
     } else {
       setEditingUser(null);
@@ -152,9 +156,27 @@ export function AdminScreen({
         roleId: roles[0]?.id || '',
         department: '',
         isActive: true,
+        username: '',
+        password: '',
       });
     }
     setShowUserForm(true);
+  };
+
+  const handleApproveAndCreateUser = (request: RegistrationRequest) => {
+    onApproveRequest(request.id);
+    setEditingUser(null);
+    setUserFormData({
+      name: request.name,
+      email: request.email,
+      roleId: roles[0]?.id || '',
+      department: request.department,
+      isActive: true,
+      username: request.email.split('@')[0],
+      password: Math.random().toString(36).slice(-8),
+    });
+    setShowUserForm(true);
+    setActiveTab('users');
   };
 
   const handleOpenRoleForm = (role?: Role) => {
@@ -511,7 +533,7 @@ export function AdminScreen({
                         <>
                           <Button 
                             size="sm" 
-                            onClick={() => onApproveRequest(request.id)}
+                            onClick={() => handleApproveAndCreateUser(request)}
                             className="bg-emerald-600 hover:bg-emerald-700"
                           >
                             <Check className="w-4 h-4 mr-1" />
@@ -613,6 +635,27 @@ export function AdminScreen({
                 value={userFormData.email}
                 onChange={(e) => setUserFormData(prev => ({ ...prev, email: e.target.value }))}
                 placeholder="email@example.com"
+                className="dark:bg-slate-800"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-username">Логин</Label>
+              <Input
+                id="user-username"
+                value={userFormData.username}
+                onChange={(e) => setUserFormData(prev => ({ ...prev, username: e.target.value }))}
+                placeholder="Логин для входа"
+                className="dark:bg-slate-800"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-password">Пароль</Label>
+              <Input
+                id="user-password"
+                type="text"
+                value={userFormData.password}
+                onChange={(e) => setUserFormData(prev => ({ ...prev, password: e.target.value }))}
+                placeholder="Пароль"
                 className="dark:bg-slate-800"
               />
             </div>

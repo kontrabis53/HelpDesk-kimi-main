@@ -138,7 +138,7 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
   return (
     <div className="flex flex-col h-full bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-2 md:p-3 border-b border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between p-3 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             <Popover open={isDatePickerOpen} onOpenChange={(open) => {
@@ -148,7 +148,7 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
               <PopoverTrigger asChild>
                 <Button 
                   variant="ghost" 
-                  className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-100 capitalize px-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1"
+                  className="text-lg font-bold text-slate-800 dark:text-slate-100 capitalize px-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1"
                 >
                   {format(currentDate, 'LLLL yyyy', { locale: ru })}
                   <ChevronDown className={cn("h-4 w-4 transition-transform text-slate-400", isDatePickerOpen && "rotate-180")} />
@@ -240,15 +240,15 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
             </Popover>
           </div>
 
-          <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 ml-2 md:ml-4">
-            <Button variant="ghost" size="icon" className="h-6 w-6 md:h-7 md:w-7" onClick={prevMonth}>
-              <ChevronLeft className="h-3.5 w-3.5 md:h-4 md:w-4" />
+          <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 ml-4">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={prevMonth}>
+              <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-6 md:h-7 text-[10px] md:text-xs px-1.5 md:px-2" onClick={goToToday}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={goToToday}>
               Сегодня
             </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 md:h-7 md:w-7" onClick={nextMonth}>
-              <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={nextMonth}>
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -257,7 +257,7 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
       {/* Week days */}
       <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
         {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day) => (
-          <div key={day} className="py-1 md:py-1.5 text-center text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400">
+          <div key={day} className="py-1.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
             {day}
           </div>
         ))}
@@ -275,7 +275,7 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
                   key={day.toString()}
                   onClick={() => handleDayClick(day)}
                   className={cn(
-                    "min-h-[50px] md:min-h-[70px] border-b border-r border-slate-100 dark:border-slate-700/50 p-0.5 md:p-1 transition-all relative group cursor-pointer",
+                    "min-h-[40px] md:min-h-[60px] border-b border-r border-slate-100 dark:border-slate-700/50 p-0.5 md:p-1 transition-all relative group cursor-pointer",
                     !isCurrentMonth && "bg-slate-50/50 dark:bg-slate-900/10 text-slate-300 dark:text-slate-700",
                     isCurrentMonth && "bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/30",
                     dayDocs.length > 0 && "cursor-pointer",
@@ -286,7 +286,7 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
                   <div className="flex justify-center md:justify-start">
                     <span
                       className={cn(
-                        "text-sm md:text-base font-bold w-6 h-6 md:w-8 md:h-8 flex items-center justify-center rounded-full",
+                        "text-sm md:text-lg font-bold w-6 h-6 md:w-9 md:h-9 flex items-center justify-center rounded-full",
                         isTodayDate
                           ? "bg-blue-600 text-white shadow-sm"
                           : isCurrentMonth ? "text-slate-800 dark:text-slate-200" : "text-slate-300 dark:text-slate-600"
@@ -297,7 +297,7 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
                   </div>
 
                   {/* Documents Indicators */}
-                  <div className="mt-0.5 space-y-0.5 overflow-hidden">
+                  <div className="mt-0 space-y-0.5 overflow-hidden">
                     {/* Mobile: Dots (always visible on small heights) */}
                     <div className="flex flex-wrap justify-center md:justify-start gap-0.5 md:gap-1 px-0.5">
                       {dayDocs.slice(0, 4).map((doc) => (
@@ -305,24 +305,6 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
                           key={doc.id} 
                           className={cn("w-1 h-1 md:w-1.5 md:h-1.5 rounded-full", typeColors[doc.type]?.split(' ')[0] || 'bg-slate-400')}
                         />
-                      ))}
-                      {dayDocs.length > 4 && (
-                        <div className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
-                      )}
-                    </div>
-
-                    {/* Desktop: Small bars (only if enough space) */}
-                    <div className="hidden md:block space-y-0.5">
-                      {dayDocs.slice(0, 2).map((doc) => (
-                        <div
-                          key={doc.id}
-                          className={cn(
-                            "text-[9px] px-1 py-0 rounded truncate font-medium border-[0.5px] border-black/5 dark:border-white/5",
-                            typeColors[doc.type]
-                          )}
-                        >
-                          {doc.title}
-                        </div>
                       ))}
                     </div>
                   </div>

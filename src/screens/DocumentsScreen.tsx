@@ -82,63 +82,63 @@ export function DocumentsScreen({
   return (
     <div className="h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-800 px-4 pt-3 pb-1 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
-        <div className="flex items-center justify-between mb-2">
+      <div className="bg-white dark:bg-slate-800 px-4 pt-4 pb-2 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
+        <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Документы</h1>
           <div className="flex items-center gap-2">
             <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
               <button
                 onClick={() => setViewType('list')}
                 className={cn(
-                  "p-1 rounded-md transition-all",
+                  "p-1.5 rounded-md transition-all",
                   viewType === 'list' 
                     ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                 )}
                 title="Список"
               >
-                <List className="w-3.5 h-3.5" />
+                <List className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewType('grid')}
                 className={cn(
-                  "p-1 rounded-md transition-all",
+                  "p-1.5 rounded-md transition-all",
                   viewType === 'grid' 
                     ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                 )}
                 title="Карточки"
               >
-                <LayoutGrid className="w-3.5 h-3.5" />
+                <LayoutGrid className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewType('calendar')}
                 className={cn(
-                  "p-1 rounded-md transition-all",
+                  "p-1.5 rounded-md transition-all",
                   viewType === 'calendar' 
                     ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                 )}
                 title="Календарь"
               >
-                <Calendar className="w-3.5 h-3.5" />
+                <Calendar className="w-4 h-4" />
               </button>
             </div>
-            <Button onClick={onCreateClick} size="sm" className="bg-blue-600 hover:bg-blue-700 h-8 text-xs px-3">
+            <Button onClick={onCreateClick} size="sm" className="bg-blue-600 hover:bg-blue-700">
               + Новый
             </Button>
           </div>
         </div>
         
         {/* Search */}
-        <div className="relative mb-2">
+        <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
             type="text"
             placeholder="Поиск по номеру или названию..."
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-10 h-9 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 dark:text-slate-100 text-sm"
+            className="pl-10 h-10 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 dark:text-slate-100"
           />
           {searchQuery && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -156,7 +156,7 @@ export function DocumentsScreen({
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide mb-2">
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide mb-4">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -164,13 +164,13 @@ export function DocumentsScreen({
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
+                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
                 )}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-4 h-4" />
                 {tab.label}
               </button>
             );
@@ -179,9 +179,9 @@ export function DocumentsScreen({
       </div>
 
       {/* Content */}
-      <div className="p-1 md:p-2 w-full flex-1 overflow-hidden pb-16 md:pb-4">
+      <div className="p-0 w-full flex-1 overflow-hidden">
         <div className={cn(
-          "flex flex-col gap-2 h-full",
+          "flex flex-col h-full",
           viewType === 'calendar' && searchQuery && "lg:flex-row"
         )}>
           {/* Main Content Area */}

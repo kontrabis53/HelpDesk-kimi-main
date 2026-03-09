@@ -13,6 +13,7 @@ import { DocumentDetailPage } from '@/pages/DocumentDetailPage';
 import { EditDocumentPage } from '@/pages/EditDocumentPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateInventoryPage } from '@/pages/CreateInventoryPage';
+import { DirectoryPage } from '@/pages/DirectoryPage';
 import { KnowledgePage } from '@/pages/KnowledgePage';
 import { GuideDetailPage } from '@/pages/GuideDetailPage';
 import { CreateGuideScreen } from '@/screens/CreateGuideScreen';
@@ -125,6 +126,11 @@ export const router = createBrowserRouter([
             <CreateInventoryPage />
           </ProtectedRoute>
         ),
+      },
+      // Directory
+      {
+        path: 'directory',
+        element: <DirectoryPage />,
       },
       // Profile
       {

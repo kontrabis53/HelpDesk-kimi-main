@@ -82,6 +82,25 @@ export interface Document {
   author: User;
 }
 
+// ===== СПРАВОЧНИК =====
+export interface DirectoryEntry {
+  id: string;
+  name: string;
+  position: string;
+  department: string;
+  cabinet: string;
+  internalPhone: string;
+  mobilePhone?: string;
+  telegram?: string; // @username
+  tags?: string[]; // search tags
+}
+
+export interface SearchStat {
+  query: string;
+  count: number;
+  lastSearched: string;
+}
+
 // ===== СКЛАД =====
 export type InventoryCategory = 'spare_parts' | 'consumables' | 'equipment' | 'tools' | 'other';
 export type InventoryUnit = 'pcs' | 'kg' | 'l' | 'm' | 'box';

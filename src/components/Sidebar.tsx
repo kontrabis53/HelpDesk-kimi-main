@@ -1,4 +1,4 @@
-import { Home, FileText, Package, BookOpen, User, Shield } from 'lucide-react';
+import { Home, FileText, Package, BookOpen, User, Shield, Users } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -17,6 +17,7 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
     { id: 'tickets' as const, label: 'Заявки', icon: Home, moduleId: 'tickets', path: '/tickets' },
     { id: 'documents' as const, label: 'Документы', icon: FileText, moduleId: 'documents', path: '/documents' },
     { id: 'inventory' as const, label: 'Склад', icon: Package, moduleId: 'inventory', path: '/inventory' },
+    { id: 'directory' as const, label: 'Справочник', icon: Users, moduleId: 'directory', path: '/directory' },
     { id: 'admin' as const, label: 'Управление', icon: Shield, moduleId: 'admin', path: '/admin' },
     { id: 'profile' as const, label: 'Профиль', icon: User, moduleId: 'profile', path: '/profile' },
   ];
@@ -41,6 +42,7 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
     if (path.startsWith('/tickets')) return 'tickets';
     if (path.startsWith('/documents')) return 'documents';
     if (path.startsWith('/inventory')) return 'inventory';
+    if (path.startsWith('/directory')) return 'directory';
     if (path.startsWith('/knowledge')) return 'knowledge';
     if (path.startsWith('/admin')) return 'admin';
     if (path.startsWith('/profile')) return 'profile';

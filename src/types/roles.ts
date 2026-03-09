@@ -2,7 +2,7 @@
 
 import type { User } from './index';
 
-export type ModuleId = 'knowledge' | 'tickets' | 'documents' | 'inventory' | 'admin' | 'profile';
+export type ModuleId = 'knowledge' | 'tickets' | 'documents' | 'inventory' | 'directory' | 'admin' | 'profile';
 
 export interface ModulePermission {
   moduleId: ModuleId;
@@ -60,6 +60,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'tickets', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'documents', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'inventory', canView: true, canCreate: true, canEdit: true, canDelete: true },
+      { moduleId: 'directory', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'admin', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: true },
     ],
@@ -75,6 +76,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'tickets', canView: true, canCreate: true, canEdit: true, canDelete: false },
       { moduleId: 'documents', canView: true, canCreate: true, canEdit: true, canDelete: false },
       { moduleId: 'inventory', canView: true, canCreate: true, canEdit: true, canDelete: false },
+      { moduleId: 'directory', canView: true, canCreate: true, canEdit: true, canDelete: false },
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
     ],
@@ -90,6 +92,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'tickets', canView: true, canCreate: true, canEdit: false, canDelete: false },
       { moduleId: 'documents', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'inventory', canView: false, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'directory', canView: true, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
     ],

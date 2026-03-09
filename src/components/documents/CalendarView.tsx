@@ -28,9 +28,10 @@ import { documentStatusLabels } from '@/types';
 interface CalendarViewProps {
   documents: Document[];
   onDocumentClick: (doc: Document) => void;
+  highlightSearch?: boolean;
 }
 
-export function CalendarView({ documents, onDocumentClick }: CalendarViewProps) {
+export function CalendarView({ documents, onDocumentClick, highlightSearch }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -135,9 +136,9 @@ export function CalendarView({ documents, onDocumentClick }: CalendarViewProps) 
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between p-2 md:p-3 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             <Popover open={isDatePickerOpen} onOpenChange={(open) => {
@@ -147,10 +148,10 @@ export function CalendarView({ documents, onDocumentClick }: CalendarViewProps) 
               <PopoverTrigger asChild>
                 <Button 
                   variant="ghost" 
-                  className="text-lg font-semibold text-slate-800 dark:text-slate-100 capitalize px-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1"
+                  className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-100 capitalize px-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1"
                 >
                   {format(currentDate, 'LLLL yyyy', { locale: ru })}
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", isDatePickerOpen && "rotate-180")} />
+                  <ChevronDown className={cn("h-4 w-4 transition-transform text-slate-400", isDatePickerOpen && "rotate-180")} />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -239,15 +240,15 @@ export function CalendarView({ documents, onDocumentClick }: CalendarViewProps) 
             </Popover>
           </div>
 
-          <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 ml-4">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={prevMonth}>
-              <ChevronLeft className="h-4 w-4" />
+          <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 ml-2 md:ml-4">
+            <Button variant="ghost" size="icon" className="h-6 w-6 md:h-7 md:w-7" onClick={prevMonth}>
+              <ChevronLeft className="h-3.5 w-3.5 md:h-4 md:w-4" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={goToToday}>
+            <Button variant="ghost" size="sm" className="h-6 md:h-7 text-[10px] md:text-xs px-1.5 md:px-2" onClick={goToToday}>
               Сегодня
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={nextMonth}>
-              <ChevronRight className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-6 w-6 md:h-7 md:w-7" onClick={nextMonth}>
+              <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
             </Button>
           </div>
         </div>
@@ -256,14 +257,14 @@ export function CalendarView({ documents, onDocumentClick }: CalendarViewProps) 
       {/* Week days */}
       <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
         {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day) => (
-          <div key={day} className="py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
+          <div key={day} className="py-1 md:py-1.5 text-center text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400">
             {day}
           </div>
         ))}
       </div>
 
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7 flex-1 auto-rows-fr">
+      <div className="grid grid-cols-7 flex-1 auto-rows-fr overflow-hidden">
         {calendarDays.map((day) => {
               const dayDocs = getDayDocuments(day);
               const isCurrentMonth = isSameMonth(day, currentDate);
@@ -274,20 +275,21 @@ export function CalendarView({ documents, onDocumentClick }: CalendarViewProps) 
                   key={day.toString()}
                   onClick={() => handleDayClick(day)}
                   className={cn(
-                    "min-h-[80px] md:min-h-[100px] border-b border-r border-slate-100 dark:border-slate-700/50 p-1 md:p-2 transition-colors relative group cursor-pointer",
-                    !isCurrentMonth && "bg-slate-50/50 dark:bg-slate-900/20 text-slate-400 dark:text-slate-600",
+                    "min-h-[50px] md:min-h-[70px] border-b border-r border-slate-100 dark:border-slate-700/50 p-0.5 md:p-1 transition-all relative group cursor-pointer",
+                    !isCurrentMonth && "bg-slate-50/50 dark:bg-slate-900/10 text-slate-300 dark:text-slate-700",
                     isCurrentMonth && "bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/30",
-                    dayDocs.length > 0 && "cursor-pointer"
+                    dayDocs.length > 0 && "cursor-pointer",
+                    highlightSearch && dayDocs.length > 0 && "bg-blue-50/60 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-100 dark:ring-blue-900"
                   )}
                 >
                   {/* Day Number */}
                   <div className="flex justify-center md:justify-start">
                     <span
                       className={cn(
-                        "text-xs md:text-sm font-medium w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full",
+                        "text-sm md:text-base font-bold w-6 h-6 md:w-8 md:h-8 flex items-center justify-center rounded-full",
                         isTodayDate
-                          ? "bg-blue-600 text-white"
-                          : "text-slate-700 dark:text-slate-300"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : isCurrentMonth ? "text-slate-800 dark:text-slate-200" : "text-slate-300 dark:text-slate-600"
                       )}
                     >
                       {format(day, 'd')}
@@ -295,38 +297,33 @@ export function CalendarView({ documents, onDocumentClick }: CalendarViewProps) 
                   </div>
 
                   {/* Documents Indicators */}
-                  <div className="mt-1 space-y-1">
-                    {/* Mobile: Dots */}
-                    <div className="md:hidden flex flex-wrap justify-center gap-1 mt-1">
-                      {dayDocs.slice(0, 3).map((doc) => (
+                  <div className="mt-0.5 space-y-0.5 overflow-hidden">
+                    {/* Mobile: Dots (always visible on small heights) */}
+                    <div className="flex flex-wrap justify-center md:justify-start gap-0.5 md:gap-1 px-0.5">
+                      {dayDocs.slice(0, 4).map((doc) => (
                         <div 
                           key={doc.id} 
-                          className={cn("w-1.5 h-1.5 rounded-full", typeColors[doc.type]?.split(' ')[0] || 'bg-slate-400')}
+                          className={cn("w-1 h-1 md:w-1.5 md:h-1.5 rounded-full", typeColors[doc.type]?.split(' ')[0] || 'bg-slate-400')}
                         />
                       ))}
-                      {dayDocs.length > 3 && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                      {dayDocs.length > 4 && (
+                        <div className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
                       )}
                     </div>
 
-                    {/* Desktop: Bars */}
-                    <div className="hidden md:block space-y-1 mt-1">
-                      {dayDocs.slice(0, 3).map((doc) => (
+                    {/* Desktop: Small bars (only if enough space) */}
+                    <div className="hidden md:block space-y-0.5">
+                      {dayDocs.slice(0, 2).map((doc) => (
                         <div
                           key={doc.id}
                           className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded truncate font-medium",
+                            "text-[9px] px-1 py-0 rounded truncate font-medium border-[0.5px] border-black/5 dark:border-white/5",
                             typeColors[doc.type]
                           )}
                         >
                           {doc.title}
                         </div>
                       ))}
-                      {dayDocs.length > 3 && (
-                        <div className="text-[10px] text-slate-400 pl-1">
-                          Еще {dayDocs.length - 3}...
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>

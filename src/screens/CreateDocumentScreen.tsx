@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
-import type { DocumentType } from '@/types';
-import { documentTypeLabels } from '@/types';
-import { ArrowLeft, Calendar as CalendarIcon, MapPin, DollarSign, FileText, Upload, X } from 'lucide-react';
+import type { DocumentType, DocumentStatus } from '@/types';
+import { documentTypeLabels, documentStatusLabels } from '@/types';
+import { ArrowLeft, Calendar as CalendarIcon, MapPin, DollarSign, FileText, Upload, X, Hash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,8 +16,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 interface CreateDocumentScreenProps {
   onBack: () => void;
   initialData?: {
+    number?: string;
     title: string;
     type: DocumentType;
+    status?: DocumentStatus;
     description: string;
     equipmentName?: string;
     equipmentLocation?: string;
@@ -28,8 +30,10 @@ interface CreateDocumentScreenProps {
     fileName?: string;
   };
   onSubmit: (data: {
+    number?: string;
     title: string;
     type: DocumentType;
+    status: DocumentStatus;
     description: string;
     equipmentName?: string;
     equipmentLocation?: string;
@@ -50,9 +54,17 @@ const documentTypes: { id: DocumentType; label: string }[] = [
   { id: 'other', label: documentTypeLabels.other },
 ];
 
+const documentStatuses: { id: DocumentStatus; label: string }[] = [
+  { id: 'active', label: documentStatusLabels.active },
+  { id: 'draft', label: documentStatusLabels.draft },
+  { id: 'archived', label: documentStatusLabels.archived },
+];
+
 export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing = false }: CreateDocumentScreenProps) {
+  const [number, setNumber] = useState(initialData?.number || '');
   const [title, setTitle] = useState(initialData?.title || '');
   const [type, setType] = useState<DocumentType>(initialData?.type || 'act');
+  const [status, setStatus] = useState<DocumentStatus>(initialData?.status || 'active');
   const [description, setDescription] = useState(initialData?.description || '');
   const [equipmentName, setEquipmentName] = useState(initialData?.equipmentName || '');
   const [equipmentLocation, setEquipmentLocation] = useState(initialData?.equipmentLocation || '');
@@ -116,8 +128,10 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
   
     // Check if form data has changed compared to initial data
   const hasChanges = isEditing ? (
+    number !== (initialData?.number || '') ||
     title !== (initialData?.title || '') ||
     type !== (initialData?.type || 'act') ||
+    status !== (initialData?.status || 'active') ||
     description !== (initialData?.description || '') ||
     equipmentName !== (initialData?.equipmentName || '') ||
     equipmentLocation !== (initialData?.equipmentLocation || '') ||
@@ -144,8 +158,10 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
     }
     
     onSubmit({
+      number: number.trim() || undefined,
       title: title.trim(),
       type,
+      status,
       description: description.trim(),
       equipmentName: equipmentName.trim() || undefined,
       equipmentLocation: equipmentLocation.trim() || undefined,
@@ -175,11 +191,47 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
         </h1>
       </div>
 
-      <div className="max-w-3xl mx-auto p-4 space-y-6">
+      <div className="max-w-3xl mx-auto p-4 space-y-6 pb-20">
         {/* Main Info */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Основная информация</h2>
           
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="number" className="flex items-center gap-1">
+                <Hash className="w-3.5 h-3.5" />
+                Инвентарный номер
+              </Label>
+              <Input
+                id="number"
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+                placeholder="АКТ-2026-001"
+                className="bg-slate-50 dark:bg-slate-900 h-11"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="status">Статус</Label>
+              <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
+                {documentStatuses.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setStatus(s.id)}
+                    className={cn(
+                      'flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition-all',
+                      status === s.id
+                        ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    )}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="title">Название документа</Label>
             <Input
@@ -187,7 +239,7 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Например: Акт осмотра оборудования"
-              className="bg-slate-50 dark:bg-slate-900"
+              className="bg-slate-50 dark:bg-slate-900 h-11"
             />
           </div>
 

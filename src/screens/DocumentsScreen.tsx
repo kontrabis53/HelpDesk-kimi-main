@@ -85,14 +85,26 @@ export function DocumentsScreen({
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Use localStorage to persist viewType
+  // Use localStorage to persist viewType and switch counts
   const [viewType, setViewType] = useState<ViewType>(() => {
     return (localStorage.getItem('documentsViewType') as ViewType) || 'calendar';
   });
 
-  useEffect(() => {
-    localStorage.setItem('documentsViewType', viewType);
-  }, [viewType]);
+  const handleViewTypeChange = (newType: ViewType) => {
+    setViewType(newType);
+    
+    // Update switch counts to determine preferred default
+    const countsJson = localStorage.getItem('documentsViewTypeCounts');
+    const counts = countsJson ? JSON.parse(countsJson) : { list: 0, calendar: 0, grid: 0 };
+    counts[newType] = (counts[newType] || 0) + 1;
+    
+    // If user switches to this type 3 or more times, make it the permanent default
+    if (counts[newType] >= 3) {
+      localStorage.setItem('documentsViewType', newType);
+    }
+    
+    localStorage.setItem('documentsViewTypeCounts', JSON.stringify(counts));
+  };
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
@@ -199,7 +211,19 @@ export function DocumentsScreen({
           <div className="flex items-center gap-3">
             <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
               <button
-                onClick={() => setViewType('list')}
+                onClick={() => handleViewTypeChange('calendar')}
+                className={cn(
+                  "p-1.5 rounded-md transition-all flex items-center justify-center",
+                  viewType === 'calendar' 
+                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                )}
+                title="Календарь"
+              >
+                <CalendarIcon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleViewTypeChange('list')}
                 className={cn(
                   "p-1.5 rounded-md transition-all flex items-center justify-center",
                   viewType === 'list' 
@@ -211,7 +235,7 @@ export function DocumentsScreen({
                 <List className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setViewType('grid')}
+                onClick={() => handleViewTypeChange('grid')}
                 className={cn(
                   "p-1.5 rounded-md transition-all flex items-center justify-center",
                   viewType === 'grid' 
@@ -222,20 +246,8 @@ export function DocumentsScreen({
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => setViewType('calendar')}
-                className={cn(
-                  "p-1.5 rounded-md transition-all flex items-center justify-center",
-                  viewType === 'calendar' 
-                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                )}
-                title="Календарь"
-              >
-                <CalendarIcon className="w-4 h-4" />
-              </button>
             </div>
-            <Button onClick={onCreateClick} size="sm" className="bg-blue-600 hover:bg-blue-700 h-9 px-4">
+            <Button onClick={onCreateClick} size="sm" className="bg-blue-600 hover:bg-blue-700 h-9 px-4 text-base font-bold">
               + Новый
             </Button>
           </div>
@@ -475,7 +487,7 @@ export function DocumentsScreen({
                   })}
                 </div>
               )
-            ) : viewType === 'grid' ? (
+              ) : viewType === 'grid' ? (
               displayedDocuments.length === 0 ? (
                 <div className="p-4">
                   <EmptyState
@@ -485,35 +497,42 @@ export function DocumentsScreen({
                   />
                 </div>
               ) : (
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto h-full pb-20">
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto pb-20">
                   {displayedDocuments.map((doc) => {
                     const TypeIcon = typeIcons[doc.type];
                     return (
                       <div
                         key={doc.id}
                         onClick={() => onDocumentClick(doc)}
-                        className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex flex-col h-full"
+                        className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 active:scale-[0.98] transition-transform duration-150 cursor-pointer flex flex-col h-full"
                       >
-                        <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-start gap-3 flex-1">
                           <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0", typeColors[doc.type])}>
                             <TypeIcon className="w-5 h-5" />
                           </div>
-                          <span className={cn(
-                            "text-[10px] px-2 py-0.5 rounded-full border font-medium",
-                            doc.status === 'active' ? "bg-green-50 text-green-600 border-green-200 dark:bg-green-900/20 dark:border-green-800" :
-                            doc.status === 'draft' ? "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800" :
-                            "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:border-slate-700"
-                          )}>
-                            {documentStatusLabels[doc.status]}
-                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 truncate">
+                                {doc.number}
+                              </span>
+                              <span className={cn(
+                                "text-[10px] px-2 py-0.5 rounded-full border font-medium whitespace-nowrap",
+                                doc.status === 'active' ? "bg-green-50 text-green-600 border-green-200 dark:bg-green-900/20 dark:border-green-800" :
+                                doc.status === 'draft' ? "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800" :
+                                "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:border-slate-700"
+                              )}>
+                                {documentStatusLabels[doc.status]}
+                              </span>
+                            </div>
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1 line-clamp-2 leading-tight">
+                              {doc.title}
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">
+                              {doc.description}
+                            </p>
+                          </div>
                         </div>
-                        <div className="mb-3 flex-1 min-w-0">
-                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5 block">
-                            {doc.number}
-                          </span>
-                          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1 line-clamp-2 leading-tight">{doc.title}</h3>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{doc.description}</p>
-                        </div>
+                        
                         <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-[10px] text-slate-400">
                           <div className="flex items-center gap-1">
                             <CalendarIcon className="w-3 h-3" />
@@ -522,7 +541,7 @@ export function DocumentsScreen({
                           {doc.equipmentLocation && (
                             <div className="flex items-center gap-1">
                               <MapPin className="w-3 h-3" />
-                              <span className="truncate max-w-[70px]">{doc.equipmentLocation}</span>
+                              <span className="truncate max-w-[80px]">{doc.equipmentLocation}</span>
                             </div>
                           )}
                         </div>

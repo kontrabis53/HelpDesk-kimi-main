@@ -11,6 +11,7 @@ export const documentService = {
     const newDoc = {
       ...doc,
       id: Date.now().toString(),
+      number: doc.number || `ДОК-${new Date().getFullYear()}-${String(mockDocuments.length + 1).padStart(3, '0')}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     } as Document;

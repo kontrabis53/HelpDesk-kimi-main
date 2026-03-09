@@ -2,25 +2,29 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useRoleStore } from '@/stores/roleStore';
+import { useThemeStore } from '@/stores/themeStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Stethoscope } from 'lucide-react';
+import { Stethoscope, Moon, Sun, AlertCircle } from 'lucide-react';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
+  const { theme, toggleTheme } = useThemeStore();
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     
     if (!username || !password) {
-      toast.error('Ошибка', { description: 'Введите логин и пароль' });
+      setError('Введите логин и пароль');
       return;
     }
     
@@ -38,17 +42,32 @@ export function LoginPage() {
         toast.success('Успешный вход');
         navigate('/');
       } else {
-        toast.error('Ошибка входа', { description: 'Неверный логин или пароль' });
+        setError('Неверный логин или пароль');
       }
     } catch (error) {
-      toast.error('Ошибка сервера');
+      setError('Ошибка сервера. Попробуйте позже.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4 relative">
+      <div className="absolute top-4 right-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          className="rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700"
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-5 w-5 text-amber-500" />
+          ) : (
+            <Moon className="h-5 w-5 text-slate-700" />
+          )}
+        </Button>
+      </div>
+
       <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-8">
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
@@ -59,6 +78,13 @@ export function LoginPage() {
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 flex items-center gap-3 text-red-600 dark:text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="username">Логин</Label>
             <Input

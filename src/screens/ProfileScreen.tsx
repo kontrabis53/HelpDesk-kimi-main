@@ -1,6 +1,17 @@
 import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from '@/components/ui/alert-dialog';
 import type { Role } from '@/types/roles';
 import { useAuthStore } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
@@ -169,15 +180,32 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
         </div>
 
         {/* Logout */}
-        <button 
-          onClick={handleLogout}
-          className="w-full bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm flex items-center gap-3 text-red-600 dark:text-red-400 active:scale-[0.99] transition-transform"
-        >
-          <div className="w-9 h-9 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
-            <LogOut className="w-4 h-4" />
-          </div>
-          <span className="font-medium">Выйти из аккаунта</span>
-        </button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button 
+              className="w-full bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm flex items-center gap-3 text-red-600 dark:text-red-400 active:scale-[0.99] transition-transform"
+            >
+              <div className="w-9 h-9 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
+                <LogOut className="w-4 h-4" />
+              </div>
+              <span className="font-medium">Выйти из аккаунта</span>
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Выход из системы</AlertDialogTitle>
+              <AlertDialogDescription>
+                Вы уверены, что хотите выйти из своей учетной записи?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Отмена</AlertDialogCancel>
+              <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700">
+                Выйти
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Version */}
         <p className="text-center text-xs text-slate-400 dark:text-slate-500">

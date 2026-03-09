@@ -156,32 +156,32 @@ export function CalendarView({ documents, onDocumentClick }: CalendarViewProps) 
               <PopoverContent className="w-auto p-0" align="start">
                 {/* Custom Hierarchical Picker inside Popover */}
                 <div className="p-4 min-w-[320px]">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                      if (pickerView === 'days') prevMonth();
+                      else if (pickerView === 'months') handleYearChange(-1);
+                      else handleYearChange(-12);
+                    }}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
                     <Button 
                       variant="ghost" 
-                      className="font-semibold text-sm capitalize px-2 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      className="font-bold text-sm capitalize px-4 hover:bg-slate-100 dark:hover:bg-slate-700 flex-1"
                       onClick={handlePickerHeaderClick}
                     >
                       {pickerView === 'days' && format(currentDate, 'LLLL yyyy', { locale: ru })}
                       {pickerView === 'months' && format(currentDate, 'yyyy', { locale: ru })}
                       {pickerView === 'years' && `${years[0]} - ${years[years.length - 1]}`}
                     </Button>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                        if (pickerView === 'days') prevMonth();
-                        else if (pickerView === 'months') handleYearChange(-1);
-                        else handleYearChange(-12);
-                      }}>
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                        if (pickerView === 'days') nextMonth();
-                        else if (pickerView === 'months') handleYearChange(1);
-                        else handleYearChange(12);
-                      }}>
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
+
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                      if (pickerView === 'days') nextMonth();
+                      else if (pickerView === 'months') handleYearChange(1);
+                      else handleYearChange(12);
+                    }}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
                   </div>
 
                   {pickerView === 'days' && (

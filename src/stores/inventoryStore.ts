@@ -24,9 +24,14 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
   
   createItem: (itemData) => {
     const newItem = inventoryService.create(itemData);
-    set((state) => ({
-      items: [...state.items, newItem]
-    }));
+    set((state) => {
+      if (state.items.some(i => i.id === newItem.id)) {
+        return state;
+      }
+      return {
+        items: [newItem, ...state.items]
+      };
+    });
     return newItem;
   },
   

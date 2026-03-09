@@ -56,9 +56,14 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
       ...ticketData,
       comments: [],
     });
-    set((state) => ({
-      tickets: [...state.tickets, newTicket]
-    }));
+    set((state) => {
+      if (state.tickets.some(t => t.id === newTicket.id)) {
+        return state;
+      }
+      return {
+        tickets: [newTicket, ...state.tickets]
+      };
+    });
     return newTicket;
   },
 

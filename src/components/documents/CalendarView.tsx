@@ -16,7 +16,7 @@ import {
   getYear
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, ChevronDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -29,60 +29,26 @@ interface CalendarViewProps {
   documents: Document[];
   onDocumentClick: (doc: Document) => void;
   highlightSearch?: boolean;
+  currentDate: Date;
+  selectedDocId?: string | null;
 }
 
-export function CalendarView({ documents, onDocumentClick, highlightSearch }: CalendarViewProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+export function CalendarView({ 
+  documents, 
+  onDocumentClick, 
+  highlightSearch, 
+  currentDate,
+  selectedDocId 
+}: CalendarViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [pickerView, setPickerView] = useState<'days' | 'months' | 'years'>('days');
 
-  const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
-  const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
-  const goToToday = () => {
-    setCurrentDate(new Date());
-    setPickerView('days');
-  };
-
-  const months = [
-    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
-  ];
-
-  const handleMonthSelect = (monthIndex: number) => {
-    setCurrentDate(setMonth(currentDate, monthIndex));
-    setPickerView('days');
-  };
-
-  const handleYearSelect = (year: number) => {
-    setCurrentDate(setYear(currentDate, year));
-    setPickerView('months');
-  };
-
-  const handleYearChange = (offset: number) => {
-    setCurrentDate(setYear(currentDate, getYear(currentDate) + offset));
-  };
-
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      setCurrentDate(date);
-      setIsDatePickerOpen(false);
-      setPickerView('days');
-    }
-  };
-
-  // Generate years for years view (12 years)
-  const years = useMemo(() => {
-    const currentYear = getYear(currentDate);
-    const startYear = Math.floor(currentYear / 12) * 12;
-    return Array.from({ length: 12 }, (_, i) => startYear + i);
-  }, [currentDate]);
-
-  const handlePickerHeaderClick = () => {
-    if (pickerView === 'days') setPickerView('months');
-    else if (pickerView === 'months') setPickerView('years');
-    else setPickerView('days');
+  const typeColors: Record<string, string> = {
+    act: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+    repair: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+    maintenance: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
+    inventory: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300',
+    other: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   };
 
   // Generate calendar grid
@@ -127,133 +93,8 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
 
   const selectedDayDocuments = selectedDate ? getDayDocuments(selectedDate) : [];
 
-  const typeColors: Record<string, string> = {
-    act: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
-    repair: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
-    maintenance: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
-    inventory: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300',
-    other: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  };
-
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <Popover open={isDatePickerOpen} onOpenChange={(open) => {
-              setIsDatePickerOpen(open);
-              if (open) setPickerView('days');
-            }}>
-              <PopoverTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className="text-lg font-bold text-slate-800 dark:text-slate-100 capitalize px-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1"
-                >
-                  {format(currentDate, 'LLLL yyyy', { locale: ru })}
-                  <ChevronDown className={cn("h-4 w-4 transition-transform text-slate-400", isDatePickerOpen && "rotate-180")} />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                {/* Custom Hierarchical Picker inside Popover */}
-                <div className="p-4 min-w-[320px]">
-                  <div className="flex items-center justify-between mb-4">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                      if (pickerView === 'days') prevMonth();
-                      else if (pickerView === 'months') handleYearChange(-1);
-                      else handleYearChange(-12);
-                    }}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button 
-                      variant="ghost" 
-                      className="font-bold text-sm capitalize px-4 hover:bg-slate-100 dark:hover:bg-slate-700 flex-1"
-                      onClick={handlePickerHeaderClick}
-                    >
-                      {pickerView === 'days' && format(currentDate, 'LLLL yyyy', { locale: ru })}
-                      {pickerView === 'months' && format(currentDate, 'yyyy', { locale: ru })}
-                      {pickerView === 'years' && `${years[0]} - ${years[years.length - 1]}`}
-                    </Button>
-
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                      if (pickerView === 'days') nextMonth();
-                      else if (pickerView === 'months') handleYearChange(1);
-                      else handleYearChange(12);
-                    }}>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {pickerView === 'days' && (
-                    <Calendar
-                      mode="single"
-                      selected={currentDate}
-                      onSelect={handleDateSelect}
-                      initialFocus
-                      locale={ru}
-                      className="p-0"
-                      classNames={{
-                        month_caption: "hidden",
-                        nav: "hidden",
-                      }}
-                    />
-                  )}
-
-                  {pickerView === 'months' && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {months.map((month, index) => (
-                        <Button
-                          key={month}
-                          variant="ghost"
-                          className={cn(
-                            "h-10 text-xs",
-                            currentDate.getMonth() === index && "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                          )}
-                          onClick={() => handleMonthSelect(index)}
-                        >
-                          {month.substring(0, 3)}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-
-                  {pickerView === 'years' && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {years.map((year) => (
-                        <Button
-                          key={year}
-                          variant="ghost"
-                          className={cn(
-                            "h-10 text-xs",
-                            getYear(currentDate) === year && "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                          )}
-                          onClick={() => handleYearSelect(year)}
-                        >
-                          {year}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 ml-4">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={prevMonth}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={goToToday}>
-              Сегодня
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={nextMonth}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full bg-white dark:bg-slate-800 border-x border-slate-200 dark:border-slate-700 overflow-hidden">
       {/* Week days */}
       <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
         {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day) => (
@@ -269,6 +110,7 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
               const dayDocs = getDayDocuments(day);
               const isCurrentMonth = isSameMonth(day, currentDate);
               const isTodayDate = isToday(day);
+              const isSelectedDay = selectedDocId && dayDocs.some(doc => doc.id === selectedDocId);
               
               return (
                 <div
@@ -279,7 +121,8 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
                     !isCurrentMonth && "bg-slate-50/50 dark:bg-slate-900/10 text-slate-300 dark:text-slate-700",
                     isCurrentMonth && "bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/30",
                     dayDocs.length > 0 && "cursor-pointer",
-                    highlightSearch && dayDocs.length > 0 && "bg-blue-50/60 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-100 dark:ring-blue-900"
+                    highlightSearch && dayDocs.length > 0 && "bg-blue-50/60 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-100 dark:ring-blue-900",
+                    isSelectedDay && "bg-green-50/60 dark:bg-green-900/20 ring-2 ring-inset ring-green-500/50 z-10"
                   )}
                 >
                   {/* Day Number */}
@@ -295,6 +138,13 @@ export function CalendarView({ documents, onDocumentClick, highlightSearch }: Ca
                       {format(day, 'd')}
                     </span>
                   </div>
+
+                  {/* Selected Indicator Checkmark */}
+                  {isSelectedDay && (
+                    <div className="absolute right-1 top-1 bg-green-500 text-white rounded-full p-0.5 shadow-sm">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </div>
+                  )}
 
                   {/* Documents Indicators */}
                   <div className="mt-0 space-y-0.5 overflow-hidden">

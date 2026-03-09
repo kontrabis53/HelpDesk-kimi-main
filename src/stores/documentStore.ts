@@ -21,9 +21,15 @@ export const useDocumentStore = create<DocumentStore>((set) => ({
   
   createDocument: (docData) => {
     const newDoc = documentService.create(docData);
-    set((state) => ({
-      documents: [...state.documents, newDoc]
-    }));
+    set((state) => {
+      // Check if document with this ID already exists to prevent duplicates from React StrictMode
+      if (state.documents.some(d => d.id === newDoc.id)) {
+        return state;
+      }
+      return {
+        documents: [newDoc, ...state.documents]
+      };
+    });
     return newDoc;
   },
 

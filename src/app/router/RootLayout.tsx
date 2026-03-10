@@ -4,6 +4,7 @@ import { BottomNav } from '@/components/BottomNav';
 import { Sidebar } from '@/components/Sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { useRoleStore } from '@/stores/roleStore';
+import { cn } from '@/lib/utils';
 
 const ROUTES_WITHOUT_NAV = [
   '/settings',
@@ -38,6 +39,8 @@ export function RootLayout() {
   
   const canAccessAdmin = hasPermission('admin', 'view');
   
+  const isChatPage = location.pathname.startsWith('/chat');
+  
   return (
     <div className="w-full min-h-screen bg-white dark:bg-slate-950 relative flex">
       {/* Sidebar for desktop */}
@@ -47,8 +50,16 @@ export function RootLayout() {
       />
 
       {/* Main content */}
-      <div className="flex-1 w-full md:pl-64">
-        <div className="w-full mx-auto md:px-6 lg:px-8 py-4 md:py-8">
+      <div className={cn(
+        "flex-1 w-full md:pl-64 flex flex-col",
+        isChatPage ? "h-screen" : "min-h-screen"
+      )}>
+        <div className={cn(
+          "w-full mx-auto",
+          isChatPage 
+            ? "flex-1 overflow-hidden h-full" 
+            : "md:px-6 lg:px-8 py-4 md:py-8"
+        )}>
           <Outlet />
         </div>
       </div>

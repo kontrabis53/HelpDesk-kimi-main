@@ -2,7 +2,7 @@
 
 import type { User } from './index';
 
-export type ModuleId = 'knowledge' | 'tickets' | 'documents' | 'inventory' | 'directory' | 'admin' | 'profile';
+export type ModuleId = 'knowledge' | 'tickets' | 'documents' | 'inventory' | 'directory' | 'chat' | 'admin' | 'profile';
 
 export interface ModulePermission {
   moduleId: ModuleId;
@@ -61,6 +61,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'documents', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'inventory', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'directory', canView: true, canCreate: true, canEdit: true, canDelete: true },
+      { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'admin', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: true },
     ],
@@ -77,6 +78,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'documents', canView: true, canCreate: true, canEdit: true, canDelete: false },
       { moduleId: 'inventory', canView: true, canCreate: true, canEdit: true, canDelete: false },
       { moduleId: 'directory', canView: true, canCreate: true, canEdit: true, canDelete: false },
+      { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
     ],
@@ -93,6 +95,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'documents', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'inventory', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'directory', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
     ],
@@ -108,6 +111,8 @@ export const defaultRoles: Role[] = [
       { moduleId: 'tickets', canView: true, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'documents', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'inventory', canView: false, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'directory', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'profile', canView: true, canCreate: false, canEdit: true, canDelete: false },
     ],
@@ -119,6 +124,8 @@ export const moduleLabels: Record<ModuleId, string> = {
   tickets: 'Заявки',
   documents: 'Документы',
   inventory: 'Склад',
+  directory: 'Справочник',
+  chat: 'Чат',
   admin: 'Управление',
   profile: 'Профиль',
 };
@@ -128,6 +135,8 @@ export const moduleIcons: Record<ModuleId, string> = {
   tickets: 'Home',
   documents: 'FileText',
   inventory: 'Package',
+  directory: 'Users',
+  chat: 'MessageSquare',
   admin: 'Settings',
   profile: 'User',
 };

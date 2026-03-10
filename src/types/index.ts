@@ -101,6 +101,29 @@ export interface SearchStat {
   lastSearched: string;
 }
 
+// ===== ЧАТ =====
+export type ChatType = 'direct' | 'group';
+
+export interface ChatMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string; // Display name (e.g., "Medin CC")
+  senderRealName?: string; // Real person name (e.g., "Иван Иванов")
+  text: string;
+  timestamp: string;
+}
+
+export interface Chat {
+  id: string;
+  name: string;
+  type: ChatType;
+  participants: string[]; // user IDs or identifiers like 'Medin Reception'
+  lastMessage?: string;
+  lastMessageTime?: string;
+  unreadCount: number;
+}
+
 // ===== СКЛАД =====
 export type InventoryCategory = 'spare_parts' | 'consumables' | 'equipment' | 'tools' | 'other';
 export type InventoryUnit = 'pcs' | 'kg' | 'l' | 'm' | 'box';

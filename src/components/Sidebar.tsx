@@ -1,4 +1,4 @@
-import { Home, FileText, Package, BookOpen, User, Shield, Users } from 'lucide-react';
+import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -18,6 +18,7 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
     { id: 'documents' as const, label: 'Документы', icon: FileText, moduleId: 'documents', path: '/documents' },
     { id: 'inventory' as const, label: 'Склад', icon: Package, moduleId: 'inventory', path: '/inventory' },
     { id: 'directory' as const, label: 'Справочник', icon: Users, moduleId: 'directory', path: '/directory' },
+    { id: 'chat' as const, label: 'Чат', icon: MessageSquare, moduleId: 'chat', path: '/chat' },
     { id: 'admin' as const, label: 'Управление', icon: Shield, moduleId: 'admin', path: '/admin' },
     { id: 'profile' as const, label: 'Профиль', icon: User, moduleId: 'profile', path: '/profile' },
   ];
@@ -43,6 +44,7 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
     if (path.startsWith('/documents')) return 'documents';
     if (path.startsWith('/inventory')) return 'inventory';
     if (path.startsWith('/directory')) return 'directory';
+    if (path.startsWith('/chat')) return 'chat';
     if (path.startsWith('/knowledge')) return 'knowledge';
     if (path.startsWith('/admin')) return 'admin';
     if (path.startsWith('/profile')) return 'profile';

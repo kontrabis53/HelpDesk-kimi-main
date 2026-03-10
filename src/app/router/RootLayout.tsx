@@ -4,6 +4,7 @@ import { BottomNav } from '@/components/BottomNav';
 import { Sidebar } from '@/components/Sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { useRoleStore } from '@/stores/roleStore';
+import { useUIStore } from '@/stores/uiStore';
 import { cn } from '@/lib/utils';
 
 const ROUTES_WITHOUT_NAV = [
@@ -40,6 +41,7 @@ export function RootLayout() {
   const canAccessAdmin = hasPermission('admin', 'view');
   
   const isChatPage = location.pathname.startsWith('/chat');
+  const isSidebarCollapsed = useUIStore((state) => state.isSidebarCollapsed);
   
   return (
     <div className="w-full min-h-screen bg-white dark:bg-slate-950 relative flex">
@@ -51,7 +53,8 @@ export function RootLayout() {
 
       {/* Main content */}
       <div className={cn(
-        "flex-1 w-full md:pl-64 flex flex-col",
+        "flex-1 w-full flex flex-col transition-all duration-300",
+        isSidebarCollapsed ? "md:pl-20" : "md:pl-64",
         isChatPage ? "h-screen" : "min-h-screen"
       )}>
         <div className={cn(

@@ -15,6 +15,7 @@ import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateInventoryPage } from '@/pages/CreateInventoryPage';
 import { DirectoryPage } from '@/pages/DirectoryPage';
 import { ChatPage } from '@/pages/ChatPage';
+import { ParserPage } from '@/pages/ParserPage';
 import { KnowledgePage } from '@/pages/KnowledgePage';
 import { GuideDetailPage } from '@/pages/GuideDetailPage';
 import { CreateGuideScreen } from '@/screens/CreateGuideScreen';
@@ -137,6 +138,11 @@ export const router = createBrowserRouter([
       {
         path: 'chat',
         element: <ChatPage />,
+      },
+      // Parser
+      {
+        path: 'parser',
+        element: <ParserPage />,
       },
       // Profile
       {

@@ -143,6 +143,7 @@ export function AdminScreen({
         name: user.name,
         email: user.email || '',
         roleId: user.roleId,
+        position: user.position || '',
         department: user.department,
         isActive: user.isActive || false,
         username: user.username || '',
@@ -154,6 +155,7 @@ export function AdminScreen({
         name: '',
         email: '',
         roleId: roles[0]?.id || '',
+        position: '',
         department: '',
         isActive: true,
         username: '',
@@ -170,6 +172,7 @@ export function AdminScreen({
       name: request.name,
       email: request.email,
       roleId: roles[0]?.id || '',
+      position: '',
       department: request.department,
       isActive: true,
       username: request.email.split('@')[0],
@@ -676,6 +679,16 @@ export function AdminScreen({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-position">Должность</Label>
+              <Input
+                id="user-position"
+                value={userFormData.position}
+                onChange={(e) => setUserFormData(prev => ({ ...prev, position: e.target.value }))}
+                placeholder="Например: Системный администратор"
+                className="dark:bg-slate-800"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="user-department">Отдел *</Label>

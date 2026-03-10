@@ -10,6 +10,7 @@ export interface User {
   name: string;
   email?: string;
   avatar?: string;
+  position?: string;
   role: 'user' | 'technician' | 'admin' | 'viewer' | 'manager'; // Added viewer and manager
   roleId: string; // Added for compatibility with RoleStore
   department: string;
@@ -122,6 +123,27 @@ export interface Chat {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount: number;
+}
+
+// ===== ПАРСЕР =====
+export interface Device {
+  id: string;
+  ipAddress: string;
+  macAddress: string;
+  hostname: string;
+  status: 'online' | 'offline';
+  lastSeen: string;
+  os: string;
+  openPorts: number[];
+  services: string[];
+  hasAppRunning: boolean; // запущен ли HelpDesk-kimi-main
+}
+
+export interface NetworkScanResult {
+  timestamp: string;
+  onlineDevices: number;
+  totalDevices: number;
+  devicesWithApp: number;
 }
 
 // ===== СКЛАД =====

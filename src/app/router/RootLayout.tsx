@@ -41,6 +41,7 @@ export function RootLayout() {
   const canAccessAdmin = hasPermission('admin', 'view');
   
   const isChatPage = location.pathname.startsWith('/chat');
+  const isParserPage = location.pathname.startsWith('/parser');
   const isSidebarCollapsed = useUIStore((state) => state.isSidebarCollapsed);
   
   return (
@@ -61,7 +62,7 @@ export function RootLayout() {
           "w-full mx-auto",
           isChatPage 
             ? "flex-1 overflow-hidden h-full" 
-            : "md:px-6 lg:px-8 py-4 md:py-8"
+            : "w-full min-h-screen"
         )}>
           <Outlet />
         </div>

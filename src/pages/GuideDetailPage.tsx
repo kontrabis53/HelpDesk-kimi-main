@@ -8,23 +8,25 @@ export function GuideDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
-  const selectedGuide = useKnowledgeStore((state) => state.selectedGuide);
-  const getGuideById = useKnowledgeStore((state) => state.getGuideById);
-  const setSelectedGuide = useKnowledgeStore((state) => state.setSelectedGuide);
+  const selectedArticle = useKnowledgeStore((state) => state.selectedArticle);
+  const getArticleById = useKnowledgeStore((state) => state.getArticleById);
+  const setSelectedArticle = useKnowledgeStore((state) => state.setSelectedArticle);
+  const incrementViews = useKnowledgeStore((state) => state.incrementViews);
   
   useEffect(() => {
     if (id) {
-      const guide = getGuideById(id);
-      if (guide) {
-        setSelectedGuide(guide);
+      const article = getArticleById(id);
+      if (article) {
+        setSelectedArticle(article);
+        incrementViews(article.id);
       } else {
-        toast.error('Инструкция не найдена');
+        toast.error('Статья не найдена');
         navigate('/knowledge');
       }
     }
-  }, [id, getGuideById, setSelectedGuide, navigate]);
+  }, [id, getArticleById, setSelectedArticle, incrementViews, navigate]);
   
-  if (!selectedGuide) {
+  if (!selectedArticle) {
     return null;
   }
   
@@ -32,19 +34,14 @@ export function GuideDetailPage() {
     navigate('/knowledge');
   };
   
-  const handleCreateTicket = () => {
-    navigate('/tickets/create');
-  };
-  
   const handleEdit = () => {
-    navigate(`/knowledge/${selectedGuide.id}/edit`);
+    navigate(`/knowledge/${id}/edit`);
   };
 
   return (
     <GuideDetailScreen
-      guide={selectedGuide}
+      article={selectedArticle}
       onBack={handleBack}
-      onCreateTicket={handleCreateTicket}
       onEdit={handleEdit}
     />
   );

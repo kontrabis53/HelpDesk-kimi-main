@@ -1,26 +1,26 @@
 import { create } from 'zustand';
-import type { KnowledgeGuide, KnowledgeFilter } from '@/types';
+import type { KBArticle, KnowledgeFilter } from '@/types';
 import { knowledgeService } from '@/api/knowledge';
 
 interface KnowledgeStore {
-  guides: KnowledgeGuide[];
+  articles: KBArticle[];
   filter: KnowledgeFilter;
-  selectedGuide: KnowledgeGuide | null;
+  selectedArticle: KBArticle | null;
   setFilter: (filter: Partial<KnowledgeFilter>) => void;
-  setSelectedGuide: (guide: KnowledgeGuide | null) => void;
-  createGuide: (guide: Omit<KnowledgeGuide, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateGuide: (id: string, updates: Partial<KnowledgeGuide>) => void;
-  deleteGuide: (id: string) => void;
+  setSelectedArticle: (article: KBArticle | null) => void;
+  createArticle: (article: Omit<KBArticle, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateArticle: (id: string, updates: Partial<KBArticle>) => void;
+  deleteArticle: (id: string) => void;
   incrementViews: (id: string) => void;
-  getGuideById: (id: string) => KnowledgeGuide | undefined;
+  getArticleById: (id: string) => KBArticle | undefined;
 }
 
 export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
-  guides: knowledgeService.getAll(),
+  articles: knowledgeService.getAll(),
   filter: {},
-  selectedGuide: null,
+  selectedArticle: null,
   
-  getGuideById: (id) => {
+  getArticleById: (id) => {
     return knowledgeService.getById(id);
   },
 
@@ -28,36 +28,36 @@ export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
     filter: { ...state.filter, ...newFilter } 
   })),
   
-  setSelectedGuide: (guide) => set({ selectedGuide: guide }),
+  setSelectedArticle: (article) => set({ selectedArticle: article }),
   
-  createGuide: (guideData) => {
-    const newGuide = knowledgeService.create(guideData);
+  createArticle: (articleData) => {
+    const newArticle = knowledgeService.create(articleData);
     set((state) => ({
-      guides: [...state.guides, newGuide]
+      articles: [...state.articles, newArticle]
     }));
   },
 
-  updateGuide: (id, updates) => {
+  updateArticle: (id, updates) => {
     knowledgeService.update(id, updates);
     set((state) => ({
-      guides: state.guides.map((g) => 
-        g.id === id ? { ...g, ...updates, updatedAt: new Date().toISOString() } : g
+      articles: state.articles.map((a) => 
+        a.id === id ? { ...a, ...updates, updatedAt: new Date().toISOString() } : a
       ),
     }));
   },
 
-  deleteGuide: (id) => {
+  deleteArticle: (id) => {
     knowledgeService.delete(id);
     set((state) => ({
-      guides: state.guides.filter((g) => g.id !== id),
+      articles: state.articles.filter((a) => a.id !== id),
     }));
   },
   
   incrementViews: (id) => {
     knowledgeService.incrementViews(id);
     set((state) => ({
-      guides: state.guides.map((g) => 
-        g.id === id ? { ...g, views: g.views + 1 } : g
+      articles: state.articles.map((a) => 
+        a.id === id ? { ...a, views: a.views + 1 } : a
       ),
     }));
   },

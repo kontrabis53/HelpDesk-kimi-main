@@ -1,48 +1,48 @@
-import { mockGuides } from '@/data/mockDocuments';
-import type { KnowledgeGuide } from '@/types';
+import { mockKBArticles } from '../data/mockDocuments';
+import type { KBArticle } from '@/types';
 
 // In a real application, this would be an API client making HTTP requests
 export const knowledgeService = {
-  getAll: (): KnowledgeGuide[] => {
-    return mockGuides;
+  getAll: (): KBArticle[] => {
+    return mockKBArticles;
   },
 
-  getById: (id: string): KnowledgeGuide | undefined => {
-    return mockGuides.find(guide => guide.id === id);
+  getById: (id: string): KBArticle | undefined => {
+    return mockKBArticles.find((article: KBArticle) => article.id === id);
   },
 
-  create: (guide: Omit<KnowledgeGuide, 'id' | 'createdAt' | 'updatedAt'>): KnowledgeGuide => {
-    const newGuide = {
-      ...guide,
+  create: (articleData: Omit<KBArticle, 'id' | 'createdAt' | 'updatedAt'>): KBArticle => {
+    const newArticle = {
+      ...articleData,
       id: Date.now().toString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       views: 0,
-    } as KnowledgeGuide;
+    } as KBArticle;
     
-    mockGuides.push(newGuide);
-    return newGuide;
+    mockKBArticles.push(newArticle);
+    return newArticle;
   },
 
-  update: (id: string, updates: Partial<KnowledgeGuide>): KnowledgeGuide | undefined => {
-    const index = mockGuides.findIndex(g => g.id === id);
+  update: (id: string, updates: Partial<KBArticle>): KBArticle | undefined => {
+    const index = mockKBArticles.findIndex((g: KBArticle) => g.id === id);
     if (index === -1) return undefined;
     
-    mockGuides[index] = { ...mockGuides[index], ...updates };
-    return mockGuides[index];
+    mockKBArticles[index] = { ...mockKBArticles[index], ...updates };
+    return mockKBArticles[index];
   },
   
   delete: (id: string): void => {
-    const index = mockGuides.findIndex(g => g.id === id);
+    const index = mockKBArticles.findIndex((g: KBArticle) => g.id === id);
     if (index !== -1) {
-      mockGuides.splice(index, 1);
+      mockKBArticles.splice(index, 1);
     }
   },
 
   incrementViews: (id: string): void => {
-    const guide = mockGuides.find(g => g.id === id);
-    if (guide) {
-      guide.views += 1;
+    const article = mockKBArticles.find((g: KBArticle) => g.id === id);
+    if (article) {
+      article.views += 1;
     }
   }
 };

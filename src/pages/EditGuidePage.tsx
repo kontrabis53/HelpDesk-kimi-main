@@ -8,25 +8,25 @@ export function EditGuidePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
-  const selectedGuide = useKnowledgeStore((state) => state.selectedGuide);
-  const getGuideById = useKnowledgeStore((state) => state.getGuideById);
-  const setSelectedGuide = useKnowledgeStore((state) => state.setSelectedGuide);
-  const updateGuide = useKnowledgeStore((state) => state.updateGuide);
-  const deleteGuide = useKnowledgeStore((state) => state.deleteGuide);
+  const selectedArticle = useKnowledgeStore((state) => state.selectedArticle);
+  const getArticleById = useKnowledgeStore((state) => state.getArticleById);
+  const setSelectedArticle = useKnowledgeStore((state) => state.setSelectedArticle);
+  const updateArticle = useKnowledgeStore((state) => state.updateArticle);
+  const deleteArticle = useKnowledgeStore((state) => state.deleteArticle);
   
   useEffect(() => {
     if (id) {
-      const guide = getGuideById(id);
-      if (guide) {
-        setSelectedGuide(guide);
+      const article = getArticleById(id);
+      if (article) {
+        setSelectedArticle(article);
       } else {
-        toast.error('Инструкция не найдена');
+        toast.error('Статья не найдена');
         navigate('/knowledge');
       }
     }
-  }, [id, getGuideById, setSelectedGuide, navigate]);
+  }, [id, getArticleById, setSelectedArticle, navigate]);
   
-  if (!selectedGuide) {
+  if (!selectedArticle) {
     return null;
   }
   
@@ -35,22 +35,24 @@ export function EditGuidePage() {
   };
   
   const handleSubmit = (data: any) => {
-    updateGuide(selectedGuide.id, data);
-    toast.success('Инструкция обновлена');
-    navigate(`/knowledge/${selectedGuide.id}`);
+    if (id) {
+      updateArticle(id, data);
+      toast.success('Статья обновлена');
+      navigate(`/knowledge/${id}`);
+    }
   };
 
   const handleDelete = () => {
-    if (confirm('Вы уверены, что хотите удалить эту инструкцию?')) {
-      deleteGuide(selectedGuide.id);
-      toast.success('Инструкция удалена');
+    if (id && window.confirm('Вы уверены, что хотите удалить эту статью?')) {
+      deleteArticle(id);
+      toast.success('Статья удалена');
       navigate('/knowledge');
     }
   };
   
   return (
     <EditGuideScreen
-      guide={selectedGuide}
+      article={selectedArticle}
       onBack={handleBack}
       onSubmit={handleSubmit}
       onDelete={handleDelete}

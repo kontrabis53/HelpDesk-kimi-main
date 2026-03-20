@@ -211,32 +211,33 @@ export interface InventoryMovement {
   author: User;
 }
 
-// ===== БАЗА ЗНАНИЙ / ИНСТРУКЦИИ =====
-export type GuideCategory = 'hardware' | 'software' | 'network' | 'printer' | 'common';
+// ===== БАЗА ЗНАНИЙ (Knowledge Base) =====
+export type KBArticleCategory = 'software' | 'network' | 'printer' | 'common' | 'security';
 
-export interface GuideStep {
-  id: string;
-  order: number;
-  title: string;
-  description: string;
-  imageUrl?: string;
-}
-
-export interface KnowledgeGuide {
+export interface KBArticle {
   id: string;
   title: string;
-  category: GuideCategory;
+  category: KBArticleCategory;
   description: string;
   content?: string; // Markdown или HTML
-  steps: GuideStep[];
-  equipmentModels?: string[]; // Связанные модели (например, ["Hamilton C3", "Puritan Bennett 980"])
-  fileUrls?: { name: string; url: string; type: 'pdf' | 'doc' | 'image' }[]; // Ссылки на файлы инструкций
+  steps: { id: string; order: number; title: string; description: string }[];
   tags: string[];
   successRate: number;
   views: number;
   createdAt: string;
   updatedAt: string;
   author: User;
+}
+
+// ===== ТЕХНИЧЕСКИЕ ИНСТРУКЦИИ (Equipment Guides) =====
+export interface TechnicalGuide {
+  id: string;
+  title: string;
+  description: string;
+  equipmentModels: string[]; // Например, ["Hamilton C3"]
+  fileUrls: { name: string; url: string; type: 'pdf' | 'doc' | 'image' }[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DocumentFilter {
@@ -252,7 +253,7 @@ export interface InventoryFilter {
 }
 
 export interface KnowledgeFilter {
-  category?: GuideCategory;
+  category?: KBArticleCategory;
   search?: string;
 }
 
@@ -328,10 +329,10 @@ export const inventoryUnitLabels: Record<InventoryUnit, string> = {
 };
 
 // База знаний
-export const guideCategoryLabels: Record<GuideCategory, string> = {
-  hardware: 'Оборудование',
+export const kbArticleCategoryLabels: Record<KBArticleCategory, string> = {
   software: 'ПО',
   network: 'Сеть',
-  printer: 'Принтер',
+  printer: 'Принтеры',
+  security: 'Безопасность',
   common: 'Общее',
 };

@@ -5,39 +5,38 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { GuideCategory, KnowledgeGuide } from '@/types';
-import { guideCategoryLabels } from '@/types';
+import type { KBArticleCategory, KBArticle } from '@/types';
 import { toast } from 'sonner';
 
 interface EditGuideScreenProps {
-  guide: KnowledgeGuide;
+  article: KBArticle;
   onBack: () => void;
   onSubmit: (data: {
     title: string;
     description: string;
-    category: GuideCategory;
+    category: KBArticleCategory;
     tags: string[];
     steps: { id: string; title: string; description: string; order: number }[];
   }) => void;
   onDelete: () => void;
 }
 
-export function EditGuideScreen({ guide, onBack, onSubmit, onDelete }: EditGuideScreenProps) {
-  const [title, setTitle] = useState(guide.title);
-  const [description, setDescription] = useState(guide.description);
-  const [category, setCategory] = useState<GuideCategory>(guide.category);
-  const [tagsInput, setTagsInput] = useState(guide.tags.join(', '));
+export function EditGuideScreen({ article, onBack, onSubmit, onDelete }: EditGuideScreenProps) {
+  const [title, setTitle] = useState(article.title);
+  const [description, setDescription] = useState(article.description);
+  const [category, setCategory] = useState<KBArticleCategory>(article.category);
+  const [tagsInput, setTagsInput] = useState(article.tags.join(', '));
   const [steps, setSteps] = useState<{ id: string; title: string; description: string }[]>(
-    guide.steps.map(s => ({ id: s.id, title: s.title, description: s.description }))
+    article.steps.map(s => ({ id: s.id, title: s.title, description: s.description }))
   );
 
   useEffect(() => {
-    setTitle(guide.title);
-    setDescription(guide.description);
-    setCategory(guide.category);
-    setTagsInput(guide.tags.join(', '));
-    setSteps(guide.steps.map(s => ({ id: s.id, title: s.title, description: s.description })));
-  }, [guide]);
+    setTitle(article.title);
+    setDescription(article.description);
+    setCategory(article.category);
+    setTagsInput(article.tags.join(', '));
+    setSteps(article.steps.map(s => ({ id: s.id, title: s.title, description: s.description })));
+  }, [article]);
 
   const handleAddStep = () => {
     setSteps([
@@ -138,16 +137,16 @@ export function EditGuideScreen({ guide, onBack, onSubmit, onDelete }: EditGuide
 
           <div className="space-y-2">
             <Label htmlFor="category">Категория</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v as GuideCategory)}>
+            <Select value={category} onValueChange={(v) => setCategory(v as KBArticleCategory)}>
               <SelectTrigger className="bg-slate-50 dark:bg-slate-900">
                 <SelectValue placeholder="Выберите категорию" />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(guideCategoryLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
+                <SelectItem value="software">Программное обеспечение</SelectItem>
+                <SelectItem value="network">Сеть и интернет</SelectItem>
+                <SelectItem value="printer">Печать и МФУ</SelectItem>
+                <SelectItem value="security">Безопасность</SelectItem>
+                <SelectItem value="common">Общие вопросы</SelectItem>
               </SelectContent>
             </Select>
           </div>

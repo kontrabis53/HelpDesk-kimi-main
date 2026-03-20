@@ -17,8 +17,9 @@ import { DirectoryPage } from '@/pages/DirectoryPage';
 import { ChatPage } from '@/pages/ChatPage';
 import { ParserPage } from '@/pages/ParserPage';
 import { KnowledgePage } from '@/pages/KnowledgePage';
+import { GuidesPage } from '@/pages/GuidesPage';
 import { GuideDetailPage } from '@/pages/GuideDetailPage';
-import { CreateGuideScreen } from '@/screens/CreateGuideScreen';
+import { CreateGuidePage } from '@/pages/CreateGuidePage';
 import { EditGuidePage } from '@/pages/EditGuidePage';
 import { ProfilePage, AdminPage, SettingsPage } from '@/pages';
 import { LoginPage } from '@/pages/LoginPage';
@@ -50,7 +51,7 @@ export const router = createBrowserRouter([
         path: 'guides',
         element: (
           <ProtectedRoute moduleId="guides" action="view">
-            <KnowledgePage /> 
+            <GuidesPage />
           </ProtectedRoute>
         ),
       },
@@ -63,7 +64,7 @@ export const router = createBrowserRouter([
         path: 'knowledge/create',
         element: (
           <ProtectedRoute moduleId="knowledge" action="create">
-            <CreateGuideScreen />
+            <CreateGuidePage />
           </ProtectedRoute>
         ),
       },
@@ -171,15 +172,6 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsPage />,
-      },
-      // Admin
-      {
-        path: 'admin',
-        element: (
-          <ProtectedRoute moduleId="admin" action="view">
-            <AdminPage />
-          </ProtectedRoute>
-        ),
       },
     ],
   },

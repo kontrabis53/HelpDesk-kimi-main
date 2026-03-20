@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
-import type { DocumentType, DocumentStatus, KnowledgeGuide } from '@/types';
+import type { DocumentType, DocumentStatus } from '@/types';
 import { documentTypeLabels, documentStatusLabels } from '@/types';
 import { ArrowLeft, Calendar as CalendarIcon, MapPin, DollarSign, FileText, Upload, X, Hash, Book, ChevronRight, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { ru } from 'date-fns/locale';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useLocationStore } from '@/stores/locationStore';
-import { useKnowledgeStore } from '@/stores/knowledgeStore';
+import { useGuideStore } from '@/stores/guideStore';
 import { Badge } from '@/components/ui/badge';
 
 interface CreateDocumentScreenProps {
@@ -65,7 +65,7 @@ const documentStatuses: { id: DocumentStatus; label: string }[] = [
 
 export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing = false }: CreateDocumentScreenProps) {
   const { getEquipmentByModel, getCabinetById, getBuildingById } = useLocationStore();
-  const { guides } = useKnowledgeStore();
+  const { guides: allTechnicalGuides } = useGuideStore();
 
   const [number, setNumber] = useState(initialData?.number || '');
   const [title, setTitle] = useState(initialData?.title || '');
@@ -90,8 +90,8 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
       }
     }
 
-    const relatedGuides = guides.filter(g => 
-      g.equipmentModels?.some(m => equipmentName.toLowerCase().includes(m.toLowerCase())) ||
+    const relatedGuides = allTechnicalGuides.filter(g => 
+      g.equipmentModels?.some(m => equipmentName.toLowerCase().includes(m.toLowerCase()) || m.toLowerCase().includes(equipmentName.toLowerCase())) ||
       g.title.toLowerCase().includes(equipmentName.toLowerCase())
     );
 
@@ -99,7 +99,7 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
       location: locationStr, 
       guides: relatedGuides 
     };
-  }, [equipmentName, getEquipmentByModel, getCabinetById, getBuildingById, guides]);
+  }, [equipmentName, getEquipmentByModel, getCabinetById, getBuildingById, allTechnicalGuides]);
 
   // Effect to update location automatically if found
   useState(() => {
@@ -480,10 +480,10 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
                           <FileText className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 transition-colors">{guide.title}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-slate-500">{guide.category === 'hardware' ? 'Оборудование' : 'Инструкция'}</span>
-                            {guide.fileUrls && guide.fileUrls.length > 0 && (
+                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 transition-colors">{guide.title}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-slate-500">Инструкция</span>
+                                {guide.fileUrls && guide.fileUrls.length > 0 && (
                               <Badge variant="secondary" className="text-[8px] h-4 px-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-none">
                                 + {guide.fileUrls.length} файл(а)
                               </Badge>

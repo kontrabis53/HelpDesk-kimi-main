@@ -4,47 +4,48 @@ import { KnowledgeScreen } from '@/screens/KnowledgeScreen';
 import { useKnowledgeStore } from '@/stores/knowledgeStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { toast } from 'sonner';
+import type { KBArticle } from '@/types';
 
 export function KnowledgePage() {
   const navigate = useNavigate();
   
-  const allGuides = useKnowledgeStore((state) => state.guides);
+  const allArticles = useKnowledgeStore((state) => state.articles);
   const filter = useKnowledgeStore((state) => state.filter);
   const setFilter = useKnowledgeStore((state) => state.setFilter);
-  const setSelectedGuide = useKnowledgeStore((state) => state.setSelectedGuide);
+  const setSelectedArticle = useKnowledgeStore((state) => state.setSelectedArticle);
   const incrementViews = useKnowledgeStore((state) => state.incrementViews);
   const hasPermission = useRoleStore((state) => state.hasPermission);
 
-  const guides = useMemo(() => {
-    return allGuides.filter((guide) => {
-      if (filter.category && guide.category !== filter.category) return false;
+  const articles = useMemo(() => {
+    return allArticles.filter((article) => {
+      if (filter.category && article.category !== filter.category) return false;
       if (filter.search) {
         const searchLower = filter.search.toLowerCase();
         const matchesSearch =
-          guide.title.toLowerCase().includes(searchLower) ||
-          guide.description.toLowerCase().includes(searchLower) ||
-          guide.tags.some(tag => tag.toLowerCase().includes(searchLower));
+          article.title.toLowerCase().includes(searchLower) ||
+          article.description.toLowerCase().includes(searchLower) ||
+          article.tags.some(tag => tag.toLowerCase().includes(searchLower));
         if (!matchesSearch) return false;
       }
       return true;
     }).sort((a, b) => b.views - a.views);
-  }, [allGuides, filter]);
+  }, [allArticles, filter]);
 
-  const guidesByCategory = useMemo(() => {
+  const articlesByCategory = useMemo(() => {
     return {
-      all: guides,
-      hardware: guides.filter(g => g.category === 'hardware'),
-      software: guides.filter(g => g.category === 'software'),
-      network: guides.filter(g => g.category === 'network'),
-      printer: guides.filter(g => g.category === 'printer'),
-      common: guides.filter(g => g.category === 'common'),
+      all: articles,
+      software: articles.filter(a => a.category === 'software'),
+      network: articles.filter(a => a.category === 'network'),
+      printer: articles.filter(a => a.category === 'printer'),
+      common: articles.filter(a => a.category === 'common'),
+      security: articles.filter(a => a.category === 'security'),
     };
-  }, [guides]);
+  }, [articles]);
   
-  const handleGuideClick = (guide: any) => {
-    setSelectedGuide(guide);
-    incrementViews(guide.id);
-    navigate(`/knowledge/${guide.id}`);
+  const handleArticleClick = (article: KBArticle) => {
+    setSelectedArticle(article);
+    incrementViews(article.id);
+    navigate(`/knowledge/${article.id}`);
   };
   
   const handleSearch = (query: string) => {
@@ -61,9 +62,9 @@ export function KnowledgePage() {
   
   return (
     <KnowledgeScreen
-      guides={guides}
-      guidesByCategory={guidesByCategory}
-      onGuideClick={handleGuideClick}
+      articles={articles}
+      articlesByCategory={articlesByCategory}
+      onArticleClick={handleArticleClick}
       onSearch={handleSearch}
       onCreateClick={handleCreateClick}
     />

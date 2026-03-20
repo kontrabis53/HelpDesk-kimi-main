@@ -19,11 +19,13 @@ import {
   MapPin,
   Building as BuildingIcon,
   Layers,
-  Monitor
+  Monitor,
+  FileText
 } from 'lucide-react';
 import { useLocationStore } from '@/stores/locationStore';
-import type { Building, Floor, Cabinet, Equipment } from '@/types';
+import { useGuideStore } from '@/stores/guideStore';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -96,6 +98,12 @@ export function AdminScreen({
     addEquipment 
   } = useLocationStore();
 
+  const {
+    guides: technicalGuides,
+    addGuide,
+    deleteGuide
+  } = useGuideStore();
+
   const tabs = [
     { id: 'users' as const, label: 'Пользователи', icon: Users },
     { id: 'roles' as const, label: 'Роли', icon: Shield },
@@ -140,6 +148,7 @@ export function AdminScreen({
     name: '',
     email: '',
     roleId: '',
+    position: '',
     department: '',
     isActive: true,
     username: '',
@@ -610,6 +619,49 @@ export function AdminScreen({
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Technical Guides Management */}
+                <div className="mt-8 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Инструкции к оборудованию</h3>
+                    <Button size="sm" variant="outline" onClick={() => {
+                      const title = prompt('Название инструкции:');
+                      const model = prompt('К какому оборудованию (модель):');
+                      if (title && model) {
+                        addGuide({ 
+                          title, 
+                          description: 'Техническая документация', 
+                          equipmentModels: [model], 
+                          fileUrls: [] 
+                        });
+                      }
+                    }}>
+                      <Plus className="w-4 h-4 mr-1" /> Добавить
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {technicalGuides.map(guide => (
+                      <div key={guide.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                            <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{guide.title}</h4>
+                            <div className="flex gap-1 mt-1">
+                              {guide.equipmentModels.map(m => (
+                                <Badge key={m} variant="secondary" className="text-[9px] px-1 py-0">{m}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => deleteGuide(guide.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

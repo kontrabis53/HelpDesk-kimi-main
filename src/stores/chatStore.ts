@@ -112,6 +112,9 @@ export const useChatStore = create<ChatStore>()(
       },
 
       createDirectChat: (participantId, participantName) => {
+        // Use actual ID if possible, otherwise use name-based matching
+        const currentUserId = useAuthStore.getState().user?.id || 'current-user';
+        
         // Check if chat already exists
         const existing = get().chats.find(c => 
           c.type === 'direct' && c.participants.includes(participantId)
@@ -130,7 +133,7 @@ export const useChatStore = create<ChatStore>()(
           id,
           name: participantName,
           type: 'direct',
-          participants: ['current-user', participantId],
+          participants: [currentUserId, participantId],
           unreadCount: 0,
           lastMessageTime: new Date().toISOString() // Set current time for sorting
         };

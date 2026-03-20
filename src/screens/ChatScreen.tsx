@@ -26,7 +26,8 @@ import {
   HelpCircle,
   Smartphone,
   MapPin,
-  Building
+  Building,
+  SendHorizontal
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -99,8 +100,15 @@ export function ChatScreen() {
   // Find directory info for active chat participant if it's a direct chat
   const activeChatDirectoryInfo = useMemo(() => {
     if (!activeChat || activeChat.type !== 'direct') return null;
-    const otherId = activeChat.participants.find(p => p !== currentUser?.id);
-    return directoryEntries.find(e => e.id === otherId || e.name === otherId);
+    
+    // 1. Find ID of other person
+    const otherId = activeChat.participants.find(p => p !== currentUser?.id && p !== 'current-user');
+    
+    // 2. Search by ID or Name (since IDs may differ between stores)
+    return directoryEntries.find(e => 
+      e.id === otherId || 
+      e.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase()
+    );
   }, [activeChat, directoryEntries, currentUser]);
 
   useEffect(() => {
@@ -498,41 +506,82 @@ export function ChatScreen() {
                 <div className="w-64 border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-4 hidden lg:flex flex-col gap-6 overflow-y-auto">
                   {/* Participant Info */}
                   <div>
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Информация</h3>
+                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Информация</h3>
                     {activeChatDirectoryInfo ? (
-                      <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <p className="font-bold text-sm text-slate-800 dark:text-slate-100">{activeChatDirectoryInfo.name}</p>
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">{activeChatDirectoryInfo.position}</p>
-                        <div className="flex items-center gap-1.5 mt-2 text-slate-500">
-                          <MapPin className="w-3 h-3" />
-                          <span className="text-[10px]">Каб. {activeChatDirectoryInfo.cabinet}</span>
+                      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-all hover:shadow-md">
+                        {/* Header Profile Section */}
+                        <div className="p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 border-b border-slate-100 dark:border-slate-700/50">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-inner shrink-0">
+                              <User className="w-6 h-6" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate">
+                                {activeChatDirectoryInfo.name}
+                              </p>
+                              <p className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold truncate mt-0.5">
+                                {activeChatDirectoryInfo.position}
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                        
-                        <div className="grid grid-cols-2 gap-2 mt-4">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="h-8 text-[10px] gap-1 border-blue-100 dark:border-blue-900/30 text-blue-600 dark:text-blue-400"
-                            onClick={() => handleContactAction('call', activeChatDirectoryInfo.internalPhone)}
-                          >
-                            <Phone className="w-3 h-3" /> {activeChatDirectoryInfo.internalPhone}
-                          </Button>
-                          {activeChatDirectoryInfo.mobilePhone && (
+
+                        {/* Details Section */}
+                        <div className="p-4 space-y-3">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                              <Building className="w-3.5 h-3.5 text-slate-400" />
+                              <span className="text-[11px] font-medium truncate">{activeChatDirectoryInfo.department}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                              <span className="text-[11px] font-medium">Кабинет {activeChatDirectoryInfo.cabinet}</span>
+                            </div>
+                          </div>
+
+                          {/* Quick Actions Grid */}
+                          <div className="grid grid-cols-1 gap-2 pt-2">
                             <Button 
-                              variant="outline" 
+                              variant="secondary" 
                               size="sm" 
-                              className="h-8 text-[10px] gap-1 border-green-100 dark:border-green-900/30 text-green-600 dark:text-green-400"
-                              onClick={() => handleContactAction('call', activeChatDirectoryInfo.mobilePhone!)}
+                              className="h-9 text-[11px] font-bold gap-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-transparent hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                              onClick={() => handleContactAction('call', activeChatDirectoryInfo.internalPhone)}
                             >
-                              <Smartphone className="w-3 h-3" /> Моб
+                              <Phone className="w-3.5 h-3.5" /> Вн. {activeChatDirectoryInfo.internalPhone}
                             </Button>
-                          )}
+                            
+                            {activeChatDirectoryInfo.mobilePhone && (
+                              <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                className="h-9 text-[11px] font-bold gap-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-transparent hover:bg-green-100 dark:hover:bg-green-900/40"
+                                onClick={() => handleContactAction('call', activeChatDirectoryInfo.mobilePhone!)}
+                              >
+                                <Smartphone className="w-3.5 h-3.5" /> Позвонить
+                              </Button>
+                            )}
+
+                            {activeChatDirectoryInfo.telegram && (
+                              <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                className="h-9 text-[11px] font-bold gap-2 bg-[#0088cc15] text-[#0088cc] dark:text-[#33aaff] border-transparent hover:bg-[#0088cc25]"
+                                onClick={() => handleContactAction('telegram', activeChatDirectoryInfo.telegram!)}
+                              >
+                                <SendHorizontal className="w-3.5 h-3.5" /> Telegram
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 text-center py-6">
-                        <Users className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                        <p className="text-[10px] text-slate-400">Выберите личный чат для просмотра контактов</p>
+                      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 text-center shadow-sm">
+                        <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <Users className="w-6 h-6 text-slate-300" />
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed px-2">
+                          Выберите личный чат для просмотра контактов сотрудника
+                        </p>
                       </div>
                     )}
                   </div>

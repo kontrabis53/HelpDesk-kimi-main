@@ -296,52 +296,79 @@ export function ChatScreen() {
               <ContextMenu key={chat.id}>
                 <ContextMenuTrigger>
                   <button
-                    onClick={() => setActiveChat(chat.id)}
-                    className={cn(
-                      "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative",
-                      activeChatId === chat.id 
-                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600" 
-                        : "hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300",
-                      chat.isHidden && "opacity-50 grayscale-[0.5]"
-                    )}
-                  >
-                    <div className="relative flex-shrink-0">
-                      <div className={cn(
-                        "w-12 h-12 rounded-full flex items-center justify-center border",
-                        chat.type === 'group' 
-                          ? "bg-amber-100 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" 
-                          : "bg-blue-100 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                      )}>
-                        {chat.type === 'group' ? <Users className="w-6 h-6 text-amber-600" /> : <User className="w-6 h-6 text-blue-600" />}
-                      </div>
-                      {chat.unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white dark:border-slate-800">
-                          {chat.unreadCount}
-                        </span>
-                      )}
-                      {chat.isPinned && (
-                        <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-800 rounded-full p-0.5 shadow-sm border border-slate-100 dark:border-slate-700">
-                          <Pin className="w-3 h-3 text-blue-500 fill-blue-500" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex justify-between items-start mb-0.5">
-                        <span className="font-bold text-sm truncate pr-2 text-slate-900 dark:text-slate-100 flex items-center gap-1">
-                          {chat.name}
-                          {chat.isMuted && <BellOff className="w-3 h-3 text-slate-400" />}
-                        </span>
-                        {chat.lastMessageTime && (
-                          <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                            {format(new Date(chat.lastMessageTime), 'HH:mm')}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate leading-tight">
-                        {chat.lastMessage || 'Нет сообщений'}
-                      </p>
-                    </div>
-                  </button>
+                     onClick={() => setActiveChat(chat.id)}
+                     className={cn(
+                       "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative border-2",
+                       activeChatId === chat.id 
+                         ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30 scale-[1.02] z-10" 
+                         : "hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-transparent",
+                       chat.isHidden && "opacity-50 grayscale-[0.5]"
+                     )}
+                   >
+                     <div className="relative flex-shrink-0">
+                       <div className={cn(
+                         "w-12 h-12 rounded-full flex items-center justify-center border transition-colors",
+                         activeChatId === chat.id
+                           ? "bg-white/20 border-white/30"
+                           : chat.type === 'group' 
+                             ? "bg-amber-100 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" 
+                             : "bg-blue-100 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                       )}>
+                         {chat.type === 'group' 
+                           ? <Users className={cn("w-6 h-6", activeChatId === chat.id ? "text-white" : "text-amber-600")} /> 
+                           : <User className={cn("w-6 h-6", activeChatId === chat.id ? "text-white" : "text-blue-600")} />
+                         }
+                       </div>
+                       {chat.unreadCount > 0 && (
+                         <span className={cn(
+                           "absolute -top-1 -right-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2",
+                           activeChatId === chat.id
+                             ? "bg-white text-blue-600 border-blue-600"
+                             : "bg-red-500 text-white border-white dark:border-slate-800"
+                         )}>
+                           {chat.unreadCount}
+                         </span>
+                       )}
+                       {chat.isPinned && (
+                         <div className={cn(
+                           "absolute -bottom-1 -right-1 rounded-full p-0.5 shadow-sm border",
+                           activeChatId === chat.id
+                             ? "bg-white border-blue-600"
+                             : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700"
+                         )}>
+                           <Pin className={cn("w-3 h-3", activeChatId === chat.id ? "text-blue-600 fill-blue-600" : "text-blue-500 fill-blue-500")} />
+                         </div>
+                       )}
+                     </div>
+                     <div className="flex-1 min-w-0 text-left">
+                       <div className="flex justify-between items-start mb-0.5">
+                         <span className={cn(
+                           "font-bold text-sm truncate pr-2 flex items-center gap-1",
+                           activeChatId === chat.id ? "text-white" : "text-slate-900 dark:text-slate-100"
+                         )}>
+                           {chat.name}
+                           {chat.isMuted && <BellOff className={cn("w-3 h-3", activeChatId === chat.id ? "text-white/70" : "text-slate-400")} />}
+                         </span>
+                         {chat.lastMessageTime && (
+                           <span className={cn(
+                             "text-[10px] whitespace-nowrap",
+                             activeChatId === chat.id ? "text-white/80" : "text-slate-400"
+                           )}>
+                             {format(new Date(chat.lastMessageTime), 'HH:mm')}
+                           </span>
+                         )}
+                       </div>
+                       <p className={cn(
+                         "text-xs truncate leading-tight",
+                         activeChatId === chat.id ? "text-white/90 font-medium" : "text-slate-500 dark:text-slate-400"
+                       )}>
+                         {chat.lastMessage || 'Нет сообщений'}
+                       </p>
+                     </div>
+                     {activeChatId === chat.id && (
+                       <div className="absolute left-[-2px] top-1/4 bottom-1/4 w-1 bg-white rounded-r-full" />
+                     )}
+                   </button>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-48">
                   <ContextMenuItem onClick={() => togglePinChat(chat.id)}>

@@ -119,7 +119,7 @@ export const useChatStore = create<ChatStore>()(
         if (existing) {
           if (existing.isHidden) {
             set(state => ({
-              chats: state.chats.map(c => c.id === existing.id ? { ...c, isHidden: false } : c)
+              chats: state.chats.map(c => c.id === existing.id ? { ...c, isHidden: false, lastMessageTime: new Date().toISOString() } : c)
             }));
           }
           return existing.id;
@@ -131,7 +131,8 @@ export const useChatStore = create<ChatStore>()(
           name: participantName,
           type: 'direct',
           participants: ['current-user', participantId],
-          unreadCount: 0
+          unreadCount: 0,
+          lastMessageTime: new Date().toISOString() // Set current time for sorting
         };
         set((state) => ({ chats: [newChat, ...state.chats] }));
         return id;

@@ -102,15 +102,18 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
                 key={tab.id}
                 to={tab.path}
                 className={cn(
-                  'flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative',
+                  'flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 group relative border-2',
                   isActive 
-                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' 
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-slate-200',
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30 scale-[1.02] z-10' 
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 border-transparent',
                   isSidebarCollapsed ? 'justify-center' : 'gap-3'
                 )}
               >
-                <Icon className={cn('w-5 h-5 flex-shrink-0', isActive && 'text-blue-600 dark:text-blue-400')} />
+                <Icon className={cn('w-5 h-5 flex-shrink-0 transition-colors', isActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400')} />
                 {!isSidebarCollapsed && <span className="truncate">{tab.label}</span>}
+                {isActive && (
+                  <div className="absolute left-[-2px] top-1/4 bottom-1/4 w-1 bg-white rounded-r-full" />
+                )}
                 {isSidebarCollapsed && (
                   <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-[100]">
                     {tab.label}

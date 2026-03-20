@@ -62,13 +62,32 @@ export function BottomNav({ availableModules = [], canAccessAdmin = false }: Bot
               key={tab.id}
               to={tab.path}
               className={cn(
-                'flex flex-col items-center justify-center flex-1 h-full',
-                'transition-colors duration-200',
-                isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                'flex flex-col items-center justify-center flex-1 h-full relative transition-all duration-300',
+                isActive 
+                  ? 'text-blue-600 dark:text-blue-400' 
+                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
               )}
             >
-              <Icon className={cn('w-5 h-5 mb-0.5', isActive && 'stroke-[2.5px]')} />
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <div className={cn(
+                "flex flex-col items-center justify-center transition-all duration-300",
+                isActive && "scale-110 -translate-y-1"
+              )}>
+                <div className={cn(
+                  "p-1.5 rounded-xl transition-all duration-300",
+                  isActive && "bg-blue-600 text-white shadow-lg shadow-blue-500/40"
+                )}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className={cn(
+                  "text-[9px] font-bold mt-0.5 transition-colors",
+                  isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-400"
+                )}>
+                  {tab.label}
+                </span>
+              </div>
+              {isActive && (
+                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-600 dark:bg-blue-400 rounded-full" />
+              )}
             </NavLink>
           );
         })}

@@ -25,7 +25,8 @@ import {
   ExternalLink,
   HelpCircle,
   Smartphone,
-  MapPin
+  MapPin,
+  Building
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -88,6 +89,7 @@ export function ChatScreen() {
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
   
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -582,7 +584,10 @@ export function ChatScreen() {
       </div>
 
       {/* New Chat Modal (Integrated Search) */}
-      <Dialog open={isNewChatModalOpen} onOpenChange={setIsNewChatModalOpen}>
+      <Dialog open={isNewChatModalOpen} onOpenChange={(open) => {
+        setIsNewChatModalOpen(open);
+        if (!open) setExpandedPersonId(null);
+      }}>
         <DialogContent className="max-w-md bg-white dark:bg-slate-800 p-0 overflow-hidden border-0 shadow-2xl">
           <DialogHeader className="p-6 pb-0">
             <DialogTitle className="text-xl font-bold">Начать новый чат</DialogTitle>
@@ -594,96 +599,125 @@ export function ChatScreen() {
                 placeholder="Поиск сотрудников..." 
                 className="pl-9 bg-slate-100 dark:bg-slate-700 border-0 h-11 rounded-xl"
                 value={userSearchQuery}
-                onChange={(e) => setUserSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setUserSearchQuery(e.target.value);
+                  setExpandedPersonId(null);
+                }}
               />
             </div>
             
-            <ScrollArea className="h-[400px] pr-4">
-              <div className="space-y-3">
+            <ScrollArea className="h-[450px] pr-4">
+              <div className="space-y-2">
                 {filteredDirectoryEntries.length > 0 ? (
                   filteredDirectoryEntries.map(entry => {
                     const registered = isUserRegistered(entry);
+                    const isExpanded = expandedPersonId === entry.id;
+                    
                     return (
                       <div 
                         key={entry.id}
                         className={cn(
-                          "group relative p-4 rounded-2xl border transition-all duration-300",
+                          "group relative rounded-2xl border transition-all duration-300 overflow-hidden",
                           registered 
-                            ? "border-slate-100 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer shadow-sm hover:shadow-md" 
-                            : "border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/20 border-dashed"
+                            ? "border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800" 
+                            : "border-slate-50 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/10 opacity-95",
+                          isExpanded && "border-blue-400 dark:border-blue-600 shadow-md bg-blue-50/30 dark:bg-blue-900/10"
                         )}
-                        onClick={() => registered && handleCreateDirectChatFromDirectory(entry)}
                       >
-                        <div className="flex items-start gap-4">
+                        {/* Compact View (Header) */}
+                        <div 
+                          className="p-3 flex items-center gap-3 cursor-pointer"
+                          onClick={() => setExpandedPersonId(isExpanded ? null : entry.id)}
+                        >
                           <div className={cn(
-                            "w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-all shadow-inner",
+                            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all",
                             registered 
-                              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white group-hover:scale-105 group-hover:rotate-3" 
+                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600" 
                               : "bg-slate-200 dark:bg-slate-700 text-slate-400"
                           )}>
-                            <User className="w-7 h-7" />
+                            <User className="w-5 h-5" />
                           </div>
                           
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <p className="font-bold text-slate-900 dark:text-slate-100 truncate text-base">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-bold text-slate-800 dark:text-slate-100 truncate text-sm">
                                 {entry.name}
                               </p>
                               {!registered && (
-                                <span className="text-[10px] font-bold uppercase tracking-tighter px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 whitespace-nowrap">
+                                <span className="text-[8px] font-bold uppercase tracking-tighter px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50 whitespace-nowrap">
                                   Не в системе
                                 </span>
                               )}
                             </div>
-                            
-                            <div className="space-y-1">
-                              <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold truncate">
-                                {entry.position}
-                              </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                                {entry.department}
-                              </p>
-                            </div>
-                            
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
-                                <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                                  <span>Каб. {entry.cabinet}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                                  <Phone className="w-3.5 h-3.5 text-slate-400" />
-                                  <span>Вн. {entry.internalPhone}</span>
-                                </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                              {entry.position}
+                            </p>
+                          </div>
+                          
+                          <div className={cn(
+                            "transition-transform duration-300",
+                            isExpanded ? "rotate-180" : ""
+                          )}>
+                            <Plus className={cn("w-4 h-4", isExpanded ? "rotate-45 text-blue-500" : "text-slate-300")} />
+                          </div>
+                        </div>
+
+                        {/* Expanded View (Details) */}
+                        <div className={cn(
+                          "px-3 pb-3 transition-all duration-300 ease-in-out",
+                          isExpanded ? "max-h-96 opacity-100 mt-1" : "max-h-0 opacity-0 pointer-events-none"
+                        )}>
+                          <div className="pt-3 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                              <div className="flex items-center gap-1">
+                                <Building className="w-3 h-3 text-slate-400" />
+                                <span>{entry.department}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-slate-400" />
+                                <span>Каб. {entry.cabinet}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Phone className="w-3 h-3 text-slate-400" />
+                                <span>Вн. {entry.internalPhone}</span>
+                              </div>
                             </div>
 
-                            {!registered && (
-                              <div className="mt-4 p-3 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
-                                <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed mb-3">
-                                  Сотрудник еще не зарегистрирован в HelpDesk. Для связи используйте телефон:
+                            {registered ? (
+                              <Button 
+                                className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold gap-2 shadow-sm"
+                                onClick={() => handleCreateDirectChatFromDirectory(entry)}
+                              >
+                                <Send className="w-3.5 h-3.5" /> Написать сообщение
+                              </Button>
+                            ) : (
+                              <div className="p-2.5 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                                <p className="text-[10px] text-slate-500 dark:text-slate-300 font-medium leading-relaxed mb-3">
+                                  Сотрудник еще не зарегистрирован в системе.
                                 </p>
                                 <div className="flex gap-2">
                                   <Button 
                                     variant="secondary" 
                                     size="sm" 
-                                    className="h-9 text-[11px] flex-1 font-bold gap-2 bg-white dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-600 shadow-sm"
+                                    className="h-8 text-[10px] flex-1 font-bold gap-1.5 bg-white dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-600 shadow-sm"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleContactAction('call', entry.internalPhone);
                                     }}
                                   >
-                                    <Phone className="w-3.5 h-3.5" /> Позвонить
+                                    <Phone className="w-3 h-3" /> Позвонить
                                   </Button>
                                   {entry.mobilePhone && (
                                     <Button 
                                       variant="secondary" 
                                       size="sm" 
-                                      className="h-9 text-[11px] flex-1 font-bold gap-2 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 border border-slate-200 dark:border-slate-600 shadow-sm"
+                                      className="h-8 text-[10px] flex-1 font-bold gap-1.5 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 border border-slate-200 dark:border-slate-600 shadow-sm"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleContactAction('call', entry.mobilePhone!);
                                       }}
                                     >
-                                      <Smartphone className="w-3.5 h-3.5" /> Моб
+                                      <Smartphone className="w-3 h-3" /> Моб
                                     </Button>
                                   )}
                                 </div>

@@ -147,111 +147,118 @@ export function ChatScreen() {
     }
   };
 
-  const handleCreateDirectChat = (user: any) => {
-    const id = createDirectChat(user.id, user.name);
-    setActiveChat(id);
-    setIsNewChatModalOpen(false);
-    setUserSearchQuery('');
-  };
-
-  const handleQuickAction = (action: string) => {
-    let text = '';
-    switch(action) {
-      case 'help': text = "🆘 Мне нужна помощь!"; break;
-      case 'connect': text = "🖥️ Прошу подключиться удаленно."; break;
-      case 'status': text = "❓ Какой статус по моей заявке?"; break;
-      case 'thanks': text = "✅ Спасибо, всё работает!"; break;
-    }
-    if (text) handleSendMessage(text);
-  };
-
-  const filteredChats = useMemo(() => {
-    return chats
-      .filter(c => {
-        const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const isHidden = c.isHidden;
-        return matchesSearch && (showHiddenChats || !isHidden);
-      })
-      .sort((a, b) => {
-        // First sort by pinned
-        if (a.isPinned && !b.isPinned) return -1;
-        if (!a.isPinned && b.isPinned) return 1;
-        
-        // Then sort by last message time
-        const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
-        const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
-        return timeB - timeA;
-      });
-  }, [chats, searchQuery, showHiddenChats]);
-
-  const filteredDirectoryEntries = useMemo(() => {
-    // 1. Get all employees from Directory
-    const directoryPeople = directoryEntries.map(entry => ({
-      ...entry,
-      source: 'directory' as const
-    }));
-
-    // 2. Get all users from RoleStore
-    const userPeople = users.map(user => ({
-      id: user.id,
-      name: user.name,
-      position: user.position || 'Пользователь',
-      department: user.department || 'Организация',
-      cabinet: '—',
-      internalPhone: '—',
-      source: 'users' as const,
-      isUser: true
-    }));
-
-    // 3. Merge them: prefer directory info if both exist, but mark as registered
-    const mergedMap = new Map<string, any>();
-
-    // Add directory people first
-    directoryPeople.forEach(person => {
-      mergedMap.set(person.name.toLowerCase().trim(), {
-        ...person,
-        isRegistered: users.some(u => u.name.toLowerCase().trim() === person.name.toLowerCase().trim())
-      });
-    });
-
-    // Add users who are not in directory
-    userPeople.forEach(person => {
-      const nameKey = person.name.toLowerCase().trim();
-      if (!mergedMap.has(nameKey)) {
-        mergedMap.set(nameKey, {
-          ...person,
-          isRegistered: true
-        });
+   const handleCreateDirectChat = (entry: any) => {
+      let participantId = entry.id;
+      
+      // Find actual user ID if this is a directory entry
+      if (entry.source === 'directory') {
+        const registeredUser = users.find(u => u.name.toLowerCase().trim() === entry.name.toLowerCase().trim());
+        if (!registeredUser) {
+          toast.error('Пользователь еще не зарегистрирован в системе', {
+            description: `Свяжитесь по телефону: ${entry.internalPhone}`,
+          });
+          return;
+        }
+        participantId = registeredUser.id;
       }
-    });
-
-    // 4. Convert back to array and filter by search query
-    return Array.from(mergedMap.values())
-      .filter(person => 
-        person.id !== currentUser?.id && 
-        person.name.toLowerCase().trim() !== currentUser?.name.toLowerCase().trim() &&
-        (person.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
-         person.position.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-         person.department.toLowerCase().includes(userSearchQuery.toLowerCase()))
-      );
-  }, [directoryEntries, users, userSearchQuery, currentUser]);
-
-  const isUserRegistered = (person: any) => {
-    return person.isRegistered;
-  };
-
-   const handleCreateDirectChatFromDirectory = (entry: any) => {
-     if (!isUserRegistered(entry)) {
-       toast.error('Пользователь еще не зарегистрирован в системе', {
-         description: `Вы можете связаться с ним по телефону: ${entry.internalPhone}`,
-       });
-       return;
-     }
-     const id = createDirectChat(entry.id, entry.name);
-     setActiveChat(id);
-     setIsNewChatModalOpen(false);
-     setUserSearchQuery('');
-   };
+ 
+      const id = createDirectChat(participantId, entry.name);
+      
+      if (id) {
+        setActiveChat(id);
+        setIsNewChatModalOpen(false);
+        setUserSearchQuery('');
+        toast.success(`Чат с ${entry.name} открыт`);
+      } else {
+        toast.error('Не удалось создать чат');
+      }
+    };
+ 
+    const handleQuickAction = (action: string) => {
+      let text = '';
+      switch(action) {
+        case 'help': text = "🆘 Мне нужна помощь!"; break;
+        case 'connect': text = "🖥️ Прошу подключиться удаленно."; break;
+        case 'status': text = "❓ Какой статус по моей заявке?"; break;
+        case 'thanks': text = "✅ Спасибо, всё работает!"; break;
+      }
+      if (text) handleSendMessage(text);
+    };
+  
+    const filteredChats = useMemo(() => {
+      return chats
+        .filter(c => {
+          const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase());
+          const isHidden = c.isHidden;
+          return matchesSearch && (showHiddenChats || !isHidden);
+        })
+        .sort((a, b) => {
+          // First sort by pinned
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+          
+          // Then sort by last message time
+          const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+          const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+          return timeB - timeA;
+        });
+    }, [chats, searchQuery, showHiddenChats]);
+  
+    const filteredDirectoryEntries = useMemo(() => {
+      // 1. Get all employees from Directory
+      const directoryPeople = directoryEntries.map(entry => ({
+        ...entry,
+        source: 'directory' as const
+      }));
+  
+      // 2. Get all users from RoleStore
+      const userPeople = users.map(user => ({
+        id: user.id,
+        name: user.name,
+        position: user.position || 'Пользователь',
+        department: user.department || 'Организация',
+        cabinet: '—',
+        internalPhone: '—',
+        source: 'users' as const,
+        isUser: true
+      }));
+  
+      // 3. Merge them: prefer directory info if both exist, but mark as registered
+      const mergedMap = new Map<string, any>();
+  
+      // Add directory people first
+      directoryPeople.forEach(person => {
+        mergedMap.set(person.name.toLowerCase().trim(), {
+          ...person,
+          isRegistered: users.some(u => u.name.toLowerCase().trim() === person.name.toLowerCase().trim())
+        });
+      });
+  
+      // Add users who are not in directory
+      userPeople.forEach(person => {
+        const nameKey = person.name.toLowerCase().trim();
+        if (!mergedMap.has(nameKey)) {
+          mergedMap.set(nameKey, {
+            ...person,
+            isRegistered: true
+          });
+        }
+      });
+  
+      // 4. Convert back to array and filter by search query
+      return Array.from(mergedMap.values())
+        .filter(person => 
+          person.id !== currentUser?.id && 
+          person.name.toLowerCase().trim() !== currentUser?.name.toLowerCase().trim() &&
+          (person.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
+           person.position.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+           person.department.toLowerCase().includes(userSearchQuery.toLowerCase()))
+        );
+    }, [directoryEntries, users, userSearchQuery, currentUser]);
+  
+    const isUserRegistered = (person: any) => {
+      return person.isRegistered;
+    };
 
   return (
     <div className="flex h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
@@ -762,7 +769,7 @@ export function ChatScreen() {
                             {registered ? (
                               <Button 
                                 className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold gap-2 shadow-sm"
-                                onClick={() => handleCreateDirectChatFromDirectory(entry)}
+                                onClick={() => handleCreateDirectChat(entry)}
                               >
                                 <Send className="w-3.5 h-3.5" /> Написать сообщение
                               </Button>

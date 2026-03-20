@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Chat, ChatMessage } from '@/types';
+import { useAuthStore } from './authStore';
 
 interface ChatStore {
   chats: Chat[];
@@ -112,13 +113,18 @@ export const useChatStore = create<ChatStore>()(
       },
 
       createDirectChat: (participantId, participantName) => {
-        // Use actual ID if possible, otherwise use name-based matching
         const currentUserId = useAuthStore.getState().user?.id || 'current-user';
         
+        // Prevent creating chat with yourself
+        if (participantId === currentUserId) {
+          return '';
+        }
+
         // Check if chat already exists
         const existing = get().chats.find(c => 
-          c.type === 'direct' && c.participants.includes(participantId)
+          c.type === 'direct' && c.participants.includes(participantId) && c.participants.includes(currentUserId)
         );
+        
         if (existing) {
           if (existing.isHidden) {
             set(state => ({
@@ -135,9 +141,14 @@ export const useChatStore = create<ChatStore>()(
           type: 'direct',
           participants: [currentUserId, participantId],
           unreadCount: 0,
-          lastMessageTime: new Date().toISOString() // Set current time for sorting
+          lastMessageTime: new Date().toISOString()
         };
-        set((state) => ({ chats: [newChat, ...state.chats] }));
+        
+        set((state) => ({ 
+          chats: [newChat, ...state.chats],
+          activeChatId: id // Automatically set active chat
+        }));
+        
         return id;
       },
 

@@ -198,9 +198,9 @@ export function DirectoryScreen() {
   const topSearches = getTopStats();
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-900 min-h-full">
+    <div className="bg-slate-50 dark:bg-slate-900 h-full flex flex-col overflow-hidden">
       {/* Header - Sticky */}
-      <div className="sticky top-[-16px] md:top-[-32px] z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm px-4 pt-6 pb-4 border-b border-slate-100 dark:border-slate-700 shadow-sm">
+      <div className="z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm px-4 pt-6 pb-4 border-b border-slate-100 dark:border-slate-700 shadow-sm flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
@@ -236,12 +236,12 @@ export function DirectoryScreen() {
           <div className="mt-4 flex items-center gap-2">
             <TrendingUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Часто ищут:</span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
               {topSearches.map((stat, i) => (
                 <button
                   key={i}
                   onClick={() => setSearchQuery(stat.query)}
-                  className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border border-slate-200 dark:border-slate-600"
+                  className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border border-slate-200 dark:border-slate-600 whitespace-nowrap"
                 >
                   {stat.query}
                 </button>
@@ -251,8 +251,8 @@ export function DirectoryScreen() {
         )}
       </div>
 
-      {/* Results Area - No inner scroll */}
-      <div className="p-4 space-y-4 pb-24">
+      {/* Results Area - Scrollable */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
         {searchResults.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-slate-500">Ничего не найдено по запросу "{searchQuery}"</p>

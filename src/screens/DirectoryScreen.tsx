@@ -136,9 +136,14 @@ export function DirectoryScreen() {
   };
 
   const searchResults = useMemo(() => {
-    if (!searchQuery || searchQuery.length < 2) return [];
-    
     const query = searchQuery.toLowerCase().trim();
+    
+    // If query is empty or too short, return all entries sorted by name
+    if (!query || query.length < 1) {
+      return entries
+        .map(entry => ({ ...entry, isDirectHit: false, score: 0 }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
     
     const results = entries
       .filter(entry => 
@@ -193,9 +198,9 @@ export function DirectoryScreen() {
   const topSearches = getTopStats();
 
   return (
-    <div className="h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-800 px-4 pt-6 pb-4 border-b border-slate-100 dark:border-slate-700">
+    <div className="bg-slate-50 dark:bg-slate-900 min-h-full">
+      {/* Header - Sticky */}
+      <div className="sticky top-[-16px] md:top-[-32px] z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm px-4 pt-6 pb-4 border-b border-slate-100 dark:border-slate-700 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
@@ -246,15 +251,9 @@ export function DirectoryScreen() {
         )}
       </div>
 
-      {/* Results Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
-        {!searchQuery ? (
-          <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400 text-center">
-            <Users className="w-16 h-16 mb-4 opacity-10" />
-            <p className="text-lg">Введите поисковый запрос</p>
-            <p className="text-sm">Например: "306", "Сисадмин" или "Бухгалтерия"</p>
-          </div>
-        ) : searchResults.length === 0 ? (
+      {/* Results Area - No inner scroll */}
+      <div className="p-4 space-y-4 pb-24">
+        {searchResults.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-slate-500">Ничего не найдено по запросу "{searchQuery}"</p>
           </div>

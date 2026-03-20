@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
-import type { DocumentType, DocumentStatus } from '@/types';
+import { useState, useRef, useMemo } from 'react';
+import type { DocumentType, DocumentStatus, KnowledgeGuide } from '@/types';
 import { documentTypeLabels, documentStatusLabels } from '@/types';
-import { ArrowLeft, Calendar as CalendarIcon, MapPin, DollarSign, FileText, Upload, X, Hash } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, MapPin, DollarSign, FileText, Upload, X, Hash, Book, ChevronRight, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,6 +12,9 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useLocationStore } from '@/stores/locationStore';
+import { useKnowledgeStore } from '@/stores/knowledgeStore';
+import { Badge } from '@/components/ui/badge';
 
 interface CreateDocumentScreenProps {
   onBack: () => void;
@@ -61,6 +64,9 @@ const documentStatuses: { id: DocumentStatus; label: string }[] = [
 ];
 
 export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing = false }: CreateDocumentScreenProps) {
+  const { getEquipmentByModel, getCabinetById, getBuildingById } = useLocationStore();
+  const { guides } = useKnowledgeStore();
+
   const [number, setNumber] = useState(initialData?.number || '');
   const [title, setTitle] = useState(initialData?.title || '');
   const [type, setType] = useState<DocumentType>(initialData?.type || 'act');
@@ -68,6 +74,39 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
   const [description, setDescription] = useState(initialData?.description || '');
   const [equipmentName, setEquipmentName] = useState(initialData?.equipmentName || '');
   const [equipmentLocation, setEquipmentLocation] = useState(initialData?.equipmentLocation || '');
+  
+  // Auto-detect location and related guides based on equipment name
+  const relatedData = useMemo(() => {
+    if (!equipmentName || equipmentName.length < 3) return { location: null, guides: [] };
+    
+    const equipment = getEquipmentByModel(equipmentName);
+    let locationStr = '';
+    
+    if (equipment) {
+      const cabinet = getCabinetById(equipment.cabinetId);
+      const building = cabinet ? getBuildingById(cabinet.buildingId) : null;
+      if (cabinet && building) {
+        locationStr = `${building.name}, Каб. ${cabinet.name}`;
+      }
+    }
+
+    const relatedGuides = guides.filter(g => 
+      g.equipmentModels?.some(m => equipmentName.toLowerCase().includes(m.toLowerCase())) ||
+      g.title.toLowerCase().includes(equipmentName.toLowerCase())
+    );
+
+    return { 
+      location: locationStr, 
+      guides: relatedGuides 
+    };
+  }, [equipmentName, getEquipmentByModel, getCabinetById, getBuildingById, guides]);
+
+  // Effect to update location automatically if found
+  useState(() => {
+    if (relatedData.location && !equipmentLocation) {
+      setEquipmentLocation(relatedData.location);
+    }
+  });
   
   // Initialize date with current date if not editing, or use existing date
   const [repairDate, setRepairDate] = useState<Date | undefined>(
@@ -339,39 +378,54 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
           </div>
         </div>
 
-        {/* Equipment Fields */}
+        {/* Equipment Info */}
         {showEquipmentFields && (
-          <div className="space-y-4 p-4 bg-slate-100 dark:bg-slate-800/50 rounded-xl">
-            <h3 className="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
-              <FileText className="w-4 h-4" />
-              Информация об оборудовании
-            </h3>
-            
-            <div className="space-y-2">
-              <Label htmlFor="equipmentName" className="text-sm text-slate-600 dark:text-slate-400">
-                Название оборудования
-              </Label>
-              <Input
-                id="equipmentName"
-                value={equipmentName}
-                onChange={(e) => setEquipmentName(e.target.value)}
-                placeholder="Например: HP LaserJet Pro M404"
-                className="h-11 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
-              />
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Объект обслуживания</h2>
+              {relatedData.location && equipmentLocation !== relatedData.location && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-[10px] h-7 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                  onClick={() => setEquipmentLocation(relatedData.location!)}
+                >
+                  <MapPin className="w-3 h-3 mr-1" /> Уточнить локацию
+                </Button>
+              )}
             </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="equipmentName">Название оборудования</Label>
+                <div className="relative">
+                  <Input
+                    id="equipmentName"
+                    value={equipmentName}
+                    onChange={(e) => setEquipmentName(e.target.value)}
+                    placeholder="Например: Hamilton C3"
+                    className="bg-slate-50 dark:bg-slate-900 h-11"
+                  />
+                  {relatedData.location && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] animate-in fade-in zoom-in duration-300">
+                        Найдено
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="equipmentLocation" className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                <MapPin className="w-3 h-3" />
-                Расположение
-              </Label>
-              <Input
-                id="equipmentLocation"
-                value={equipmentLocation}
-                onChange={(e) => setEquipmentLocation(e.target.value)}
-                placeholder="Например: Кабинет 205"
-                className="h-11 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="equipmentLocation">Локация</Label>
+                <Input
+                  id="equipmentLocation"
+                  value={equipmentLocation}
+                  onChange={(e) => setEquipmentLocation(e.target.value)}
+                  placeholder="Корпус, этаж, кабинет"
+                  className="bg-slate-50 dark:bg-slate-900 h-11"
+                />
+              </div>
             </div>
 
             <div className="space-y-2 flex flex-col">
@@ -406,6 +460,47 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
                 </PopoverContent>
               </Popover>
             </div>
+
+            {/* Related Guides Section */}
+            {relatedData.guides.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700">
+                <div className="flex items-center gap-2 mb-3">
+                  <Book className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Связанные инструкции</h3>
+                </div>
+                <div className="space-y-2">
+                  {relatedData.guides.map(guide => (
+                    <div 
+                      key={guide.id}
+                      className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 transition-all group cursor-pointer"
+                      onClick={() => window.open(`/knowledge/${guide.id}`, '_blank')}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 transition-colors">{guide.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-slate-500">{guide.category === 'hardware' ? 'Оборудование' : 'Инструкция'}</span>
+                            {guide.fileUrls && guide.fileUrls.length > 0 && (
+                              <Badge variant="secondary" className="text-[8px] h-4 px-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-none">
+                                + {guide.fileUrls.length} файл(а)
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-400 bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded-lg">
+                  <Info className="w-3 h-3 text-blue-500" />
+                  Инструкции подобраны автоматически на основе названия оборудования
+                </div>
+              </div>
+            )}
           </div>
         )}
 

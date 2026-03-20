@@ -368,6 +368,11 @@ export const mockGuides: KnowledgeGuide[] = [
     category: 'printer',
     description: 'Пошаговая инструкция по диагностике проблем с печатью',
     tags: ['принтер', 'печать', 'диагностика'],
+    equipmentModels: ['HP LaserJet Pro M404', 'Kyocera M2040dn'],
+    fileUrls: [
+      { name: 'Руководство пользователя HP.pdf', url: '#', type: 'pdf' },
+      { name: 'Сервисный мануал Kyocera.pdf', url: '#', type: 'pdf' }
+    ],
     steps: [
       {
         id: '1',
@@ -404,6 +409,27 @@ export const mockGuides: KnowledgeGuide[] = [
     views: 156,
     createdAt: '2024-12-01T10:00:00',
     updatedAt: '2025-01-15T10:00:00',
+    author: currentUser,
+  },
+  {
+    id: 'guide-hamilton',
+    title: 'Инструкция к ИВЛ Hamilton C3',
+    category: 'hardware',
+    description: 'Полное руководство по эксплуатации и техническому обслуживанию аппарата ИВЛ Hamilton C3',
+    tags: ['ИВЛ', 'Hamilton', 'реанимация'],
+    equipmentModels: ['Hamilton C3'],
+    fileUrls: [
+      { name: 'Hamilton_C3_User_Manual_RU.pdf', url: '#', type: 'pdf' },
+      { name: 'Hamilton_C3_Service_Guide.pdf', url: '#', type: 'pdf' }
+    ],
+    steps: [
+      { id: 'h1', order: 1, title: 'Подключение контура', description: 'Соберите дыхательный контур согласно схеме в руководстве.' },
+      { id: 'h2', order: 2, title: 'Тест перед использованием', description: 'Проведите калибровку датчика кислорода и тест на утечку.' }
+    ],
+    successRate: 95,
+    views: 42,
+    createdAt: '2025-01-01T10:00:00',
+    updatedAt: '2025-01-01T10:00:00',
     author: currentUser,
   },
   {

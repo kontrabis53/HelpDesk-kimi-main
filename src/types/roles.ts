@@ -2,7 +2,7 @@
 
 import type { User } from './index';
 
-export type ModuleId = 'knowledge' | 'tickets' | 'documents' | 'inventory' | 'directory' | 'chat' | 'parser' | 'admin' | 'profile';
+export type ModuleId = 'knowledge' | 'tickets' | 'documents' | 'inventory' | 'directory' | 'chat' | 'parser' | 'admin' | 'profile' | 'guides';
 
 export interface ModulePermission {
   moduleId: ModuleId;
@@ -65,6 +65,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'parser', canView: true, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'admin', canView: true, canCreate: true, canEdit: true, canDelete: true },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: true },
+      { moduleId: 'guides', canView: true, canCreate: true, canEdit: true, canDelete: true },
     ],
   },
   {
@@ -83,6 +84,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'parser', canView: true, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
+      { moduleId: 'guides', canView: true, canCreate: true, canEdit: true, canDelete: false },
     ],
   },
   {
@@ -101,6 +103,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'parser', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
+      { moduleId: 'guides', canView: true, canCreate: false, canEdit: false, canDelete: false },
     ],
   },
   {
@@ -133,6 +136,7 @@ export const moduleLabels: Record<ModuleId, string> = {
   parser: 'Парсер',
   admin: 'Управление',
   profile: 'Профиль',
+  guides: 'Инструкции',
 };
 
 export const moduleIcons: Record<ModuleId, string> = {

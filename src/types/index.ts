@@ -71,6 +71,7 @@ export interface Document {
   type: DocumentType;
   status: DocumentStatus;
   description: string;
+  equipmentId?: string; // Связь с оборудованием
   equipmentName?: string;
   equipmentLocation?: string;
   repairDate?: string;
@@ -81,6 +82,34 @@ export interface Document {
   createdAt: string;
   updatedAt: string;
   author: User;
+}
+
+// ===== ЛОКАЦИИ И ОБОРУДОВАНИЕ =====
+export interface Building {
+  id: string;
+  name: string; // Например, "Корпус А", "Корпус Б"
+}
+
+export interface Floor {
+  id: string;
+  buildingId: string;
+  number: number; // Этаж
+}
+
+export interface Cabinet {
+  id: string;
+  buildingId: string;
+  floorId: string;
+  name: string; // Номер или название кабинета
+}
+
+export interface Equipment {
+  id: string;
+  name: string; // Например, "Hamilton C3"
+  model: string;
+  serialNumber?: string;
+  cabinetId: string; // Текущее местоположение
+  department: string;
 }
 
 // ===== СПРАВОЧНИК =====
@@ -182,7 +211,7 @@ export interface InventoryMovement {
   author: User;
 }
 
-// ===== БАЗА ЗНАНИЙ =====
+// ===== БАЗА ЗНАНИЙ / ИНСТРУКЦИИ =====
 export type GuideCategory = 'hardware' | 'software' | 'network' | 'printer' | 'common';
 
 export interface GuideStep {
@@ -198,8 +227,11 @@ export interface KnowledgeGuide {
   title: string;
   category: GuideCategory;
   description: string;
-  tags: string[];
+  content?: string; // Markdown или HTML
   steps: GuideStep[];
+  equipmentModels?: string[]; // Связанные модели (например, ["Hamilton C3", "Puritan Bennett 980"])
+  fileUrls?: { name: string; url: string; type: 'pdf' | 'doc' | 'image' }[]; // Ссылки на файлы инструкций
+  tags: string[];
   successRate: number;
   views: number;
   createdAt: string;

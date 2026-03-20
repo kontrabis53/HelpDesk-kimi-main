@@ -45,6 +45,15 @@ export const router = createBrowserRouter([
         index: true,
         element: <Navigate to="/knowledge" replace />,
       },
+      // Guides (Instructions)
+      {
+        path: 'guides',
+        element: (
+          <ProtectedRoute moduleId="guides" action="view">
+            <KnowledgePage /> 
+          </ProtectedRoute>
+        ),
+      },
       // Knowledge Base
       {
         path: 'knowledge',

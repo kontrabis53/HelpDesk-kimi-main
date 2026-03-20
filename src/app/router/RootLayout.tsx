@@ -42,11 +42,12 @@ export function RootLayout() {
   
   const isChatPage = location.pathname.startsWith('/chat');
   const isParserPage = location.pathname.startsWith('/parser');
+  const isGuidesPage = location.pathname.startsWith('/guides');
   const isDirectoryPage = location.pathname.startsWith('/directory');
   const isDocumentsPage = location.pathname.startsWith('/documents');
   const isSidebarCollapsed = useUIStore((state) => state.isSidebarCollapsed);
   
-  const isFullScreenPage = isChatPage || isParserPage || isDirectoryPage || isDocumentsPage;
+  const isFullScreenPage = isChatPage || isParserPage || isDirectoryPage || isDocumentsPage || isGuidesPage;
   
   return (
     <div className={cn(

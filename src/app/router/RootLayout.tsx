@@ -49,7 +49,10 @@ export function RootLayout() {
   const isFullScreenPage = isChatPage || isParserPage || isDirectoryPage || isDocumentsPage;
   
   return (
-    <div className="w-full min-h-screen bg-white dark:bg-slate-950 relative flex overflow-hidden">
+    <div className={cn(
+      "w-full min-h-screen bg-white dark:bg-slate-950 relative flex",
+      isFullScreenPage && "overflow-hidden"
+    )}>
       {/* Sidebar for desktop */}
       <Sidebar 
         availableModules={availableModules}
@@ -60,13 +63,13 @@ export function RootLayout() {
       <div className={cn(
         "flex-1 w-full flex flex-col transition-all duration-300",
         isSidebarCollapsed ? "md:pl-20" : "md:pl-64",
-        isFullScreenPage ? "h-screen" : "min-h-screen"
+        isFullScreenPage ? "h-screen overflow-hidden" : "min-h-screen relative"
       )}>
         <div className={cn(
           "w-full mx-auto",
           isFullScreenPage 
             ? "flex-1 overflow-hidden h-full" 
-            : "w-full min-h-screen"
+            : "w-full flex-1"
         )}>
           <Outlet />
         </div>

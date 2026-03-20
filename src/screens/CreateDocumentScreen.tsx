@@ -177,23 +177,35 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
   const showCostFields = type === 'repair';
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-800 px-4 py-3 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
+      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-4 py-3 sticky top-0 z-20 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm shrink-0">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={onBack}
+            className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+          </button>
+          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+            {isEditing ? 'Редактирование документа' : 'Новый документ'}
+          </h1>
+        </div>
+        
         <button 
           onClick={onBack}
-          className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 rounded-lg transition-all group"
         >
-          <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+          <span className="text-xs font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">Закрыть</span>
+          <X className="w-5 h-5" />
         </button>
-        <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-          {isEditing ? 'Редактирование документа' : 'Новый документ'}
-        </h1>
       </div>
 
-      <div className="max-w-3xl mx-auto p-4 space-y-6 pb-20">
-        {/* Main Info */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto p-4 space-y-6 pb-32">
+          {/* Main Info */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Основная информация</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -451,6 +463,7 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
             )}
           </Button>
         </div>
+      </div>
       </div>
     </div>
   );

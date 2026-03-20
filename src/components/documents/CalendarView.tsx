@@ -117,7 +117,7 @@ export function CalendarView({
                   key={day.toString()}
                   onClick={() => handleDayClick(day)}
                   className={cn(
-                    "min-h-[40px] md:min-h-[60px] border-b border-r border-slate-100 dark:border-slate-700/50 p-0.5 md:p-1 transition-all relative group cursor-pointer",
+                    "min-h-0 border-b border-r border-slate-100 dark:border-slate-700/50 p-0.5 md:p-1 transition-all relative group cursor-pointer",
                     !isCurrentMonth && "bg-slate-50/50 dark:bg-slate-900/10 text-slate-300 dark:text-slate-700",
                     isCurrentMonth && "bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/30",
                     dayDocs.length > 0 && "cursor-pointer",

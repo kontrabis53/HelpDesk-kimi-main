@@ -205,11 +205,36 @@ export function DocumentsScreen({
   return (
     <div className="h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-800 px-4 pt-4 pb-2 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Документы</h1>
-          <div className="flex items-center gap-3">
-            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
+      <div className="bg-white dark:bg-slate-800 px-4 py-2 sticky top-0 z-20 border-b border-slate-100 dark:border-slate-700 shadow-sm">
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 shrink-0">Документы</h1>
+            
+            {/* Tabs - Moved Up and Compacted */}
+            <div className="flex gap-1 overflow-x-auto scrollbar-hide py-1">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap border-2',
+                      activeTab === tab.id
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20 scale-[1.02]'
+                        : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-transparent hover:bg-slate-50 dark:hover:bg-slate-600'
+                    )}
+                  >
+                    <Icon className={cn("w-3.5 h-3.5", activeTab === tab.id ? "text-white" : "text-slate-400")} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 border border-slate-200 dark:border-slate-600">
               <button
                 onClick={() => handleViewTypeChange('calendar')}
                 className={cn(
@@ -247,62 +272,40 @@ export function DocumentsScreen({
                 <LayoutGrid className="w-4 h-4" />
               </button>
             </div>
-            <Button onClick={onCreateClick} size="sm" className="bg-blue-600 hover:bg-blue-700 h-9 px-4 text-base font-bold">
+            <Button onClick={onCreateClick} size="sm" className="bg-blue-600 hover:bg-blue-700 h-9 px-4 text-sm font-bold shadow-md shadow-blue-500/20">
               + Новый
             </Button>
           </div>
         </div>
         
-        {/* Search */}
-        <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input
-            type="text"
-            placeholder="Поиск по номеру или названию..."
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="pl-10 h-10 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 dark:text-slate-100"
-          />
-          {searchQuery && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-              <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
-                Найдено: {documents.length}
-              </span>
-              <button 
-                onClick={() => handleSearch('')}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <span className="text-xs">✕</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Tabs and Calendar Nav Row */}
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide flex-1">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
-                    activeTab === tab.id
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-300'
-                  )}
+        {/* Second Row: Search & Calendar Navigation */}
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              type="text"
+              placeholder="Поиск по номеру или названию..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="pl-10 h-9 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 dark:text-slate-100 text-sm rounded-xl"
+            />
+            {searchQuery && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
+                  {documents.length}
+                </span>
+                <button 
+                  onClick={() => handleSearch('')}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
+                  <span className="text-xs">✕</span>
                 </button>
-              );
-            })}
+              </div>
+            )}
           </div>
 
-          {/* Calendar Navigation */}
-          <div className="flex items-center gap-2 ml-4 mb-2">
+          {/* Calendar Navigation - Moved Here */}
+          <div className="flex items-center gap-2 shrink-0">
             <Popover open={isDatePickerOpen} onOpenChange={(open) => {
               setIsDatePickerOpen(open);
               if (open) setPickerView('days');
@@ -310,10 +313,10 @@ export function DocumentsScreen({
               <PopoverTrigger asChild>
                 <Button 
                   variant="ghost" 
-                  className="text-lg md:text-xl font-bold text-slate-800 dark:text-slate-100 capitalize px-3 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1 h-10"
+                  className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize px-3 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700"
                 >
                   {format(currentDate, 'LLLL yyyy', { locale: ru })}
-                  <ChevronDown className={cn("h-5 w-5 transition-transform text-slate-400", isDatePickerOpen && "rotate-180")} />
+                  <ChevronDown className={cn("h-4 w-4 transition-transform text-slate-400", isDatePickerOpen && "rotate-180")} />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
@@ -400,15 +403,15 @@ export function DocumentsScreen({
               </PopoverContent>
             </Popover>
 
-            <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5">
-              <Button variant="ghost" size="icon" className="h-9 w-9" onClick={prevMonth}>
-                <ChevronLeft className="h-5 w-5" />
+            <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={prevMonth}>
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm" className="h-9 text-base px-4 font-bold" onClick={goToToday}>
+              <Button variant="ghost" size="sm" className="h-8 text-xs px-3 font-bold rounded-lg" onClick={goToToday}>
                 Сегодня
               </Button>
-              <Button variant="ghost" size="icon" className="h-9 w-9" onClick={nextMonth}>
-                <ChevronRight className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={nextMonth}>
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>

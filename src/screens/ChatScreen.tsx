@@ -11,6 +11,14 @@ import {
   User, 
   Hash, 
   ArrowLeft,
+  Pin,
+  PinOff,
+  Eye,
+  EyeOff,
+  Bell,
+  BellOff,
+  Trash2,
+  Trash,
   Settings,
   Smile,
   Paperclip,
@@ -42,7 +50,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 import { toast } from 'sonner';
 
 export function ChatScreen() {
@@ -54,7 +71,13 @@ export function ChatScreen() {
     sendMessage, 
     createGroupChat, 
     createDirectChat,
-    clearUnread 
+    clearUnread,
+    togglePinChat,
+    toggleHideChat,
+    toggleMuteChat,
+    deleteChat,
+    showHiddenChats,
+    setShowHiddenChats
   } = useChatStore();
   
   const { users } = useRoleStore();
@@ -105,6 +128,15 @@ export function ChatScreen() {
     if (!textOverride) setNewMessage('');
   };
 
+  const handleContactAction = (type: 'call' | 'telegram', value: string) => {
+    if (!value) return;
+    if (type === 'call') {
+      window.location.href = `tel:${value.replace(/\s+/g, '')}`;
+    } else {
+      window.open(`https://t.me/${value.replace('@', '')}`, '_blank');
+    }
+  };
+
   const handleCreateDirectChat = (user: any) => {
     const id = createDirectChat(user.id, user.name);
     setActiveChat(id);
@@ -123,24 +155,93 @@ export function ChatScreen() {
     if (text) handleSendMessage(text);
   };
 
-  const filteredChats = chats.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredChats = useMemo(() => {
+    return chats
+      .filter(c => {
+        const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const isHidden = c.isHidden;
+        return matchesSearch && (showHiddenChats || !isHidden);
+      })
+      .sort((a, b) => {
+        // First sort by pinned
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        
+        // Then sort by last message time
+        const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+        const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+        return timeB - timeA;
+      });
+  }, [chats, searchQuery, showHiddenChats]);
 
-  const filteredUsers = users.filter(u => 
-    u.id !== currentUser?.id && 
-    (u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
-     u.roleId.toLowerCase().includes(userSearchQuery.toLowerCase()))
-  );
+  const filteredDirectoryEntries = useMemo(() => {
+    // 1. Get all employees from Directory
+    const directoryPeople = directoryEntries.map(entry => ({
+      ...entry,
+      source: 'directory' as const
+    }));
 
-  const handleContactAction = (type: 'call' | 'telegram', value: string) => {
-    if (!value) return;
-    if (type === 'call') {
-      window.location.href = `tel:${value.replace(/\s+/g, '')}`;
-    } else {
-      window.open(`https://t.me/${value.replace('@', '')}`, '_blank');
-    }
+    // 2. Get all users from RoleStore
+    const userPeople = users.map(user => ({
+      id: user.id,
+      name: user.name,
+      position: user.position || 'Пользователь',
+      department: user.department || 'Организация',
+      cabinet: '—',
+      internalPhone: '—',
+      source: 'users' as const,
+      isUser: true
+    }));
+
+    // 3. Merge them: prefer directory info if both exist, but mark as registered
+    const mergedMap = new Map<string, any>();
+
+    // Add directory people first
+    directoryPeople.forEach(person => {
+      mergedMap.set(person.name.toLowerCase().trim(), {
+        ...person,
+        isRegistered: users.some(u => u.name.toLowerCase().trim() === person.name.toLowerCase().trim())
+      });
+    });
+
+    // Add users who are not in directory
+    userPeople.forEach(person => {
+      const nameKey = person.name.toLowerCase().trim();
+      if (!mergedMap.has(nameKey)) {
+        mergedMap.set(nameKey, {
+          ...person,
+          isRegistered: true
+        });
+      }
+    });
+
+    // 4. Convert back to array and filter by search query
+    return Array.from(mergedMap.values())
+      .filter(person => 
+        person.id !== currentUser?.id && 
+        person.name.toLowerCase().trim() !== currentUser?.name.toLowerCase().trim() &&
+        (person.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
+         person.position.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+         person.department.toLowerCase().includes(userSearchQuery.toLowerCase()))
+      );
+  }, [directoryEntries, users, userSearchQuery, currentUser]);
+
+  const isUserRegistered = (person: any) => {
+    return person.isRegistered;
   };
+
+   const handleCreateDirectChatFromDirectory = (entry: any) => {
+     if (!isUserRegistered(entry)) {
+       toast.error('Пользователь еще не зарегистрирован в системе', {
+         description: `Вы можете связаться с ним по телефону: ${entry.internalPhone}`,
+       });
+       return;
+     }
+     const id = createDirectChat(entry.id, entry.name);
+     setActiveChat(id);
+     setIsNewChatModalOpen(false);
+     setUserSearchQuery('');
+   };
 
   return (
     <div className="flex h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
@@ -153,6 +254,24 @@ export function ChatScreen() {
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Чаты</h1>
             <div className="flex gap-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Settings className="w-5 h-5 text-slate-500" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Настройки чата</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowHiddenChats(!showHiddenChats)}>
+                    {showHiddenChats ? (
+                      <><EyeOff className="w-4 h-4 mr-2" /> Скрыть скрытые чаты</>
+                    ) : (
+                      <><Eye className="w-4 h-4 mr-2" /> Показать скрытые чаты</>
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="ghost" size="icon" onClick={() => setIsNewChatModalOpen(true)}>
                 <Plus className="w-5 h-5" />
               </Button>
@@ -172,47 +291,92 @@ export function ChatScreen() {
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
             {filteredChats.map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => setActiveChat(chat.id)}
-                className={cn(
-                  "w-full flex items-center gap-3 p-3 rounded-xl transition-all group",
-                  activeChatId === chat.id 
-                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600" 
-                    : "hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300"
-                )}
-              >
-                <div className="relative flex-shrink-0">
-                  <div className={cn(
-                    "w-12 h-12 rounded-full flex items-center justify-center border",
-                    chat.type === 'group' 
-                      ? "bg-amber-100 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" 
-                      : "bg-blue-100 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                  )}>
-                    {chat.type === 'group' ? <Users className="w-6 h-6 text-amber-600" /> : <User className="w-6 h-6 text-blue-600" />}
-                  </div>
-                  {chat.unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white dark:border-slate-800">
-                      {chat.unreadCount}
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex justify-between items-start mb-0.5">
-                    <span className="font-bold text-sm truncate pr-2 text-slate-900 dark:text-slate-100">
-                      {chat.name}
-                    </span>
-                    {chat.lastMessageTime && (
-                      <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                        {format(new Date(chat.lastMessageTime), 'HH:mm')}
-                      </span>
+              <ContextMenu key={chat.id}>
+                <ContextMenuTrigger>
+                  <button
+                    onClick={() => setActiveChat(chat.id)}
+                    className={cn(
+                      "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative",
+                      activeChatId === chat.id 
+                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600" 
+                        : "hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300",
+                      chat.isHidden && "opacity-50 grayscale-[0.5]"
                     )}
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate leading-tight">
-                    {chat.lastMessage || 'Нет сообщений'}
-                  </p>
-                </div>
-              </button>
+                  >
+                    <div className="relative flex-shrink-0">
+                      <div className={cn(
+                        "w-12 h-12 rounded-full flex items-center justify-center border",
+                        chat.type === 'group' 
+                          ? "bg-amber-100 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" 
+                          : "bg-blue-100 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                      )}>
+                        {chat.type === 'group' ? <Users className="w-6 h-6 text-amber-600" /> : <User className="w-6 h-6 text-blue-600" />}
+                      </div>
+                      {chat.unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white dark:border-slate-800">
+                          {chat.unreadCount}
+                        </span>
+                      )}
+                      {chat.isPinned && (
+                        <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-800 rounded-full p-0.5 shadow-sm border border-slate-100 dark:border-slate-700">
+                          <Pin className="w-3 h-3 text-blue-500 fill-blue-500" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="flex justify-between items-start mb-0.5">
+                        <span className="font-bold text-sm truncate pr-2 text-slate-900 dark:text-slate-100 flex items-center gap-1">
+                          {chat.name}
+                          {chat.isMuted && <BellOff className="w-3 h-3 text-slate-400" />}
+                        </span>
+                        {chat.lastMessageTime && (
+                          <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                            {format(new Date(chat.lastMessageTime), 'HH:mm')}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate leading-tight">
+                        {chat.lastMessage || 'Нет сообщений'}
+                      </p>
+                    </div>
+                  </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-48">
+                  <ContextMenuItem onClick={() => togglePinChat(chat.id)}>
+                    {chat.isPinned ? (
+                      <><PinOff className="w-4 h-4 mr-2" /> Открепить</>
+                    ) : (
+                      <><Pin className="w-4 h-4 mr-2" /> Закрепить</>
+                    )}
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => toggleMuteChat(chat.id)}>
+                    {chat.isMuted ? (
+                      <><Bell className="w-4 h-4 mr-2" /> Включить звук</>
+                    ) : (
+                      <><BellOff className="w-4 h-4 mr-2" /> Без звука</>
+                    )}
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => toggleHideChat(chat.id)}>
+                    {chat.isHidden ? (
+                      <><Eye className="w-4 h-4 mr-2" /> Показать</>
+                    ) : (
+                      <><EyeOff className="w-4 h-4 mr-2" /> Скрыть</>
+                    )}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem 
+                    className="text-red-600 focus:text-red-600"
+                    onClick={() => {
+                      if (confirm('Вы уверены, что хотите удалить этот чат? Все сообщения будут удалены.')) {
+                        deleteChat(chat.id);
+                        toast.success('Чат удален');
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Удалить
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
           </div>
         </ScrollArea>
@@ -419,43 +583,131 @@ export function ChatScreen() {
 
       {/* New Chat Modal (Integrated Search) */}
       <Dialog open={isNewChatModalOpen} onOpenChange={setIsNewChatModalOpen}>
-        <DialogContent className="max-w-md bg-white dark:bg-slate-800">
-          <DialogHeader>
-            <DialogTitle>Начать новый чат</DialogTitle>
+        <DialogContent className="max-w-md bg-white dark:bg-slate-800 p-0 overflow-hidden border-0 shadow-2xl">
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle className="text-xl font-bold">Начать новый чат</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="p-6 space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input 
-                placeholder="Поиск сотрудников по имени или роли..." 
-                className="pl-9"
+                placeholder="Поиск сотрудников..." 
+                className="pl-9 bg-slate-100 dark:bg-slate-700 border-0 h-11 rounded-xl"
                 value={userSearchQuery}
                 onChange={(e) => setUserSearchQuery(e.target.value)}
               />
             </div>
-            <ScrollArea className="h-64">
-              <div className="space-y-1">
-                {filteredUsers.map(user => (
-                  <button
-                    key={user.id}
-                    onClick={() => handleCreateDirectChat(user)}
-                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-left transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <User className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{user.name}</p>
-                      <p className="text-[10px] text-slate-500 uppercase font-medium">{user.roleId}</p>
-                    </div>
-                  </button>
-                ))}
+            
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-3">
+                {filteredDirectoryEntries.length > 0 ? (
+                  filteredDirectoryEntries.map(entry => {
+                    const registered = isUserRegistered(entry);
+                    return (
+                      <div 
+                        key={entry.id}
+                        className={cn(
+                          "group relative p-4 rounded-2xl border transition-all duration-300",
+                          registered 
+                            ? "border-slate-100 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer shadow-sm hover:shadow-md" 
+                            : "border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/20 border-dashed"
+                        )}
+                        onClick={() => registered && handleCreateDirectChatFromDirectory(entry)}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className={cn(
+                            "w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-all shadow-inner",
+                            registered 
+                              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white group-hover:scale-105 group-hover:rotate-3" 
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-400"
+                          )}>
+                            <User className="w-7 h-7" />
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <p className="font-bold text-slate-900 dark:text-slate-100 truncate text-base">
+                                {entry.name}
+                              </p>
+                              {!registered && (
+                                <span className="text-[10px] font-bold uppercase tracking-tighter px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 whitespace-nowrap">
+                                  Не в системе
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold truncate">
+                                {entry.position}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                {entry.department}
+                              </p>
+                            </div>
+                            
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Каб. {entry.cabinet}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Вн. {entry.internalPhone}</span>
+                                </div>
+                            </div>
+
+                            {!registered && (
+                              <div className="mt-4 p-3 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                                <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed mb-3">
+                                  Сотрудник еще не зарегистрирован в HelpDesk. Для связи используйте телефон:
+                                </p>
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="secondary" 
+                                    size="sm" 
+                                    className="h-9 text-[11px] flex-1 font-bold gap-2 bg-white dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-600 shadow-sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleContactAction('call', entry.internalPhone);
+                                    }}
+                                  >
+                                    <Phone className="w-3.5 h-3.5" /> Позвонить
+                                  </Button>
+                                  {entry.mobilePhone && (
+                                    <Button 
+                                      variant="secondary" 
+                                      size="sm" 
+                                      className="h-9 text-[11px] flex-1 font-bold gap-2 bg-white dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 border border-slate-200 dark:border-slate-600 shadow-sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleContactAction('call', entry.mobilePhone!);
+                                      }}
+                                    >
+                                      <Smartphone className="w-3.5 h-3.5" /> Моб
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-12">
+                    <Search className="w-12 h-12 text-slate-100 dark:text-slate-800 mx-auto mb-4" />
+                    <p className="text-sm text-slate-500">Сотрудники не найдены</p>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewChatModalOpen(false)}>Закрыть</Button>
-          </DialogFooter>
+          <div className="p-6 pt-0 border-t border-slate-50 dark:border-slate-800 flex justify-end">
+            <Button variant="ghost" onClick={() => setIsNewChatModalOpen(false)} className="rounded-xl">
+              Закрыть
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

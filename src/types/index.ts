@@ -123,6 +123,9 @@ export interface Chat {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount: number;
+  isPinned?: boolean;
+  isHidden?: boolean;
+  isMuted?: boolean;
 }
 
 // ===== ПАРСЕР =====

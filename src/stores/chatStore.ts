@@ -6,12 +6,18 @@ interface ChatStore {
   chats: Chat[];
   messages: ChatMessage[];
   activeChatId: string | null;
+  showHiddenChats: boolean;
   
   setActiveChat: (id: string | null) => void;
+  setShowHiddenChats: (show: boolean) => void;
   sendMessage: (chatId: string, text: string, senderId: string, senderName: string, senderRealName?: string) => void;
   createGroupChat: (name: string, participants: string[]) => string;
   createDirectChat: (participantId: string, participantName: string) => string;
   clearUnread: (chatId: string) => void;
+  togglePinChat: (chatId: string) => void;
+  toggleHideChat: (chatId: string) => void;
+  toggleMuteChat: (chatId: string) => void;
+  deleteChat: (chatId: string) => void;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -25,7 +31,8 @@ export const useChatStore = create<ChatStore>()(
           participants: ['Medin Reception', 'Medin CC'],
           lastMessage: 'Добро пожаловать в общий чат!',
           lastMessageTime: new Date().toISOString(),
-          unreadCount: 0
+          unreadCount: 0,
+          isPinned: true
         },
         {
           id: 'direct-1',
@@ -56,8 +63,11 @@ export const useChatStore = create<ChatStore>()(
         }
       ],
       activeChatId: null,
+      showHiddenChats: false,
 
       setActiveChat: (id) => set({ activeChatId: id }),
+      
+      setShowHiddenChats: (show) => set({ showHiddenChats: show }),
 
       sendMessage: (chatId, text, senderId, senderName, senderRealName) => {
         const newMessage: ChatMessage = {
@@ -78,7 +88,8 @@ export const useChatStore = create<ChatStore>()(
                   ...chat, 
                   lastMessage: text, 
                   lastMessageTime: newMessage.timestamp,
-                  unreadCount: state.activeChatId === chatId ? 0 : chat.unreadCount + 1
+                  unreadCount: state.activeChatId === chatId ? 0 : chat.unreadCount + 1,
+                  isHidden: false // Show chat if new message arrives
                 } 
               : chat
           )
@@ -105,7 +116,14 @@ export const useChatStore = create<ChatStore>()(
         const existing = get().chats.find(c => 
           c.type === 'direct' && c.participants.includes(participantId)
         );
-        if (existing) return existing.id;
+        if (existing) {
+          if (existing.isHidden) {
+            set(state => ({
+              chats: state.chats.map(c => c.id === existing.id ? { ...c, isHidden: false } : c)
+            }));
+          }
+          return existing.id;
+        }
 
         const id = `direct-${Date.now()}`;
         const newChat: Chat = {
@@ -122,6 +140,33 @@ export const useChatStore = create<ChatStore>()(
       clearUnread: (chatId) => {
         set((state) => ({
           chats: state.chats.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c)
+        }));
+      },
+
+      togglePinChat: (chatId) => {
+        set((state) => ({
+          chats: state.chats.map(c => c.id === chatId ? { ...c, isPinned: !c.isPinned } : c)
+        }));
+      },
+
+      toggleHideChat: (chatId) => {
+        set((state) => ({
+          chats: state.chats.map(c => c.id === chatId ? { ...c, isHidden: !c.isHidden } : c),
+          activeChatId: get().activeChatId === chatId ? null : get().activeChatId
+        }));
+      },
+
+      toggleMuteChat: (chatId) => {
+        set((state) => ({
+          chats: state.chats.map(c => c.id === chatId ? { ...c, isMuted: !c.isMuted } : c)
+        }));
+      },
+
+      deleteChat: (chatId) => {
+        set((state) => ({
+          chats: state.chats.filter(c => c.id !== chatId),
+          messages: state.messages.filter(m => m.chatId !== chatId),
+          activeChatId: get().activeChatId === chatId ? null : get().activeChatId
         }));
       }
     }),

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { InventoryCategory, InventoryUnit } from '@/types';
 import { inventoryCategoryLabels, inventoryUnitLabels } from '@/types';
 import { ArrowLeft, Package, MapPin, DollarSign, Building } from 'lucide-react';

@@ -21,7 +21,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null, // Start with null to require login
       isAuthenticated: false,
       requests: mockRequests,

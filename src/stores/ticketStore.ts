@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Ticket, TicketFilter, TicketStatus, TicketPriority, User } from '@/types';
 import { ticketService } from '@/api/tickets';
 import { userService } from '@/api/users';
+import { useRoleStore } from './roleStore';
 
 interface TicketStore {
   tickets: Ticket[];
@@ -10,7 +11,7 @@ interface TicketStore {
   setFilter: (filter: Partial<TicketFilter>) => void;
   setSelectedTicket: (ticket: Ticket | null) => void;
   getTicketById: (id: string) => Ticket | undefined;
-  createTicket: (ticket: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt' | 'number' | 'comments'>) => Ticket;
+  createTicket: (ticket: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt' | 'number' | 'comments' | 'status' | 'author'>) => Ticket;
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
   deleteTicket: (id: string) => void;
   updateTicketStatus: (id: string, status: TicketStatus) => void;
@@ -52,8 +53,13 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
   },
   
   createTicket: (ticketData) => {
+    const currentUser = useRoleStore.getState().currentUser();
+    if (!currentUser) throw new Error('Пользователь не авторизован');
+
     const newTicket = ticketService.create({
       ...ticketData,
+      status: 'new',
+      author: currentUser,
       comments: [],
     });
     set((state) => {

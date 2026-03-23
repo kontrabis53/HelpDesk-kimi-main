@@ -7,9 +7,7 @@ import {
   Plus, 
   MoreVertical, 
   Phone, 
-  Video, 
   User, 
-  Hash, 
   ArrowLeft,
   Pin,
   PinOff,
@@ -18,7 +16,6 @@ import {
   Bell,
   BellOff,
   Trash2,
-  Trash,
   Settings,
   Smile,
   Paperclip,
@@ -37,16 +34,13 @@ import { useRoleStore } from '@/stores/roleStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useDirectoryStore } from '@/stores/directoryStore';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle, 
-  DialogFooter 
+  DialogTitle
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,7 +65,6 @@ export function ChatScreen() {
     activeChatId, 
     setActiveChat, 
     sendMessage, 
-    createGroupChat, 
     createDirectChat,
     clearUnread,
     togglePinChat,

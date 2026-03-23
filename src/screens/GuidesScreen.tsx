@@ -88,7 +88,7 @@ export function GuidesScreen({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <Badge variant="secondary" className="bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border-none font-bold text-[10px] uppercase tracking-wider">
-                            {guide.category === 'hardware' ? 'Оборудование' : 'Документация'}
+                            Тех. инструкция
                           </Badge>
                           {guide.equipmentModels && guide.equipmentModels.length > 0 && (
                             <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">

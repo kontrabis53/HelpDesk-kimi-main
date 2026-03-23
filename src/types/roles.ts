@@ -122,6 +122,7 @@ export const defaultRoles: Role[] = [
       { moduleId: 'parser', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'profile', canView: true, canCreate: false, canEdit: true, canDelete: false },
+      { moduleId: 'guides', canView: true, canCreate: false, canEdit: false, canDelete: false },
     ],
   },
 ];
@@ -149,6 +150,7 @@ export const moduleIcons: Record<ModuleId, string> = {
   parser: 'Network',
   admin: 'Settings',
   profile: 'User',
+  guides: 'Book',
 };
 
 export const actionLabels: Record<string, string> = {

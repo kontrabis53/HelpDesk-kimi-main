@@ -1,59 +1,59 @@
 import { useState, useCallback, useMemo } from 'react';
-import type { KnowledgeGuide, GuideCategory } from '@/types';
-import { mockGuides } from '@/data/mockDocuments';
+import type { KBArticle, KBArticleCategory } from '@/types';
+import { mockKBArticles } from '@/data/mockDocuments';
 import { currentUser } from '@/data/mock';
 
 export function useKnowledge() {
-  const [guides, setGuides] = useState<KnowledgeGuide[]>(mockGuides);
-  const [filter, setFilter] = useState<{ category?: GuideCategory; search?: string }>({});
+  const [articles, setArticles] = useState<KBArticle[]>(mockKBArticles);
+  const [filter, setFilter] = useState<{ category?: KBArticleCategory; search?: string }>({});
 
-  const filteredGuides = useMemo(() => {
-    return guides.filter((guide) => {
-      if (filter.category && guide.category !== filter.category) return false;
+  const filteredArticles = useMemo(() => {
+    return articles.filter((article) => {
+      if (filter.category && article.category !== filter.category) return false;
       if (filter.search) {
         const searchLower = filter.search.toLowerCase();
         const matchesSearch = 
-          guide.title.toLowerCase().includes(searchLower) ||
-          guide.description.toLowerCase().includes(searchLower) ||
-          guide.tags.some(tag => tag.toLowerCase().includes(searchLower));
+          article.title.toLowerCase().includes(searchLower) ||
+          article.description.toLowerCase().includes(searchLower) ||
+          article.tags.some((tag: string) => tag.toLowerCase().includes(searchLower));
         if (!matchesSearch) return false;
       }
       return true;
     }).sort((a, b) => b.views - a.views);
-  }, [guides, filter]);
+  }, [articles, filter]);
 
-  const guidesByCategory = useMemo(() => {
+  const articlesByCategory = useMemo(() => {
     return {
-      all: filteredGuides,
-      hardware: filteredGuides.filter(g => g.category === 'hardware'),
-      software: filteredGuides.filter(g => g.category === 'software'),
-      network: filteredGuides.filter(g => g.category === 'network'),
-      printer: filteredGuides.filter(g => g.category === 'printer'),
-      common: filteredGuides.filter(g => g.category === 'common'),
+      all: filteredArticles,
+      software: filteredArticles.filter(a => a.category === 'software'),
+      network: filteredArticles.filter(a => a.category === 'network'),
+      printer: filteredArticles.filter(a => a.category === 'printer'),
+      common: filteredArticles.filter(a => a.category === 'common'),
+      security: filteredArticles.filter(a => a.category === 'security'),
     };
-  }, [filteredGuides]);
+  }, [filteredArticles]);
 
-  const getGuideById = useCallback((id: string) => {
-    return guides.find(g => g.id === id);
-  }, [guides]);
+  const getArticleById = useCallback((id: string) => {
+    return articles.find(a => a.id === id);
+  }, [articles]);
 
-  const incrementViews = useCallback((guideId: string) => {
-    setGuides(prev => prev.map(guide => {
-      if (guide.id === guideId) {
-        return { ...guide, views: guide.views + 1 };
+  const incrementViews = useCallback((articleId: string) => {
+    setArticles(prev => prev.map(article => {
+      if (article.id === articleId) {
+        return { ...article, views: article.views + 1 };
       }
-      return guide;
+      return article;
     }));
   }, []);
 
-  const createGuide = useCallback((data: {
+  const createArticle = useCallback((data: {
     title: string;
-    category: GuideCategory;
+    category: KBArticleCategory;
     description: string;
     tags: string[];
     steps: { title: string; description: string }[];
   }) => {
-    const newGuide: KnowledgeGuide = {
+    const newArticle: KBArticle = {
       id: Date.now().toString(),
       title: data.title,
       category: data.category,
@@ -71,17 +71,17 @@ export function useKnowledge() {
       updatedAt: new Date().toISOString(),
       author: currentUser,
     };
-    setGuides(prev => [newGuide, ...prev]);
-    return newGuide;
+    setArticles(prev => [newArticle, ...prev]);
+    return newArticle;
   }, []);
 
   return {
-    guides: filteredGuides,
-    guidesByCategory,
+    articles: filteredArticles,
+    articlesByCategory,
     filter,
     setFilter,
-    getGuideById,
+    getArticleById,
     incrementViews,
-    createGuide,
+    createArticle,
   };
 }

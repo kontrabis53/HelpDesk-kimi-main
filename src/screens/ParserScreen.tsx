@@ -1,26 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { 
   Network, 
   Search, 
   RefreshCw, 
   Monitor, 
-  Smartphone, 
-  Printer, 
-  Server, 
   Globe, 
   Shield, 
-  Cpu, 
   Activity,
   CheckCircle2,
   XCircle,
-  Clock,
-  ExternalLink,
-  ChevronRight,
-  Info
+  ChevronRight
 } from 'lucide-react';
 import { 
-  LineChart, 
-  Line, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -38,7 +29,6 @@ import { cn } from '@/lib/utils';
 import { useParserStore } from '@/stores/parserStore';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { 
   Card, 
@@ -224,7 +214,7 @@ export function ParserScreen() {
                       paddingAngle={5}
                       dataKey="value"
                     >
-                      {pieData.map((entry, index) => (
+                      {pieData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>

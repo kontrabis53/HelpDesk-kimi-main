@@ -7,21 +7,14 @@ import {
   endOfWeek, 
   eachDayOfInterval, 
   isSameMonth, 
-  addMonths, 
-  subMonths,
   isToday,
-  parseISO,
-  setMonth,
-  setYear,
-  getYear
+  parseISO
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, ChevronDown, Check } from 'lucide-react';
+import { Calendar as CalendarIcon, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import type { Document } from '@/types';
 import { documentStatusLabels } from '@/types';
 
@@ -157,7 +150,7 @@ export function CalendarView({
                     {dayDocs.length > 0 && (
                       <div className="flex flex-col gap-0.5 w-full">
                         {/* Display up to 3 bars per day */}
-                        {dayDocs.slice(0, 3).map((doc, idx) => (
+                        {dayDocs.slice(0, 3).map((doc) => (
                           <div 
                             key={doc.id} 
                             className={cn(

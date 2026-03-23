@@ -187,7 +187,7 @@ export interface InventoryItem {
   sku: string;
   name: string;
   category: InventoryCategory;
-  description: string;
+  description?: string;
   quantity: number;
   minQuantity: number;
   unit: InventoryUnit;

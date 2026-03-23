@@ -1,4 +1,4 @@
-import type { Document, InventoryItem, InventoryMovement, KnowledgeGuide } from '@/types';
+import type { Document, InventoryItem, InventoryMovement, KBArticle } from '@/types';
 import { currentUser } from './mock';
 
 // ===== ДОКУМЕНТЫ =====

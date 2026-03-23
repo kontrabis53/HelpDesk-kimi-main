@@ -11,7 +11,7 @@ import {
   parseISO
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check } from 'lucide-react';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -21,7 +21,6 @@ import { documentStatusLabels } from '@/types';
 interface CalendarViewProps {
   documents: Document[];
   onDocumentClick: (doc: Document) => void;
-  highlightSearch?: boolean;
   currentDate: Date;
   selectedDocId?: string | null;
 }
@@ -29,7 +28,6 @@ interface CalendarViewProps {
 export function CalendarView({ 
   documents, 
   onDocumentClick, 
-  highlightSearch, 
   currentDate,
   selectedDocId 
 }: CalendarViewProps) {
@@ -37,11 +35,11 @@ export function CalendarView({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const typeColors: Record<string, string> = {
-    act: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
-    repair: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
-    maintenance: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
-    inventory: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300',
-    other: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    act: 'bg-blue-500 text-white',
+    repair: 'bg-amber-500 text-white',
+    maintenance: 'bg-emerald-500 text-white',
+    inventory: 'bg-violet-500 text-white',
+    other: 'bg-slate-500 text-white',
   };
 
   // Generate calendar grid
@@ -98,7 +96,7 @@ export function CalendarView({
       </div>
 
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7 flex-1 auto-rows-fr overflow-hidden">
+      <div className="grid grid-cols-7 flex-1 auto-rows-fr overflow-y-auto scrollbar-hide">
         {calendarDays.map((day) => {
               const dayDocs = getDayDocuments(day);
               const isCurrentMonth = isSameMonth(day, currentDate);
@@ -110,60 +108,48 @@ export function CalendarView({
                   key={day.toString()}
                   onClick={() => handleDayClick(day)}
                   className={cn(
-                    "min-h-0 border-b border-r border-slate-100 dark:border-slate-700/50 p-0.5 md:p-1 transition-all relative group cursor-pointer flex flex-col",
+                    "min-h-[80px] md:min-h-[120px] border-b border-r border-slate-100 dark:border-slate-700/50 p-1 md:p-1.5 transition-all relative group cursor-pointer flex flex-col",
                     !isCurrentMonth && "bg-slate-50/50 dark:bg-slate-900/10 text-slate-300 dark:text-slate-700",
                     isCurrentMonth && "bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/30",
-                    dayDocs.length > 0 && isCurrentMonth && "bg-blue-50/30 dark:bg-blue-900/5",
-                    highlightSearch && dayDocs.length > 0 && "bg-blue-50/60 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-100 dark:ring-blue-900",
-                    isSelectedDay && "bg-green-50/60 dark:bg-green-900/20 ring-2 ring-inset ring-green-500/50 z-10"
+                    dayDocs.length > 0 && isCurrentMonth && "bg-blue-50/10 dark:bg-blue-900/5",
+                    isSelectedDay && "ring-2 ring-inset ring-blue-500 z-10"
                   )}
                 >
-                  {/* Day Number and Events Count */}
-                  <div className="flex justify-between items-start mb-1">
+                  {/* Day Number */}
+                  <div className="flex flex-col items-center mb-1">
                     <span
                       className={cn(
-                        "text-xs md:text-base font-bold w-5 h-5 md:w-8 md:h-8 flex items-center justify-center rounded-full transition-transform group-hover:scale-110",
+                        "text-base md:text-xl font-bold w-8 h-8 md:w-12 md:h-12 flex items-center justify-center rounded-full transition-all",
                         isTodayDate
-                          ? "bg-blue-600 text-white shadow-md shadow-blue-500/30"
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-110"
                           : isCurrentMonth ? "text-slate-800 dark:text-slate-200" : "text-slate-300 dark:text-slate-600"
                       )}
                     >
                       {format(day, 'd')}
                     </span>
-                    
-                    {dayDocs.length > 0 && (
-                      <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[9px] md:text-[10px] font-black px-1.5 py-0.5 rounded-lg border border-blue-200 dark:border-blue-800 shadow-sm">
-                        {dayDocs.length}
-                      </span>
-                    )}
                   </div>
 
-                  {/* Selected Indicator Checkmark */}
-                  {isSelectedDay && (
-                    <div className="absolute right-0.5 bottom-0.5 bg-green-500 text-white rounded-full p-0.5 shadow-sm z-20">
-                      <Check className="w-2.5 h-2.5 stroke-[3]" />
-                    </div>
-                  )}
-
-                  {/* Documents Indicators (Visual Bars) */}
-                  <div className="flex-1 flex flex-col gap-0.5 md:gap-1 mt-auto overflow-hidden">
+                  {/* Documents Indicators (Google Calendar Style Bars) */}
+                  <div className="flex-1 flex flex-col gap-1 mt-1 overflow-hidden">
                     {dayDocs.length > 0 && (
-                      <div className="flex flex-col gap-0.5 w-full">
-                        {/* Display up to 3 bars per day */}
-                        {dayDocs.slice(0, 3).map((doc) => (
+                      <div className="flex flex-col gap-1 w-full">
+                        {/* Display up to 3-4 bars per day depending on screen size */}
+                        {dayDocs.slice(0, 4).map((doc) => (
                           <div 
                             key={doc.id} 
                             className={cn(
-                              "h-1 md:h-1.5 w-full rounded-full shadow-sm border-[0.5px] border-black/5 dark:border-white/5",
-                              typeColors[doc.type]?.split(' ')[0] || 'bg-slate-400'
+                              "h-5 md:h-6 w-full rounded-md px-1.5 flex items-center shadow-sm border border-black/5 dark:border-white/10 overflow-hidden",
+                              typeColors[doc.type] || 'bg-slate-400'
                             )}
-                          />
+                          >
+                            <span className="text-[9px] md:text-[10px] font-bold truncate leading-none">
+                              {doc.title}
+                            </span>
+                          </div>
                         ))}
-                        {dayDocs.length > 3 && (
-                          <div className="h-1 w-full flex justify-center gap-0.5">
-                            <div className="w-1 h-1 rounded-full bg-slate-300" />
-                            <div className="w-1 h-1 rounded-full bg-slate-300" />
-                            <div className="w-1 h-1 rounded-full bg-slate-300" />
+                        {dayDocs.length > 4 && (
+                          <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 px-1">
+                            + {dayDocs.length - 4} еще
                           </div>
                         )}
                       </div>

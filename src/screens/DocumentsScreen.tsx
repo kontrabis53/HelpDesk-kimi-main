@@ -111,10 +111,21 @@ export function DocumentsScreen({
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [pickerView, setPickerView] = useState<'days' | 'months' | 'years'>('days');
 
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  const [isFiltersVisible, setIsFiltersVisible] = useState(false);
+
   const handleSearch = (value: string) => {
     setSearchQuery(value);
     onSearch(value);
     if (!value) setSelectedDocId(null);
+  };
+
+  const toggleSearch = () => {
+    setIsSearchOpen(!isSearchOpen);
+    if (isSearchOpen) {
+      handleSearch('');
+    }
   };
 
   const getDocumentsForTab = () => {
@@ -203,124 +214,26 @@ export function DocumentsScreen({
   };
 
   return (
-    <div className="h-full bg-slate-50 dark:bg-slate-900 overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-800 px-4 py-2 sticky top-0 z-20 border-b border-slate-100 dark:border-slate-700 shadow-sm">
-        <div className="flex items-center justify-between gap-4 mb-2">
+    <div className="h-full bg-slate-50 dark:bg-slate-900 overflow-hidden flex flex-col relative">
+      {/* Header - Google Calendar Style */}
+      <div className="bg-white dark:bg-slate-800 px-4 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-3 sticky top-0 z-20 border-b border-slate-100 dark:border-slate-700 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 shrink-0">Документы</h1>
-            
-            {/* Tabs - Moved Up and Compacted */}
-            <div className="flex gap-1 overflow-x-auto scrollbar-hide py-1">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap border-2',
-                      activeTab === tab.id
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20 scale-[1.02]'
-                        : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-transparent hover:bg-slate-50 dark:hover:bg-slate-600'
-                    )}
-                  >
-                    <Icon className={cn("w-3.5 h-3.5", activeTab === tab.id ? "text-white" : "text-slate-400")} />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 border border-slate-200 dark:border-slate-600">
-              <button
-                onClick={() => handleViewTypeChange('calendar')}
-                className={cn(
-                  "p-1.5 rounded-md transition-all flex items-center justify-center",
-                  viewType === 'calendar' 
-                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                )}
-                title="Календарь"
-              >
-                <CalendarIcon className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleViewTypeChange('list')}
-                className={cn(
-                  "p-1.5 rounded-md transition-all flex items-center justify-center",
-                  viewType === 'list' 
-                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                )}
-                title="Список"
-              >
-                <List className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleViewTypeChange('grid')}
-                className={cn(
-                  "p-1.5 rounded-md transition-all flex items-center justify-center",
-                  viewType === 'grid' 
-                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                )}
-                title="Карточки"
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-            </div>
-            <Button onClick={onCreateClick} size="sm" className="bg-blue-600 hover:bg-blue-700 h-9 px-4 text-sm font-bold shadow-md shadow-blue-500/20">
-              + Новый
-            </Button>
-          </div>
-        </div>
-        
-        {/* Second Row: Search & Calendar Navigation */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              type="text"
-              placeholder="Поиск по номеру или названию..."
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="pl-10 h-9 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 dark:text-slate-100 text-sm rounded-xl"
-            />
-            {searchQuery && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
-                  {documents.length}
-                </span>
-                <button 
-                  onClick={() => handleSearch('')}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <span className="text-xs">✕</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Calendar Navigation - Moved Here */}
-          <div className="flex items-center gap-2 shrink-0">
+            {/* Month Selection / Display */}
             <Popover open={isDatePickerOpen} onOpenChange={(open) => {
               setIsDatePickerOpen(open);
               if (open) setPickerView('days');
             }}>
               <PopoverTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize px-3 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700"
+                <button 
+                  className="flex items-center gap-2 text-2xl font-bold text-slate-800 dark:text-slate-100 capitalize hover:opacity-80 transition-opacity"
                 >
                   {format(currentDate, 'LLLL yyyy', { locale: ru })}
-                  <ChevronDown className={cn("h-4 w-4 transition-transform text-slate-400", isDatePickerOpen && "rotate-180")} />
-                </Button>
+                  <ChevronDown className={cn("h-5 w-5 transition-transform text-slate-400", isDatePickerOpen && "rotate-180")} />
+                </button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <div className="p-4 min-w-[320px]">
+              <PopoverContent className="w-[calc(100vw-32px)] max-w-[320px] p-0" align="start">
+                <div className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                       if (pickerView === 'days') prevMonth();
@@ -402,21 +315,195 @@ export function DocumentsScreen({
                 </div>
               </PopoverContent>
             </Popover>
+          </div>
 
-            <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={prevMonth}>
-                <ChevronLeft className="h-4 w-4" />
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+            <button 
+              onClick={() => setIsFiltersVisible(!isFiltersVisible)}
+              className={cn(
+                "p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors",
+                isFiltersVisible ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" : "text-slate-600 dark:text-slate-300"
+              )}
+              title="Фильтры"
+            >
+              <List className="w-6 h-6" />
+            </button>
+
+            <button 
+              onClick={toggleSearch}
+              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300"
+              title="Поиск"
+            >
+              <Search className="w-6 h-6" />
+            </button>
+
+            <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
+
+            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-full p-1 border border-slate-200 dark:border-slate-600">
+              <button
+                onClick={() => handleViewTypeChange('calendar')}
+                className={cn(
+                  "p-1.5 rounded-full transition-all flex items-center justify-center w-9 h-9",
+                  viewType === 'calendar' 
+                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                )}
+                title="Календарь"
+              >
+                <CalendarIcon className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleViewTypeChange('list')}
+                className={cn(
+                  "p-1.5 rounded-full transition-all flex items-center justify-center w-9 h-9",
+                  viewType === 'list' 
+                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                )}
+                title="Список"
+              >
+                <List className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleViewTypeChange('grid')}
+                className={cn(
+                  "p-1.5 rounded-full transition-all flex items-center justify-center w-9 h-9",
+                  viewType === 'grid' 
+                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                )}
+                title="Карточки"
+              >
+                <LayoutGrid className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Navigation Row */}
+        <div className="flex items-center justify-between mt-4">
+          <div className="flex-1 min-w-0">
+            {isFiltersVisible && (
+              <div className="flex gap-1 overflow-x-auto scrollbar-hide py-1 animate-in slide-in-from-top-2 duration-200">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap border',
+                        activeTab === tab.id
+                          ? 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                      )}
+                    >
+                      <Icon className={cn("w-4 h-4", activeTab === tab.id ? "text-blue-600 dark:text-blue-400" : "text-slate-400")} />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {!isFiltersVisible && (
+              <div className="h-[34px] flex items-center">
+                <p className="text-xs text-slate-400 dark:text-slate-500 font-medium px-2 italic">
+                  Нажмите на иконку списка сверху, чтобы показать фильтры
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 ml-4 shrink-0">
+            <Button variant="outline" size="sm" className="h-9 px-4 rounded-full font-bold" onClick={goToToday}>
+              Сегодня
+            </Button>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={prevMonth}>
+                <ChevronLeft className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="sm" className="h-8 text-xs px-3 font-bold rounded-lg" onClick={goToToday}>
-                Сегодня
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={nextMonth}>
-                <ChevronRight className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={nextMonth}>
+                <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* FAB Button */}
+      <button
+        onClick={onCreateClick}
+        className="fixed bottom-20 md:bottom-8 right-6 w-14 h-14 md:w-16 md:h-16 bg-blue-600 dark:bg-blue-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 border-4 border-white dark:border-slate-800"
+        title="Создать новый документ"
+      >
+        <svg width="24" height="24" className="md:w-7 md:h-7" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 5V19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M5 12H19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      {/* Search Overlay */}
+      {isSearchOpen && (
+        <div className="fixed inset-0 bg-white dark:bg-slate-900 z-[100] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-center gap-4 p-4 border-b border-slate-100 dark:border-slate-800">
+            <button onClick={toggleSearch} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+              <ChevronLeft className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+            </button>
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Input
+                autoFocus
+                type="text"
+                placeholder="Поиск по номеру или названию..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="pl-11 h-12 bg-slate-100 dark:bg-slate-800 border-0 focus-visible:ring-blue-500 text-base rounded-2xl"
+              />
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4">
+            {searchQuery ? (
+              <div className="space-y-4">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 px-2">
+                  Результаты поиска ({displayedDocuments.length})
+                </p>
+                {displayedDocuments.length > 0 ? (
+                  <div className="grid gap-3">
+                    {displayedDocuments.map(doc => (
+                      <button
+                        key={doc.id}
+                        onClick={() => {
+                          handleSearchResultClick(doc);
+                          toggleSearch();
+                        }}
+                        className="w-full text-left p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:border-blue-200 transition-colors"
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{doc.number}</span>
+                          <span className="text-xs text-slate-400">{formatDate(doc.createdAt)}</span>
+                        </div>
+                        <h4 className="font-bold text-slate-800 dark:text-slate-100">{doc.title}</h4>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1">{doc.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <Search className="w-12 h-12 mb-4 opacity-20" />
+                    <p>Ничего не найдено</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <Search className="w-12 h-12 mb-4 opacity-20" />
+                <p>Введите текст для поиска</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className={cn(
@@ -561,7 +648,6 @@ export function DocumentsScreen({
               <CalendarView 
                 documents={displayedDocuments} 
                 onDocumentClick={onDocumentClick} 
-                highlightSearch={!!searchQuery}
                 currentDate={currentDate}
                 selectedDocId={selectedDocId}
               />

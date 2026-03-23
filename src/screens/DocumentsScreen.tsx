@@ -11,10 +11,8 @@ import {
   Package, 
   ClipboardList, 
   List, 
-  LayoutGrid,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Check
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -82,7 +80,7 @@ export function DocumentsScreen({
   onCreateClick,
   onSearch 
 }: DocumentsScreenProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [activeTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Use localStorage to persist viewType and switch counts
@@ -113,8 +111,6 @@ export function DocumentsScreen({
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  const [isFiltersVisible, setIsFiltersVisible] = useState(false);
-
   const handleSearch = (value: string) => {
     setSearchQuery(value);
     onSearch(value);
@@ -128,8 +124,35 @@ export function DocumentsScreen({
     }
   };
 
+  const [activeSearchFilters, setActiveSearchFilters] = useState<TabType[]>(['all']);
+
+  const toggleSearchFilter = (tabId: TabType) => {
+    if (tabId === 'all') {
+      setActiveSearchFilters(['all']);
+      return;
+    }
+    
+    let newFilters: TabType[] = activeSearchFilters.filter(f => f !== 'all');
+    if (newFilters.includes(tabId)) {
+      newFilters = newFilters.filter(f => f !== tabId);
+      if (newFilters.length === 0) newFilters = (['all'] as TabType[]);
+    } else {
+      newFilters.push(tabId);
+    }
+    setActiveSearchFilters(newFilters);
+  };
+
   const getDocumentsForTab = () => {
-    const tabDocs = documentsByType[activeTab] || documents;
+    let tabDocs = documentsByType[activeTab] || documents;
+    
+    // Apply search filters if in search mode
+    if (isSearchOpen) {
+      if (!activeSearchFilters.includes('all')) {
+        tabDocs = documents.filter(doc => activeSearchFilters.includes(doc.type as TabType));
+      } else {
+        tabDocs = documents;
+      }
+    }
     
     // Filter by selected month/year from the calendar navigation
     return tabDocs.filter(doc => {
@@ -215,21 +238,18 @@ export function DocumentsScreen({
 
   return (
     <div className="h-full bg-slate-50 dark:bg-slate-900 overflow-hidden flex flex-col relative">
-      {/* Header - Google Calendar Style */}
-      <div className="bg-white dark:bg-slate-800 px-4 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-3 sticky top-0 z-20 border-b border-slate-100 dark:border-slate-700 shadow-sm">
+      {/* Header - iOS Calendar Style */}
+      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-4 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2 sticky top-0 z-30 border-b border-slate-100/50 dark:border-slate-700/50">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
-            {/* Month Selection / Display */}
+          <div className="flex items-center gap-2">
             <Popover open={isDatePickerOpen} onOpenChange={(open) => {
               setIsDatePickerOpen(open);
               if (open) setPickerView('days');
             }}>
               <PopoverTrigger asChild>
-                <button 
-                  className="flex items-center gap-2 text-2xl font-bold text-slate-800 dark:text-slate-100 capitalize hover:opacity-80 transition-opacity"
-                >
-                  {format(currentDate, 'LLLL yyyy', { locale: ru })}
-                  <ChevronDown className={cn("h-5 w-5 transition-transform text-slate-400", isDatePickerOpen && "rotate-180")} />
+                <button className="flex items-center gap-0.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400 font-bold text-sm hover:bg-slate-200 transition-colors shadow-sm">
+                  <ChevronLeft className="w-4 h-4 stroke-[3]" />
+                  {format(currentDate, 'yyyy', { locale: ru })}
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-[calc(100vw-32px)] max-w-[320px] p-0" align="start">
@@ -317,126 +337,60 @@ export function DocumentsScreen({
             </Popover>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button 
-              onClick={() => setIsFiltersVisible(!isFiltersVisible)}
-              className={cn(
-                "p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors",
-                isFiltersVisible ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" : "text-slate-600 dark:text-slate-300"
-              )}
-              title="Фильтры"
+              onClick={() => handleViewTypeChange(viewType === 'calendar' ? 'list' : 'calendar')}
+              className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-blue-600 dark:text-blue-400"
+              title="Список/Календарь"
             >
-              <List className="w-6 h-6" />
+              {viewType === 'calendar' ? <List className="w-6 h-6 stroke-[2.5]" /> : <CalendarIcon className="w-6 h-6 stroke-[2.5]" />}
             </button>
 
             <button 
               onClick={toggleSearch}
-              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300"
+              className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-blue-600 dark:text-blue-400"
               title="Поиск"
             >
-              <Search className="w-6 h-6" />
+              <Search className="w-6 h-6 stroke-[2.5]" />
             </button>
 
-            <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
-
-            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-full p-1 border border-slate-200 dark:border-slate-600">
-              <button
-                onClick={() => handleViewTypeChange('calendar')}
-                className={cn(
-                  "p-1.5 rounded-full transition-all flex items-center justify-center w-9 h-9",
-                  viewType === 'calendar' 
-                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                )}
-                title="Календарь"
-              >
-                <CalendarIcon className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => handleViewTypeChange('list')}
-                className={cn(
-                  "p-1.5 rounded-full transition-all flex items-center justify-center w-9 h-9",
-                  viewType === 'list' 
-                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                )}
-                title="Список"
-              >
-                <List className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => handleViewTypeChange('grid')}
-                className={cn(
-                  "p-1.5 rounded-full transition-all flex items-center justify-center w-9 h-9",
-                  viewType === 'grid' 
-                    ? "bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                )}
-                title="Карточки"
-              >
-                <LayoutGrid className="w-5 h-5" />
-              </button>
-            </div>
+            <button 
+              onClick={onCreateClick}
+              className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-blue-600 dark:text-blue-400"
+              title="Добавить"
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 5V19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M5 12H19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
           </div>
         </div>
-        
-        {/* Navigation Row */}
-        <div className="flex items-center justify-between mt-4">
-          <div className="flex-1 min-w-0">
-            {isFiltersVisible && (
-              <div className="flex gap-1 overflow-x-auto scrollbar-hide py-1 animate-in slide-in-from-top-2 duration-200">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap border',
-                        activeTab === tab.id
-                          ? 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800'
-                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
-                      )}
-                    >
-                      <Icon className={cn("w-4 h-4", activeTab === tab.id ? "text-blue-600 dark:text-blue-400" : "text-slate-400")} />
-                      {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {!isFiltersVisible && (
-              <div className="h-[34px] flex items-center">
-                <p className="text-xs text-slate-400 dark:text-slate-500 font-medium px-2 italic">
-                  Нажмите на иконку списка сверху, чтобы показать фильтры
-                </p>
-              </div>
-            )}
-          </div>
 
-          <div className="flex items-center gap-2 ml-4 shrink-0">
-            <Button variant="outline" size="sm" className="h-9 px-4 rounded-full font-bold" onClick={goToToday}>
-              Сегодня
-            </Button>
-            <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={prevMonth}>
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={nextMonth}>
-                <ChevronRight className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
+        <div className="mt-2">
+          <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 capitalize px-1 tracking-tight">
+            {format(currentDate, 'LLLL', { locale: ru })}
+          </h1>
         </div>
       </div>
 
-      {/* FAB Button */}
+      {/* Bottom Floating Controls (iOS style) */}
+      <div className="fixed bottom-24 left-6 flex items-center gap-4 z-50 pointer-events-none">
+        <button
+          onClick={goToToday}
+          className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-6 py-3 rounded-full shadow-lg border border-slate-200/50 dark:border-slate-700/50 text-blue-600 dark:text-blue-400 font-bold text-sm active:scale-95 transition-all pointer-events-auto"
+        >
+          Сегодня
+        </button>
+      </div>
+
+      {/* FAB Button - Slightly Larger */}
       <button
         onClick={onCreateClick}
-        className="fixed bottom-20 md:bottom-8 right-6 w-14 h-14 md:w-16 md:h-16 bg-blue-600 dark:bg-blue-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 border-4 border-white dark:border-slate-800"
+        className="fixed bottom-24 right-6 w-16 h-16 bg-blue-600 dark:bg-blue-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 border-4 border-white dark:border-slate-800 pointer-events-auto"
         title="Создать новый документ"
       >
-        <svg width="24" height="24" className="md:w-7 md:h-7" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 5V19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M5 12H19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
@@ -450,19 +404,42 @@ export function DocumentsScreen({
               <ChevronLeft className="w-6 h-6 text-slate-600 dark:text-slate-300" />
             </button>
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <Input
-                autoFocus
-                type="text"
-                placeholder="Поиск по номеру или названию..."
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-11 h-12 bg-slate-100 dark:bg-slate-800 border-0 focus-visible:ring-blue-500 text-base rounded-2xl"
-              />
-            </div>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Input
+              autoFocus
+              type="text"
+              placeholder="Поиск по номеру или названию..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="pl-11 h-12 bg-slate-100 dark:bg-slate-800 border-0 focus-visible:ring-blue-500 text-base rounded-2xl"
+            />
           </div>
-          
-          <div className="flex-1 overflow-y-auto p-4">
+        </div>
+
+        {/* Search Filters */}
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide p-4 pt-0">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isSelected = activeSearchFilters.includes(tab.id);
+            return (
+              <button
+                key={tab.id}
+                onClick={() => toggleSearchFilter(tab.id)}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap border',
+                  isSelected
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                )}
+              >
+                <Icon className={cn("w-4 h-4", isSelected ? "text-white" : "text-slate-400")} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4">
             {searchQuery ? (
               <div className="space-y-4">
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400 px-2">

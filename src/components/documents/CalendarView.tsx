@@ -36,14 +36,14 @@ export function CalendarView({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const monthRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const initialScrolled = useRef(false);
 
   // Generate calendar grid (Multiple months for scrolling)
-  // We use a fixed range relative to "today" or a base date to allow smooth scrolling
   const calendarMonths = useMemo(() => {
     const months = [];
     const baseDate = startOfMonth(new Date());
-    // Show 12 months before and 24 months after for a large scrollable area
-    for (let i = -12; i <= 24; i++) {
+    // Reduced range for better performance on older devices
+    for (let i = -6; i <= 12; i++) {
       const monthDate = addMonths(baseDate, i);
       const monthStart = startOfMonth(monthDate);
       const monthEnd = endOfMonth(monthStart);
@@ -59,12 +59,26 @@ export function CalendarView({
     return months;
   }, []);
 
-  // Scroll to currentDate when it changes
+  // Initial scroll to current month without animation
   useEffect(() => {
-    const monthId = format(currentDate, 'yyyy-MM');
-    const element = monthRefs.current[monthId];
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!initialScrolled.current) {
+      const monthId = format(currentDate, 'yyyy-MM');
+      const element = monthRefs.current[monthId];
+      if (element) {
+        element.scrollIntoView({ behavior: 'auto', block: 'start' });
+        initialScrolled.current = true;
+      }
+    }
+  }, [calendarMonths, currentDate]);
+
+  // Export scroll function if needed or handle via prop change
+  useEffect(() => {
+    if (initialScrolled.current) {
+      const monthId = format(currentDate, 'yyyy-MM');
+      const element = monthRefs.current[monthId];
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
   }, [currentDate]);
 

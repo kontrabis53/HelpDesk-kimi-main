@@ -351,7 +351,6 @@ export function AdminScreen({
 
       {/* Content */}
       <div className="p-4 max-w-5xl mx-auto">
-        {/* Search */}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
@@ -359,8 +358,16 @@ export function AdminScreen({
             placeholder="Поиск..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-10 bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+            className="pl-10 pr-10 h-10 bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Users Tab */}

@@ -1,15 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { TechnicalGuide } from '@/types';
 import { EmptyState } from '@/components/EmptyState';
-import { 
-  Search, 
-  FileText, 
-  ExternalLink, 
-  Book, 
-  Download, 
-  Layers,
-  Info
-} from 'lucide-react';
+import { Search, FileText, ExternalLink, Book, Download, Layers, Info, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -61,8 +53,16 @@ export function GuidesScreen({
               placeholder="Поиск по названию оборудования, модели или ключевым словам..."
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              className="pl-12 h-12 bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 focus-visible:ring-blue-500 text-lg rounded-xl"
+              className="pl-12 pr-12 h-12 bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 focus-visible:ring-blue-500 text-lg rounded-xl"
             />
+            {searchQuery && (
+              <button
+                onClick={() => handleSearch('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
       </div>

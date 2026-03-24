@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { InventoryItem, InventoryCategory } from '@/types';
 import { inventoryCategoryLabels, inventoryUnitLabels } from '@/types';
 import { EmptyState } from '@/components/EmptyState';
-import { Search, AlertTriangle, Plus, Minus, MapPin, TrendingDown } from 'lucide-react';
+import { Search, AlertTriangle, Plus, Minus, MapPin, TrendingDown, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -129,8 +129,16 @@ export function InventoryScreen({
               placeholder="Поиск по названию или артикулу..."
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              className="pl-10 h-10 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 dark:text-slate-100"
+              className="pl-10 pr-10 h-10 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 dark:text-slate-100"
             />
+            {searchQuery && (
+              <button
+                onClick={() => handleSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
           <button
             onClick={handleToggleLowStock}

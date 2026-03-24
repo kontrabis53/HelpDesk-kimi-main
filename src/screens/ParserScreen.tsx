@@ -9,7 +9,8 @@ import {
   Activity,
   CheckCircle2,
   XCircle,
-  ChevronRight
+  ChevronRight,
+  X
 } from 'lucide-react';
 import { 
   XAxis, 
@@ -241,10 +242,18 @@ export function ParserScreen() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input 
                     placeholder="Поиск по IP, имени, ОС..." 
-                    className="pl-9 bg-slate-50 dark:bg-slate-700 border-0 h-10 rounded-xl"
+                    className="pl-9 pr-9 bg-slate-50 dark:bg-slate-700 border-0 h-10 rounded-xl"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </CardHeader>

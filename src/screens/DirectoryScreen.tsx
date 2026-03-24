@@ -1,5 +1,146 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Search, Phone, Send, MapPin, Users, TrendingUp, User, Building, Plus, MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { useState, useMemo, useEffect, memo } from 'react';
+import { Search, Phone, Send, MapPin, Users, TrendingUp, User, Building, Plus, MoreVertical, Edit, Trash2, X } from 'lucide-react';
+
+// Memoized Directory Card for performance
+const DirectoryCard = memo(({ 
+  entry, 
+  canManage, 
+  onEdit, 
+  onDelete, 
+  onContactAction,
+  otherStaffCount,
+  formatDisplayPhone
+}: { 
+  entry: any, 
+  canManage: boolean, 
+  onEdit: (e: any) => void, 
+  onDelete: (id: string) => void,
+  onContactAction: (type: 'call' | 'telegram', val: string) => void,
+  otherStaffCount: number,
+  formatDisplayPhone: (phone: string) => string
+}) => {
+  return (
+    <div 
+      className={cn(
+        "bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border transition-all relative group will-change-transform",
+        entry.isDirectHit 
+          ? "border-blue-500 dark:border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.3)] dark:shadow-[0_0_25px_rgba(96,165,250,0.25)] ring-2 ring-blue-500/30 dark:ring-blue-400/40 scale-[1.03] z-10" 
+          : "border-slate-100 dark:border-slate-700 hover:shadow-md"
+      )}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start gap-4 flex-1 min-w-0">
+          <div className={cn(
+            "w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border transition-colors",
+            entry.isDirectHit 
+              ? "bg-blue-600 text-white border-blue-400 shadow-inner" 
+              : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800"
+          )}>
+            <User className="w-6 h-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg leading-tight mb-1 truncate">
+              {entry.name}
+            </h3>
+            <p className={cn(
+              "text-sm font-medium leading-none",
+              entry.isDirectHit ? "text-blue-600 dark:text-blue-400 font-bold" : "text-slate-500 dark:text-slate-400"
+            )}>
+              {entry.position}
+            </p>
+            <div className="flex items-center gap-1.5 mt-2 text-slate-500 dark:text-slate-400">
+              <Building className="w-3.5 h-3.5" />
+              <span className="text-xs truncate">{entry.department}</span>
+            </div>
+          </div>
+        </div>
+
+        {canManage && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(entry)}>
+                <Edit className="w-4 h-4 mr-2" />
+                Изменить
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                className="text-red-600 dark:text-red-400"
+                onClick={() => onDelete(entry.id)}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Удалить
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <div className={cn(
+          "flex items-center justify-between p-3 rounded-xl border transition-colors",
+          entry.isDirectHit 
+            ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30" 
+            : "bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800"
+        )}>
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-slate-400" />
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Каб. {entry.cabinet}</span>
+          </div>
+          <button 
+            onClick={() => onContactAction('call', entry.internalPhone)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EBF5FF] dark:bg-[#003366] border border-[#BEE3F8] dark:border-[#004C99] hover:scale-[1.08] transition-all duration-200 group/internal"
+          >
+            <Phone className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#3399FF] fill-[#007AFF] dark:fill-[#3399FF]" />
+            <span className="text-sm font-bold text-[#007AFF] dark:text-[#3399FF]">{entry.internalPhone}</span>
+          </button>
+        </div>
+
+        <div className="flex gap-3">
+          {entry.mobilePhone && (
+            <Button 
+              variant="outline" 
+              className={cn(
+                "flex-1 h-11 gap-2 rounded-xl transition-all duration-200 border-none bg-green-600 dark:bg-green-500 hover:bg-green-700 dark:hover:bg-green-600 hover:scale-[1.05] text-white shadow-sm active:scale-95",
+                entry.isDirectHit && "ring-2 ring-green-500/40 scale-[1.02]"
+              )}
+              onClick={() => onContactAction('call', entry.mobilePhone!)}
+            >
+              <Phone className="w-4 h-4 fill-white text-white shrink-0" />
+              <span className="text-sm font-extrabold whitespace-nowrap tracking-tight">
+                {formatDisplayPhone(entry.mobilePhone)}
+              </span>
+            </Button>
+          )}
+          {entry.telegram && (
+            <Button 
+              variant="outline" 
+              className={cn(
+                "h-11 px-4 gap-2 border-none rounded-xl transition-all duration-200 bg-[#0088CC] hover:bg-[#0077B5] hover:scale-[1.05] text-white shadow-sm active:scale-95",
+                entry.isDirectHit && "ring-2 ring-[#0088CC]/40 scale-[1.02]",
+                !entry.mobilePhone && "flex-1"
+              )}
+              onClick={() => onContactAction('telegram', entry.telegram!)}
+            >
+              <Send className="w-4 h-4 fill-white text-white shrink-0" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {otherStaffCount > 0 && (
+        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">В этом кабинете также: {otherStaffCount}</p>
+        </div>
+      )}
+    </div>
+  );
+});
+
+DirectoryCard.displayName = 'DirectoryCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -28,8 +169,24 @@ export function DirectoryScreen() {
   const canManage = hasPermission('directory', 'edit');
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [isModalOpen, setIsCalendarOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<DirectoryEntry | null>(null);
+  const [visibleCount, setVisibleCount] = useState(20);
+
+  // Debounce search query update
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(localSearchQuery);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [localSearchQuery]);
+
+  // Reset visible count when searching
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [searchQuery]);
 
   // Helper to format phone number to +373 XXXXXX
   const formatDisplayPhone = (phone: string) => {
@@ -185,6 +342,19 @@ export function DirectoryScreen() {
     return results;
   }, [searchQuery, entries]);
 
+  const displayedResults = useMemo(() => {
+    // If user is searching, show everything found immediately
+    if (searchQuery) return searchResults;
+    // Otherwise, use pagination for the full list
+    return searchResults.slice(0, visibleCount);
+  }, [searchResults, visibleCount, searchQuery]);
+
+  const hasMore = !searchQuery && searchResults.length > visibleCount;
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + 20);
+  };
+
   // Record search with debounce
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -226,14 +396,25 @@ export function DirectoryScreen() {
             <Input
               type="text"
               placeholder="ФИО, должность, кабинет или номер..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 text-lg"
+              value={localSearchQuery}
+              onChange={(e) => setLocalSearchQuery(e.target.value)}
+              className="pl-10 pr-10 h-12 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 text-lg"
             />
+            {localSearchQuery && (
+              <button
+                onClick={() => {
+                  setLocalSearchQuery('');
+                  setSearchQuery('');
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {/* Top Searches - Visible on both Mobile and Desktop */}
-          {!searchQuery && (
+          {!localSearchQuery && (
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1.5 shrink-0">
                 <TrendingUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -243,7 +424,10 @@ export function DirectoryScreen() {
                 {topSearches.map((stat, i) => (
                   <button
                     key={i}
-                    onClick={() => setSearchQuery(stat.query)}
+                    onClick={() => {
+                      setLocalSearchQuery(stat.query);
+                      setSearchQuery(stat.query);
+                    }}
                     className="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border border-slate-200 dark:border-slate-600 whitespace-nowrap active:scale-95 shadow-sm"
                   >
                     {stat.query}
@@ -263,140 +447,30 @@ export function DirectoryScreen() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {searchResults.map((entry) => (
-              <div 
+            {displayedResults.map((entry) => (
+              <DirectoryCard
                 key={entry.id}
-                className={cn(
-                  "bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border transition-all relative group",
-                  entry.isDirectHit 
-                    ? "border-blue-500 dark:border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.3)] dark:shadow-[0_0_25px_rgba(96,165,250,0.25)] ring-2 ring-blue-500/30 dark:ring-blue-400/40 scale-[1.03] z-10" 
-                    : "border-slate-100 dark:border-slate-700 hover:shadow-md"
-                )}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-4 flex-1 min-w-0">
-                    <div className={cn(
-                      "w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border transition-colors",
-                      entry.isDirectHit 
-                        ? "bg-blue-600 text-white border-blue-400 shadow-inner" 
-                        : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800"
-                    )}>
-                      <User className="w-6 h-6" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg leading-tight mb-1 truncate">
-                        {entry.name}
-                      </h3>
-                      <p className={cn(
-                        "text-sm font-medium leading-none",
-                        entry.isDirectHit ? "text-blue-600 dark:text-blue-400 font-bold" : "text-slate-500 dark:text-slate-400"
-                      )}>
-                        {entry.position}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-2 text-slate-500 dark:text-slate-400">
-                        <Building className="w-3.5 h-3.5" />
-                        <span className="text-xs truncate">{entry.department}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {canManage && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleOpenEdit(entry)}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Изменить
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-red-600 dark:text-red-400" 
-                          onClick={() => handleDelete(entry.id)}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Удалить
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  {/* Cabinet and Internal Phone */}
-                  <div className={cn(
-                    "flex items-center justify-between p-3 rounded-xl border transition-colors",
-                    entry.isDirectHit 
-                      ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30" 
-                      : "bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800"
-                  )}>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Каб. {entry.cabinet}</span>
-                    </div>
-                    <button 
-                      onClick={() => handleContactAction('call', entry.internalPhone)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EBF5FF] dark:bg-[#003366] border border-[#BEE3F8] dark:border-[#004C99] hover:scale-[1.08] transition-all duration-200 group/internal"
-                    >
-                      <Phone className="w-3.5 h-3.5 text-[#007AFF] dark:text-[#3399FF] fill-[#007AFF] dark:fill-[#3399FF]" />
-                      <span className="text-sm font-bold text-[#007AFF] dark:text-[#3399FF]">{entry.internalPhone}</span>
-                    </button>
-                  </div>
-
-                  {/* Mobile and Telegram */}
-                  <div className="flex gap-3">
-                    {entry.mobilePhone && (
-                      <Button 
-                        variant="outline" 
-                        className={cn(
-                          "flex-1 h-11 gap-2 rounded-xl transition-all duration-200 border-none bg-green-600 dark:bg-green-500 hover:bg-green-700 dark:hover:bg-green-600 hover:scale-[1.05] text-white shadow-sm active:scale-95",
-                          entry.isDirectHit && "ring-2 ring-green-500/40 scale-[1.02]"
-                        )}
-                        onClick={() => handleContactAction('call', entry.mobilePhone!)}
-                      >
-                        <Phone className="w-4 h-4 fill-white text-white shrink-0" />
-                        <span className="text-sm font-extrabold whitespace-nowrap tracking-tight">
-                          {formatDisplayPhone(entry.mobilePhone)}
-                        </span>
-                      </Button>
-                    )}
-                    {entry.telegram && (
-                      <Button 
-                        variant="outline" 
-                        className={cn(
-                          "h-11 px-4 gap-2 border-none rounded-xl transition-all duration-200 bg-[#0088CC] hover:bg-[#0077B5] hover:scale-[1.05] text-white shadow-sm active:scale-95",
-                          entry.isDirectHit && "ring-2 ring-[#0088CC]/40 scale-[1.02]",
-                          !entry.mobilePhone && "flex-1"
-                        )}
-                        onClick={() => handleContactAction('telegram', entry.telegram!)}
-                      >
-                        <Send className="w-4 h-4 fill-white text-white shrink-0" />
-                        {(!entry.mobilePhone || searchResults.length < 3) && (
-                          <span className="text-sm font-bold">Telegram</span>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Others in same cabinet */}
-                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">В этом кабинете также:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {entries
-                      .filter(e => e.cabinet === entry.cabinet && e.id !== entry.id)
-                      .slice(0, 3)
-                      .map(other => (
-                        <span key={other.id} className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[10px] truncate max-w-[100px]">
-                          {other.name.split(' ')[0]} ({other.position.split(' ')[0]})
-                        </span>
-                      ))}
-                  </div>
-                </div>
-              </div>
+                entry={entry}
+                canManage={canManage}
+                onEdit={handleOpenEdit}
+                onDelete={handleDelete}
+                onContactAction={handleContactAction}
+                otherStaffCount={entries.filter(e => e.cabinet === entry.cabinet && e.id !== entry.id).length}
+                formatDisplayPhone={formatDisplayPhone}
+              />
             ))}
+          </div>
+        )}
+
+        {hasMore && (
+          <div className="flex justify-center py-4">
+            <Button 
+              variant="outline" 
+              onClick={handleLoadMore}
+              className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold px-8"
+            >
+              Загрузить еще
+            </Button>
           </div>
         )}
       </div>

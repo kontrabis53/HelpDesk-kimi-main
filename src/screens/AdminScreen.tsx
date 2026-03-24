@@ -20,7 +20,8 @@ import {
   Building as BuildingIcon,
   Layers,
   Monitor,
-  FileText
+  FileText,
+  Info
 } from 'lucide-react';
 import { useLocationStore } from '@/stores/locationStore';
 import { useGuideStore } from '@/stores/guideStore';
@@ -46,7 +47,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
-type AdminTab = 'users' | 'roles' | 'requests' | 'locations' | 'logs' | 'settings';
+type AdminTab = 'users' | 'roles' | 'requests' | 'locations' | 'logs' | 'about';
 
 interface AdminScreenProps {
   roles: Role[];
@@ -87,6 +88,22 @@ export function AdminScreen({
   const [showUserForm, setShowUserForm] = useState(false);
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
 
+  const versions = [
+    {
+      version: '1.0.4',
+      date: '2026-03-24',
+      changes: [
+        'Модуль Документы: Календарь теперь занимает всю рабочую область на мобильных устройствах.',
+        'Модуль Документы: Кнопка "Сегодня" сделана прозрачной в стиле iOS (стекло) с эффектом размытия.',
+        'Модуль Документы: Исправлена кнопка "Сегодня" — теперь она корректно возвращает к текущему месяцу.',
+        'Модуль Документы: Удалена лишняя плавающая кнопка "+" снизу справа.',
+        'Модуль Документы: Верхняя кнопка "+" перекрашена в синий цвет.',
+        'Исправлены ошибки типизации TypeScript в компоненте календаря.',
+        'Добавлен раздел "О программе" в панели управления.'
+      ]
+    }
+  ];
+
   const { 
     buildings, 
     floors, 
@@ -103,14 +120,6 @@ export function AdminScreen({
     addGuide,
     deleteGuide
   } = useGuideStore();
-
-  const tabs = [
-    { id: 'users' as const, label: 'Пользователи', icon: Users },
-    { id: 'roles' as const, label: 'Роли', icon: Shield },
-    { id: 'locations' as const, label: 'Локации', icon: MapPin },
-    { id: 'requests' as const, label: 'Запросы', icon: UserPlus },
-    { id: 'logs' as const, label: 'Логи', icon: ScrollText },
-  ];
 
   // Filter users
   const filteredUsers = users.filter(u => 
@@ -288,6 +297,15 @@ export function AdminScreen({
       }),
     }));
   };
+
+  const tabs: { id: AdminTab; label: string; icon: any }[] = [
+    { id: 'users', label: 'Пользователи', icon: Users },
+    { id: 'roles', label: 'Роли', icon: Shield },
+    { id: 'requests', label: 'Запросы', icon: UserPlus },
+    { id: 'locations', label: 'Локации', icon: MapPin },
+    { id: 'logs', label: 'Логи', icon: ScrollText },
+    { id: 'about', label: 'О программе', icon: Info },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">
@@ -788,6 +806,48 @@ export function AdminScreen({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* About Program Tab */}
+        {activeTab === 'about' && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm text-center">
+              <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg viewBox="0 0 100 100" className="w-12 h-12 text-blue-600 dark:text-blue-400" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="50" cy="50" r="46" stroke="currentColor" strokeWidth="7" />
+                  <circle cx="50" cy="50" r="10" fill="currentColor" />
+                  <path d="M50 82V65" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+                  <path d="M25 45C25 30 36 18 50 18C64 18 75 30 75 45C75 55 65 65 50 65" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">MEDIN HelpDesk</h2>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Версия {versions[0].version}</p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-1">История обновлений</h3>
+              <div className="space-y-3">
+                {versions.map((v, i) => (
+                  <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow-lg shadow-blue-500/20">
+                        v{v.version}
+                      </span>
+                      <span className="text-xs font-medium text-slate-400">{v.date}</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {v.changes.map((change, ci) => (
+                        <li key={ci} className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
+                          {change}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

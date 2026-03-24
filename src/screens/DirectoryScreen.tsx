@@ -195,7 +195,7 @@ export function DirectoryScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery, recordSearch]);
 
-  const topSearches = getTopStats();
+  const topSearches = getTopStats(4);
 
   return (
     <div className="bg-slate-50 dark:bg-slate-900 h-full flex flex-col overflow-hidden">
@@ -219,36 +219,40 @@ export function DirectoryScreen() {
           )}
         </div>
 
-        {/* Search Input */}
-        <div className="relative max-w-2xl">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <Input
-            type="text"
-            placeholder="ФИО, должность, кабинет или номер..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 text-lg"
-          />
-        </div>
-
-        {/* Top Searches */}
-        {!searchQuery && (
-          <div className="mt-4 flex items-center gap-2">
-            <TrendingUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Часто ищут:</span>
-            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-              {topSearches.map((stat, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSearchQuery(stat.query)}
-                  className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border border-slate-200 dark:border-slate-600 whitespace-nowrap"
-                >
-                  {stat.query}
-                </button>
-              ))}
-            </div>
+        {/* Search Row */}
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <div className="relative flex-1 max-w-2xl">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Input
+              type="text"
+              placeholder="ФИО, должность, кабинет или номер..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 bg-slate-100 dark:bg-slate-700 border-0 focus-visible:ring-blue-500 text-lg"
+            />
           </div>
-        )}
+
+          {/* Top Searches - Visible on both Mobile and Desktop */}
+          {!searchQuery && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <TrendingUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Часто ищут:</span>
+              </div>
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
+                {topSearches.map((stat, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSearchQuery(stat.query)}
+                    className="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border border-slate-200 dark:border-slate-600 whitespace-nowrap active:scale-95 shadow-sm"
+                  >
+                    {stat.query}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Results Area - Scrollable */}
@@ -258,7 +262,7 @@ export function DirectoryScreen() {
             <p className="text-slate-500">Ничего не найдено по запросу "{searchQuery}"</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {searchResults.map((entry) => (
               <div 
                 key={entry.id}
@@ -342,19 +346,19 @@ export function DirectoryScreen() {
                   </div>
 
                   {/* Mobile and Telegram */}
-                  <div className="flex gap-4">
+                  <div className="flex gap-3">
                     {entry.mobilePhone && (
                       <Button 
                         variant="outline" 
                         className={cn(
-                          "flex-1 h-10 gap-2 rounded-xl transition-all duration-200 border-none bg-[#28C740] hover:bg-[#28C740] hover:scale-[1.08] text-white shadow-md active:scale-95",
-                          entry.isDirectHit && "ring-2 ring-[#28C740]/40 scale-[1.02]"
+                          "flex-1 h-11 gap-2 rounded-xl transition-all duration-200 border-none bg-green-600 dark:bg-green-500 hover:bg-green-700 dark:hover:bg-green-600 hover:scale-[1.05] text-white shadow-sm active:scale-95",
+                          entry.isDirectHit && "ring-2 ring-green-500/40 scale-[1.02]"
                         )}
                         onClick={() => handleContactAction('call', entry.mobilePhone!)}
                       >
-                        <Phone className="w-4 h-4 fill-white text-white" />
-                        <span className="text-xs font-bold whitespace-nowrap">
-                          Моб: {formatDisplayPhone(entry.mobilePhone)}
+                        <Phone className="w-4 h-4 fill-white text-white shrink-0" />
+                        <span className="text-sm font-extrabold whitespace-nowrap tracking-tight">
+                          {formatDisplayPhone(entry.mobilePhone)}
                         </span>
                       </Button>
                     )}
@@ -362,13 +366,16 @@ export function DirectoryScreen() {
                       <Button 
                         variant="outline" 
                         className={cn(
-                          "flex-1 h-10 gap-2 border-none rounded-xl transition-all duration-200 bg-[#0088CC] hover:bg-[#0088CC] hover:scale-[1.08] text-white shadow-md active:scale-95",
-                          entry.isDirectHit && "ring-2 ring-[#0088CC]/40 scale-[1.02]"
+                          "h-11 px-4 gap-2 border-none rounded-xl transition-all duration-200 bg-[#0088CC] hover:bg-[#0077B5] hover:scale-[1.05] text-white shadow-sm active:scale-95",
+                          entry.isDirectHit && "ring-2 ring-[#0088CC]/40 scale-[1.02]",
+                          !entry.mobilePhone && "flex-1"
                         )}
                         onClick={() => handleContactAction('telegram', entry.telegram!)}
                       >
-                        <Send className="w-4 h-4 fill-white text-white" />
-                        <span className="text-xs font-bold">Telegram</span>
+                        <Send className="w-4 h-4 fill-white text-white shrink-0" />
+                        {(!entry.mobilePhone || searchResults.length < 3) && (
+                          <span className="text-sm font-bold">Telegram</span>
+                        )}
                       </Button>
                     )}
                   </div>

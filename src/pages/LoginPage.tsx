@@ -129,7 +129,7 @@ export function LoginPage() {
       </div>
       
       <p className="mt-8 text-xs text-slate-400">
-        © 2025 Medin HelpDesk. All rights reserved.
+        © 2026 Medin HelpDesk. All rights reserved.
       </p>
     </div>
   );

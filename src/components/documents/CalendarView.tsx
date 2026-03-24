@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   format, 
   startOfMonth, 
@@ -34,24 +34,38 @@ export function CalendarView({
 }: CalendarViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const monthRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Generate calendar grid (Multiple months for scrolling)
+  // We use a fixed range relative to "today" or a base date to allow smooth scrolling
   const calendarMonths = useMemo(() => {
     const months = [];
-    // Show 3 months before and 6 months after for scrolling
-    for (let i = -3; i <= 6; i++) {
-      const monthDate = addMonths(currentDate, i);
+    const baseDate = startOfMonth(new Date());
+    // Show 12 months before and 24 months after for a large scrollable area
+    for (let i = -12; i <= 24; i++) {
+      const monthDate = addMonths(baseDate, i);
       const monthStart = startOfMonth(monthDate);
       const monthEnd = endOfMonth(monthStart);
       const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
       const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
       
       months.push({
+        id: format(monthDate, 'yyyy-MM'),
         date: monthDate,
         days: eachDayOfInterval({ start: startDate, end: endDate })
       });
     }
     return months;
+  }, []);
+
+  // Scroll to currentDate when it changes
+  useEffect(() => {
+    const monthId = format(currentDate, 'yyyy-MM');
+    const element = monthRefs.current[monthId];
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, [currentDate]);
 
   // Group documents by date
@@ -84,23 +98,33 @@ export function CalendarView({
   const selectedDayDocuments = selectedDate ? getDayDocuments(selectedDate) : [];
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-800 border-x border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden">
       {/* Week days */}
-      <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm sticky top-[48px] z-20">
+      <div className="grid grid-cols-7 border-b border-slate-100/50 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-30">
         {['п', 'в', 'с', 'ч', 'п', 'с', 'в'].map((day, index) => (
-          <div key={index} className="py-2 text-center text-[10px] uppercase font-medium text-slate-400 dark:text-slate-500">
+          <div key={index} className="py-2.5 text-center text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">
             {day}
           </div>
         ))}
       </div>
 
       {/* Calendar Content - Scrollable Months */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide">
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto scrollbar-hide scroll-smooth"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         {calendarMonths.map((month) => (
-          <div key={month.date.toString()} className="mb-8">
-            {/* Month Label (Visible when scrolling) */}
-            <div className="sticky top-0 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm z-20 px-4 py-2 border-b border-slate-100 dark:border-slate-700">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 capitalize">
+          <div 
+            key={month.id} 
+            ref={(el) => {
+              monthRefs.current[month.id] = el;
+            }}
+            className="mb-2"
+          >
+            {/* Month Label (iOS Style) */}
+            <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-800/30 border-y border-slate-100/50 dark:border-slate-700/30">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 capitalize">
                 {format(month.date, 'LLLL yyyy', { locale: ru })}
               </h3>
             </div>
@@ -117,29 +141,32 @@ export function CalendarView({
                     key={day.toString()}
                     onClick={() => handleDayClick(day)}
                     className={cn(
-                      "min-h-[80px] md:min-h-[120px] border-b border-r border-slate-100 dark:border-slate-700/50 p-1 md:p-1.5 transition-all relative group cursor-pointer flex flex-col items-center",
-                      !isCurrentMonth && "opacity-20",
-                      isCurrentMonth && "bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/30",
+                      "min-h-[85px] border-b border-r border-slate-100/50 dark:border-slate-800/50 p-1 transition-all relative group cursor-pointer flex flex-col items-center",
+                      !isCurrentMonth && "bg-slate-50/30 dark:bg-slate-900/30",
                       isSelectedDay && "ring-2 ring-inset ring-blue-500 z-10"
                     )}
                   >
                     {/* Day Number */}
+                    <div className="flex flex-col items-center pt-1">
                       <span
                         className={cn(
-                          "text-base md:text-xl font-medium w-8 h-8 md:w-12 md:h-12 flex items-center justify-center rounded-full transition-all",
+                          "text-lg font-semibold w-9 h-9 flex items-center justify-center rounded-full transition-all",
                           isTodayDate
-                            ? "bg-[#ff3b30] text-white"
-                            : isCurrentMonth ? "text-slate-900 dark:text-slate-100" : "text-slate-400"
+                            ? "bg-[#ff3b30] text-white shadow-lg shadow-red-500/20"
+                            : isCurrentMonth 
+                              ? "text-slate-900 dark:text-slate-100" 
+                              : "text-slate-300 dark:text-slate-700"
                         )}
                       >
                         {format(day, 'd')}
                       </span>
+                    </div>
 
                     {/* Documents Indicators (iOS style) */}
-                    <div className="flex flex-wrap gap-0.5 mt-1 px-0.5 justify-center overflow-hidden">
+                    <div className="flex flex-wrap gap-0.5 mt-1 px-1 justify-center max-w-full">
                       {dayDocs.length > 0 && (
-                        <>
-                          {dayDocs.slice(0, 3).map((doc) => (
+                        <div className="flex gap-0.5 overflow-hidden">
+                          {dayDocs.slice(0, 4).map((doc) => (
                             <div 
                               key={doc.id} 
                               className={cn(
@@ -151,7 +178,7 @@ export function CalendarView({
                               )}
                             />
                           ))}
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>

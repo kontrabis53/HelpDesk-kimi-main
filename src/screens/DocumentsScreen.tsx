@@ -356,10 +356,10 @@ export function DocumentsScreen({
 
             <button 
               onClick={onCreateClick}
-              className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-blue-600 dark:text-blue-400"
+              className="p-2.5 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-md active:scale-95"
               title="Добавить"
             >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 5V19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M5 12H19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -383,18 +383,6 @@ export function DocumentsScreen({
           Сегодня
         </button>
       </div>
-
-      {/* FAB Button - Slightly Larger */}
-      <button
-        onClick={onCreateClick}
-        className="fixed bottom-24 right-6 w-16 h-16 bg-blue-600 dark:bg-blue-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 border-4 border-white dark:border-slate-800 pointer-events-auto"
-        title="Создать новый документ"
-      >
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 5V19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M5 12H19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
 
       {/* Search Overlay */}
       {isSearchOpen && (
@@ -485,11 +473,10 @@ export function DocumentsScreen({
       {/* Content */}
       <div className={cn(
         "w-full flex-1 overflow-hidden",
-        viewType === 'calendar' ? "p-2 bg-slate-100 dark:bg-slate-900" : "p-0"
+        "p-0"
       )}>
         <div className={cn(
           "flex flex-col h-full",
-          viewType === 'calendar' && "rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800",
           viewType === 'calendar' && searchQuery && "lg:flex-row"
         )}>
           {/* Main Content Area */}

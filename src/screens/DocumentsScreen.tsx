@@ -175,9 +175,13 @@ export function DocumentsScreen({
   // Calendar navigation logic
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
+  const handleMonthChange = (date: Date) => {
+    setCurrentDate(date);
+  };
+
   const goToToday = () => {
-    setCurrentDate(new Date());
-    setPickerView('days');
+    const today = new Date();
+    setCurrentDate(today);
   };
 
   const months = [
@@ -609,11 +613,12 @@ export function DocumentsScreen({
                 </div>
               )
             ) : (
-              <CalendarView 
-                documents={documents} 
-                onDocumentClick={onDocumentClick} 
+              <CalendarView
+                documents={documents}
+                onDocumentClick={onDocumentClick}
                 currentDate={currentDate}
                 selectedDocId={selectedDocId}
+                onMonthChange={handleMonthChange}
               />
             )}
 

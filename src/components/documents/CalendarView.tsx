@@ -7,7 +7,7 @@ import {
   endOfWeek, 
   eachDayOfInterval, 
   isSameMonth, 
-  isToday,
+  isSameDay,
   parseISO,
   addMonths
 } from 'date-fns';
@@ -24,24 +24,28 @@ interface CalendarViewProps {
   onDocumentClick: (doc: Document) => void;
   currentDate: Date;
   selectedDocId?: string | null;
+  onMonthChange?: (date: Date) => void;
 }
 
 export function CalendarView({ 
   documents, 
   onDocumentClick, 
   currentDate,
-  selectedDocId 
+  selectedDocId,
+  onMonthChange
 }: CalendarViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const monthRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const initialScrolled = useRef(false);
+  const lastReportedMonthId = useRef<string | null>(null);
 
   // Generate calendar grid (Multiple months for scrolling)
   const calendarMonths = useMemo(() => {
     const months = [];
     const baseDate = startOfMonth(new Date());
+    
     // Reduced range for better performance on older devices
     for (let i = -6; i <= 12; i++) {
       const monthDate = addMonths(baseDate, i);
@@ -59,25 +63,85 @@ export function CalendarView({
     return months;
   }, []);
 
+  // Intersection Observer to detect which month is visible
+  useEffect(() => {
+    if (!scrollContainerRef.current || !onMonthChange) return;
+
+    const options = {
+      root: scrollContainerRef.current,
+      threshold: [0, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+      rootMargin: '0px 0px -90% 0px' // Focus strictly on the very top (top 10%)
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      // Find entries that are intersecting
+      const intersectingEntries = entries.filter(entry => entry.isIntersecting);
+      if (intersectingEntries.length === 0) return;
+
+      // Sort by their top position relative to the root container
+      // The one closest to 0 (top of the container) is our current month
+      const sortedEntries = intersectingEntries.sort((a, b) => {
+        return Math.abs(a.boundingClientRect.top - (scrollContainerRef.current?.getBoundingClientRect().top || 0)) - 
+               Math.abs(b.boundingClientRect.top - (scrollContainerRef.current?.getBoundingClientRect().top || 0));
+      });
+      
+      const visibleMonth = sortedEntries[0];
+      
+      if (visibleMonth) {
+        const monthId = visibleMonth.target.getAttribute('data-month-id');
+        if (monthId && monthId !== lastReportedMonthId.current) {
+          const [year, month] = monthId.split('-').map(Number);
+          const visibleDate = new Date(year, month - 1, 1);
+          lastReportedMonthId.current = monthId;
+          onMonthChange(visibleDate);
+        }
+      }
+    }, options);
+
+    // Observe all month containers
+    Object.values(monthRefs.current).forEach((el) => {
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [calendarMonths, onMonthChange]);
+
   // Initial scroll to current month without animation
   useEffect(() => {
     if (!initialScrolled.current) {
       const monthId = format(currentDate, 'yyyy-MM');
+      lastReportedMonthId.current = monthId; // Mark as handled to avoid scroll-back
       const element = monthRefs.current[monthId];
       if (element) {
+        // Use immediate scroll for initial load to avoid "flying" effect
         element.scrollIntoView({ behavior: 'auto', block: 'start' });
         initialScrolled.current = true;
+        
+        // Final sync with parent header
+        setTimeout(() => {
+          onMonthChange?.(startOfMonth(currentDate));
+        }, 50);
       }
     }
-  }, [calendarMonths, currentDate]);
+  }, [calendarMonths, currentDate, onMonthChange]);
 
-  // Export scroll function if needed or handle via prop change
+  // Subsequent scrolls with animation (e.g. when clicking "Today")
   useEffect(() => {
     if (initialScrolled.current) {
       const monthId = format(currentDate, 'yyyy-MM');
-      const element = monthRefs.current[monthId];
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      
+      // CRITICAL: Only scroll if the currentDate update did NOT come from our own IntersectionObserver
+      if (monthId !== lastReportedMonthId.current) {
+        const element = monthRefs.current[monthId];
+        if (element) {
+          // Check if we are already at this month to avoid jitter
+          const rect = element.getBoundingClientRect();
+          const containerRect = scrollContainerRef.current?.getBoundingClientRect();
+          if (containerRect && (Math.abs(rect.top - containerRect.top) > 10)) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            lastReportedMonthId.current = monthId;
+          }
+        }
       }
     }
   }, [currentDate]);
@@ -111,12 +175,29 @@ export function CalendarView({
 
   const selectedDayDocuments = selectedDate ? getDayDocuments(selectedDate) : [];
 
+    const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
+    // Row height logic: 
+    // Fit exactly one month per view (approx 6 weeks max).
+    // Using a more generous calculation to ensure 6 weeks fit comfortably.
+    const rowHeight = isDesktop ? 'min-h-[calc((100vh-280px)/6)]' : 'min-h-[calc((100vh-220px)/6)]';
+
+    // Group days into weeks for each month
+  const calendarMonthsWithWeeks = useMemo(() => {
+    return calendarMonths.map(month => {
+      const weeks = [];
+      for (let i = 0; i < month.days.length; i += 7) {
+        weeks.push(month.days.slice(i, i + 7));
+      }
+      return { ...month, weeks };
+    });
+  }, [calendarMonths]);
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden">
       {/* Week days */}
       <div className="grid grid-cols-7 border-b border-slate-100/50 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-30">
         {['п', 'в', 'с', 'ч', 'п', 'с', 'в'].map((day, index) => (
-          <div key={index} className="py-2.5 text-center text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">
+          <div key={index} className="py-2.5 text-center text-[10px] md:text-sm uppercase font-black text-slate-400 dark:text-slate-500 tracking-wider">
             {day}
           </div>
         ))}
@@ -128,77 +209,104 @@ export function CalendarView({
         className="flex-1 overflow-y-auto scrollbar-hide scroll-smooth"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        {calendarMonths.map((month) => (
+        {calendarMonthsWithWeeks.map((month) => (
           <div 
             key={month.id} 
+            data-month-id={month.id}
             ref={(el) => {
               monthRefs.current[month.id] = el;
             }}
-            className="mb-2"
+            className="mb-8"
           >
-            {/* Month Label (iOS Style) */}
-            <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-800/30 border-y border-slate-100/50 dark:border-slate-700/30">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 capitalize">
-                {format(month.date, 'LLLL yyyy', { locale: ru })}
-              </h3>
-            </div>
+            {month.weeks.map((week, weekIdx) => {
+              // Check if this week contains the 1st day of the current month
+              const firstDayIndex = week.findIndex(day => 
+                isSameMonth(day, month.date) && format(day, 'd') === '1'
+              );
 
-            <div className="grid grid-cols-7 auto-rows-fr">
-              {month.days.map((day) => {
-                const dayDocs = getDayDocuments(day);
-                const isCurrentMonth = isSameMonth(day, month.date);
-                const isTodayDate = isToday(day);
-                const isSelectedDay = selectedDocId && dayDocs.some(doc => doc.id === selectedDocId);
-                
-                return (
-                  <div
-                    key={day.toString()}
-                    onClick={() => handleDayClick(day)}
-                    className={cn(
-                      "min-h-[85px] border-b border-r border-slate-100/50 dark:border-slate-800/50 p-1 transition-all relative group cursor-pointer flex flex-col items-center",
-                      !isCurrentMonth && "bg-slate-50/30 dark:bg-slate-900/30",
-                      isSelectedDay && "ring-2 ring-inset ring-blue-500 z-10"
-                    )}
-                  >
-                    {/* Day Number */}
-                    <div className="flex flex-col items-center pt-1">
-                      <span
-                        className={cn(
-                          "text-lg font-semibold w-9 h-9 flex items-center justify-center rounded-full transition-all",
-                          isTodayDate
-                            ? "bg-[#ff3b30] text-white shadow-lg shadow-red-500/20"
-                            : isCurrentMonth 
-                              ? "text-slate-900 dark:text-slate-100" 
-                              : "text-slate-300 dark:text-slate-700"
-                        )}
-                      >
-                        {format(day, 'd')}
-                      </span>
-                    </div>
-
-                    {/* Documents Indicators (iOS style) */}
-                    <div className="flex flex-wrap gap-0.5 mt-1 px-1 justify-center max-w-full">
-                      {dayDocs.length > 0 && (
-                        <div className="flex gap-0.5 overflow-hidden">
-                          {dayDocs.slice(0, 4).map((doc) => (
-                            <div 
-                              key={doc.id} 
-                              className={cn(
-                                "w-1.5 h-1.5 rounded-full",
-                                doc.type === 'act' ? "bg-blue-500" :
-                                doc.type === 'repair' ? "bg-amber-500" :
-                                doc.type === 'maintenance' ? "bg-emerald-500" :
-                                doc.type === 'inventory' ? "bg-violet-500" : "bg-slate-400"
-                              )}
-                            />
-                          ))}
+              return (
+                <div key={weekIdx}>
+                  {/* Month name row (iOS Style) - shown if this week has the 1st day */}
+                  {firstDayIndex !== -1 && (
+                    <div className="grid grid-cols-7 mb-1">
+                      {week.map((_, i) => (
+                        <div key={i} className="px-1 flex justify-center">
+                          {i === firstDayIndex && (
+                            <div className="flex flex-col items-center w-full">
+                              <div className={cn(
+                                "text-xl font-bold capitalize tracking-tight py-2 text-center border-b border-slate-200 dark:border-slate-700 px-2",
+                                isSameMonth(week[i], new Date()) ? "text-[#ff3b30] border-[#ff3b30]/30" : "text-slate-900 dark:text-slate-100"
+                              )}>
+                                {format(week[i], 'LLLL', { locale: ru })}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      ))}
                     </div>
+                  )}
+
+                  {/* Week days row */}
+                  <div className="grid grid-cols-7 auto-rows-fr">
+                    {week.map((day) => {
+                      const dayDocs = getDayDocuments(day);
+                      const isCurrentMonth = isSameMonth(day, month.date);
+                      const isTodayDate = isSameDay(day, new Date());
+                      const isSelectedDay = selectedDocId && dayDocs.some(doc => doc.id === selectedDocId);
+                      
+                      return (
+                        <div
+                          key={day.toString()}
+                          onClick={() => handleDayClick(day)}
+                          className={cn(
+                            rowHeight,
+                            "border-b border-slate-100/50 dark:border-slate-800/50 p-1 transition-all relative group cursor-pointer flex flex-col items-center",
+                            !isCurrentMonth && "bg-slate-50/30 dark:bg-slate-900/30",
+                            isSelectedDay && "ring-2 ring-inset ring-blue-500 z-10"
+                          )}
+                        >
+                          {/* Day Number */}
+                          <div className="flex flex-col items-center pt-1">
+                            <span
+                              className={cn(
+                                "text-lg font-semibold w-9 h-9 flex items-center justify-center rounded-full transition-all",
+                                isTodayDate
+                                  ? "bg-[#ff3b30] text-white shadow-lg shadow-red-500/20"
+                                  : isCurrentMonth 
+                                    ? "text-slate-900 dark:text-slate-100" 
+                                    : "text-slate-300 dark:text-slate-700"
+                              )}
+                            >
+                              {format(day, 'd')}
+                            </span>
+                          </div>
+
+                          {/* Documents Indicators (iOS style) */}
+                          <div className="flex flex-wrap gap-0.5 mt-1 px-1 justify-center max-w-full">
+                            {dayDocs.length > 0 && (
+                              <div className="flex gap-0.5 overflow-hidden">
+                                {dayDocs.slice(0, 4).map((doc) => (
+                                  <div 
+                                    key={doc.id} 
+                                    className={cn(
+                                      "w-1.5 h-1.5 rounded-full",
+                                      doc.type === 'act' ? "bg-blue-500" :
+                                      doc.type === 'repair' ? "bg-amber-500" :
+                                      doc.type === 'maintenance' ? "bg-emerald-500" :
+                                      doc.type === 'inventory' ? "bg-violet-500" : "bg-slate-400"
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>

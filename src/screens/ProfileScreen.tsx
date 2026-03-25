@@ -209,7 +209,7 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
 
         {/* Version */}
         <p className="text-center text-xs text-slate-400 dark:text-slate-500">
-          Медин v1.0.6
+          Медин v1.0.7
         </p>
       </div>
     </div>

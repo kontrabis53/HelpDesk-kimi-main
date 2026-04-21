@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, memo } from 'react';
 import { 
   format, 
   startOfMonth, 
@@ -9,7 +9,8 @@ import {
   isSameMonth, 
   isSameDay,
   parseISO,
-  addMonths
+  addMonths,
+  getYear
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Calendar as CalendarIcon } from 'lucide-react';
@@ -27,7 +28,7 @@ interface CalendarViewProps {
   onMonthChange?: (date: Date) => void;
 }
 
-export function CalendarView({ 
+export const CalendarView = memo(function CalendarView({ 
   documents, 
   onDocumentClick, 
   currentDate,
@@ -41,13 +42,15 @@ export function CalendarView({
   const initialScrolled = useRef(false);
   const lastReportedMonthId = useRef<string | null>(null);
 
-  // Generate calendar grid (Multiple months for scrolling)
+  // Generate calendar grid centered around currentDate
   const calendarMonths = useMemo(() => {
     const months = [];
-    const baseDate = startOfMonth(new Date());
+    // Use the year from currentDate as base to ensure the selected date is always available
+    const baseDate = startOfMonth(currentDate);
     
-    // Reduced range for better performance on older devices
-    for (let i = -6; i <= 12; i++) {
+    // Range of 2 years back and 2 years forward from the current viewed date
+    // Total 49 months (4 years + current month)
+    for (let i = -24; i <= 24; i++) {
       const monthDate = addMonths(baseDate, i);
       const monthStart = startOfMonth(monthDate);
       const monthEnd = endOfMonth(monthStart);
@@ -61,7 +64,7 @@ export function CalendarView({
       });
     }
     return months;
-  }, []);
+  }, [getYear(currentDate)]); // Re-generate only when year changes to avoid too frequent updates
 
   // Intersection Observer for performance
   useEffect(() => {
@@ -69,16 +72,17 @@ export function CalendarView({
 
     const options = {
       root: scrollContainerRef.current,
-      threshold: 0,
-      rootMargin: '-10% 0px -85% 0px' 
+      threshold: [0, 0.1, 0.5, 0.9, 1.0],
+      rootMargin: '-80px 0px -20% 0px' 
     };
 
     const observer = new IntersectionObserver((entries) => {
       const intersecting = entries.filter(e => e.isIntersecting);
       if (intersecting.length === 0) return;
 
+      // Find the month that is most prominent in the viewport
       const topEntry = intersecting.reduce((prev, curr) => 
-        (Math.abs(curr.boundingClientRect.top) < Math.abs(prev.boundingClientRect.top) ? curr : prev)
+        (curr.intersectionRatio > prev.intersectionRatio ? curr : prev)
       );
       
       const monthId = topEntry.target.getAttribute('data-month-id');
@@ -103,7 +107,9 @@ export function CalendarView({
       lastReportedMonthId.current = monthId;
       const element = monthRefs.current[monthId];
       if (element && scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTop = element.offsetTop;
+        // Same offset here to avoid cutting off the first month's header
+        const stickyHeaderHeight = 44;
+        scrollContainerRef.current.scrollTop = element.offsetTop - stickyHeaderHeight;
         initialScrolled.current = true;
       }
     }
@@ -113,16 +119,27 @@ export function CalendarView({
   useEffect(() => {
     if (initialScrolled.current) {
       const monthId = format(currentDate, 'yyyy-MM');
-      if (monthId !== lastReportedMonthId.current) {
+      
+      // We need to wait for the DOM to update if calendarMonths changed
+      const scrollToMonth = () => {
         const element = monthRefs.current[monthId];
         if (element && scrollContainerRef.current) {
-          // Use instant scroll to avoid laggy smooth animations
-          scrollContainerRef.current.scrollTop = element.offsetTop;
+          // The weekday header (п, в, с...) is sticky and covers the top part.
+          // Subtract its height (approx 44px) so the month header is visible.
+          const stickyHeaderHeight = 44;
+          scrollContainerRef.current.scrollTop = element.offsetTop - stickyHeaderHeight;
           lastReportedMonthId.current = monthId;
         }
+      };
+
+      if (monthId !== lastReportedMonthId.current) {
+        // Try immediately
+        scrollToMonth();
+        // Also try after a frame to be sure
+        requestAnimationFrame(scrollToMonth);
       }
     }
-  }, [currentDate]);
+  }, [currentDate, calendarMonths]);
 
   // Group documents by date
   const documentsByDate = useMemo(() => {
@@ -155,9 +172,10 @@ export function CalendarView({
 
     const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
     // Row height logic: 
-    // Fit exactly one month per view (approx 6 weeks max).
-    // Using a more generous calculation to ensure 6 weeks fit comfortably.
-    const rowHeight = isDesktop ? 'min-h-[calc((100vh-280px)/6)]' : 'min-h-[calc((100vh-220px)/6)]';
+    // Total calendar height = (Viewport height - main header - week header).
+    // Main header is approx 80px, Week header is approx 44px. Total offset 124px.
+    // If we want 6 weeks to fit perfectly, we divide by 6.
+    const rowHeight = isDesktop ? 'min-h-[calc((100vh-124px)/6)]' : 'min-h-[calc((100vh-220px)/6)]';
 
     // Group days into weeks for each month
   const calendarMonthsWithWeeks = useMemo(() => {
@@ -208,7 +226,7 @@ export function CalendarView({
       {/* Calendar Content - Scrollable Months */}
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto scrollbar-hide"
+        className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-300 dark:hover:scrollbar-thumb-slate-600 transition-colors"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {calendarMonthsWithWeeks.map((month) => (
@@ -365,4 +383,4 @@ export function CalendarView({
       </Dialog>
     </div>
   );
-}
+});

@@ -17,8 +17,6 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { CalendarView } from '@/components/documents/CalendarView';
 import { 
@@ -142,7 +140,7 @@ export function DocumentsScreen({
     setActiveSearchFilters(newFilters);
   };
 
-  const getDocumentsForTab = () => {
+  const displayedDocuments = useMemo(() => {
     let tabDocs = documentsByType[activeTab] || documents;
     
     // Apply search filters if in search mode
@@ -154,15 +152,16 @@ export function DocumentsScreen({
       }
     }
     
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+
     // Filter by selected month/year from the calendar navigation
     return tabDocs.filter(doc => {
       const docDate = parseISO(doc.createdAt);
-      return docDate.getMonth() === currentDate.getMonth() && 
-             docDate.getFullYear() === currentDate.getFullYear();
+      return docDate.getMonth() === currentMonth && 
+             docDate.getFullYear() === currentYear;
     });
-  };
-
-  const displayedDocuments = getDocumentsForTab();
+  }, [documentsByType, activeTab, isSearchOpen, activeSearchFilters, documents, currentDate]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('ru-RU', {
@@ -182,6 +181,7 @@ export function DocumentsScreen({
   const goToToday = () => {
     const today = new Date();
     setCurrentDate(today);
+    setIsDatePickerOpen(false);
   };
 
   const months = [
@@ -191,6 +191,7 @@ export function DocumentsScreen({
 
   const handleMonthSelect = (monthIndex: number) => {
     setCurrentDate(setMonth(currentDate, monthIndex));
+    setIsDatePickerOpen(false);
     setPickerView('days');
   };
 
@@ -201,14 +202,6 @@ export function DocumentsScreen({
 
   const handleYearChange = (offset: number) => {
     setCurrentDate(setYear(currentDate, getYear(currentDate) + offset));
-  };
-
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      setCurrentDate(date);
-      setIsDatePickerOpen(false);
-      setPickerView('days');
-    }
   };
 
   const years = useMemo(() => {
@@ -243,102 +236,28 @@ export function DocumentsScreen({
   return (
     <div className="h-full bg-slate-50 dark:bg-slate-900 overflow-hidden flex flex-col relative">
       {/* Header - iOS Calendar Style */}
-      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-4 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2 sticky top-0 z-30 border-b border-slate-100/50 dark:border-slate-700/50">
+      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-4 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2 sticky top-0 z-[60] border-b border-slate-100/50 dark:border-slate-700/50">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Popover open={isDatePickerOpen} onOpenChange={(open) => {
-              setIsDatePickerOpen(open);
-              if (open) setPickerView('days');
-            }}>
-              <PopoverTrigger asChild>
-                <button className="flex items-center gap-0.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400 font-bold text-sm hover:bg-slate-200 transition-colors shadow-sm">
-                  <ChevronLeft className="w-4 h-4 stroke-[3]" />
-                  {format(currentDate, 'yyyy', { locale: ru })}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[calc(100vw-32px)] max-w-[320px] p-0" align="start">
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                      if (pickerView === 'days') prevMonth();
-                      else if (pickerView === 'months') handleYearChange(-1);
-                      else handleYearChange(-12);
-                    }}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button 
-                      variant="ghost" 
-                      className="font-bold text-sm capitalize px-4 hover:bg-slate-100 dark:hover:bg-slate-700 flex-1"
-                      onClick={handlePickerHeaderClick}
-                    >
-                      {pickerView === 'days' && format(currentDate, 'LLLL yyyy', { locale: ru })}
-                      {pickerView === 'months' && format(currentDate, 'yyyy', { locale: ru })}
-                      {pickerView === 'years' && `${years[0]} - ${years[years.length - 1]}`}
-                    </Button>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => {
+                setIsDatePickerOpen(!isDatePickerOpen);
+                if (!isDatePickerOpen) setPickerView('months');
+              }}
+              className={cn(
+                "flex items-center gap-0.5 px-3 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm active:scale-95",
+                isDatePickerOpen 
+                  ? "bg-blue-600 text-white" 
+                  : "bg-slate-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400 hover:bg-slate-200"
+              )}
+            >
+              <ChevronLeft className={cn("w-4 h-4 stroke-[3] transition-transform", isDatePickerOpen && "-rotate-90")} />
+              {format(currentDate, 'yyyy', { locale: ru })}
+            </button>
 
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                      if (pickerView === 'days') nextMonth();
-                      else if (pickerView === 'months') handleYearChange(1);
-                      else handleYearChange(12);
-                    }}>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {pickerView === 'days' && (
-                    <Calendar
-                      mode="single"
-                      selected={currentDate}
-                      onSelect={handleDateSelect}
-                      initialFocus
-                      locale={ru}
-                      className="p-0"
-                      classNames={{
-                        month_caption: "hidden",
-                        nav: "hidden",
-                      }}
-                    />
-                  )}
-
-                  {pickerView === 'months' && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {months.map((month, index) => (
-                        <Button
-                          key={month}
-                          variant="ghost"
-                          className={cn(
-                            "h-10 text-xs",
-                            currentDate.getMonth() === index && "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                          )}
-                          onClick={() => handleMonthSelect(index)}
-                        >
-                          {month.substring(0, 3)}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-
-                  {pickerView === 'years' && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {years.map((year) => (
-                        <Button
-                          key={year}
-                          variant="ghost"
-                          className={cn(
-                            "h-10 text-xs",
-                            getYear(currentDate) === year && "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                          )}
-                          onClick={() => handleYearSelect(year)}
-                        >
-                          {year}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
+            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 capitalize tracking-tight">
+              {format(currentDate, 'LLLL', { locale: ru })}
+            </h1>
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
@@ -370,11 +289,121 @@ export function DocumentsScreen({
             </button>
           </div>
         </div>
+      </div>
 
-        <div className="mt-2">
-          <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 capitalize px-1 tracking-tight">
-            {format(currentDate, 'LLLL', { locale: ru })}
-          </h1>
+      {/* Full-screen Date Picker Overlay */}
+      <div className={cn(
+        "absolute inset-x-0 top-[calc(4rem+env(safe-area-inset-top,0px))] bottom-0 bg-white/95 dark:bg-slate-900/95 z-50 flex flex-col transition-[transform,opacity] duration-200 ease-out will-change-[transform,opacity]",
+        isDatePickerOpen ? "opacity-100 visible translate-y-0" : "opacity-0 invisible -translate-y-2 pointer-events-none"
+      )}>
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col">
+          <div className="max-w-2xl mx-auto w-full space-y-8 py-4">
+            {/* Controls - Compact and Centralized */}
+            <div className="flex items-center justify-center gap-6 md:gap-12">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-12 w-12 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all active:scale-90 relative z-10" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (pickerView === 'days') prevMonth();
+                  else if (pickerView === 'months') handleYearChange(-1);
+                  else handleYearChange(-12);
+                }}
+              >
+                <ChevronLeft className="h-6 w-6 text-blue-600" />
+              </Button>
+              
+              <button 
+                className="text-4xl md:text-6xl font-black text-slate-900 dark:text-slate-100 capitalize hover:text-blue-600 transition-colors tracking-tighter relative z-10 touch-manipulation"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handlePickerHeaderClick();
+                }}
+              >
+                {pickerView === 'days' && format(currentDate, 'LLLL yyyy', { locale: ru })}
+                {pickerView === 'months' && format(currentDate, 'yyyy', { locale: ru })}
+                {pickerView === 'years' && `${years[0]} - ${years[years.length - 1]}`}
+              </button>
+
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-12 w-12 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all active:scale-90 relative z-10" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (pickerView === 'days') nextMonth();
+                  else if (pickerView === 'months') handleYearChange(1);
+                  else handleYearChange(12);
+                }}
+              >
+                <ChevronRight className="h-6 w-6 text-blue-600" />
+              </Button>
+            </div>
+
+            {/* Selection Grid - Optimized rendering with transitions */}
+            <div className="grid gap-4 relative min-h-[400px]">
+              {pickerView === 'months' && (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 animate-in fade-in zoom-in-95 duration-200">
+                  {months.map((month, index) => (
+                    <button
+                      key={month}
+                      className={cn(
+                        "h-20 md:h-28 rounded-3xl text-lg md:text-xl font-black transition-all border-4 relative z-10 active:scale-95 touch-manipulation",
+                        currentDate.getMonth() === index 
+                          ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30 scale-[1.03]" 
+                          : "bg-slate-100/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-transparent hover:border-blue-200 dark:hover:border-blue-800"
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleMonthSelect(index);
+                      }}
+                    >
+                      {month}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {pickerView === 'years' && (
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-3 md:gap-4 animate-in fade-in zoom-in-95 duration-200">
+                  {years.map((year) => (
+                    <button
+                      key={year}
+                      className={cn(
+                        "h-20 md:h-28 rounded-3xl text-lg md:text-xl font-black transition-all border-4 relative z-10 active:scale-95 touch-manipulation",
+                        getYear(currentDate) === year 
+                          ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30 scale-[1.03]" 
+                          : "bg-slate-100/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-transparent hover:border-blue-200 dark:hover:border-blue-800"
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleYearSelect(year);
+                      }}
+                    >
+                      {year}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Quick Actions */}
+            <div className="pt-4 flex justify-center">
+              <Button 
+                variant="secondary" 
+                className="rounded-2xl px-10 h-12 text-sm font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-0 hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95"
+                onClick={goToToday}
+              >
+                Сегодня
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -498,7 +527,7 @@ export function DocumentsScreen({
                   />
                 </div>
               ) : (
-                <div className="p-4 space-y-3 overflow-y-auto h-full pb-4">
+                <div className="p-4 space-y-3 overflow-y-auto h-full pb-4 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-300 dark:hover:scrollbar-thumb-slate-600">
                   {displayedDocuments.map((doc) => {
                     const TypeIcon = typeIcons[doc.type];
                     return (
@@ -559,7 +588,7 @@ export function DocumentsScreen({
                   />
                 </div>
               ) : (
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto pb-4">
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-y-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-300 dark:hover:scrollbar-thumb-slate-600">
                   {displayedDocuments.map((doc) => {
                     const TypeIcon = typeIcons[doc.type];
                     return (

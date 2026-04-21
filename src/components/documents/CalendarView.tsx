@@ -138,7 +138,8 @@ export function CalendarView({
           const rect = element.getBoundingClientRect();
           const containerRect = scrollContainerRef.current?.getBoundingClientRect();
           if (containerRect && (Math.abs(rect.top - containerRect.top) > 10)) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // Use 'auto' for instant jump instead of 'smooth' to avoid "flying"
+            element.scrollIntoView({ behavior: 'auto', block: 'start' });
             lastReportedMonthId.current = monthId;
           }
         }
@@ -192,6 +193,30 @@ export function CalendarView({
     });
   }, [calendarMonths]);
 
+  const getMonthName = (date: Date, index: number) => {
+    const fullMonth = format(date, 'LLLL', { locale: ru });
+    // If month starts on Monday (0) or Sunday (6), it's close to edges
+    // We should shorten names for better fit
+    if (index === 0 || index === 6 || index === 1 || index === 5) {
+      const shortNames: Record<string, string> = {
+        'январь': 'Янв.',
+        'февраль': 'Февр.',
+        'март': 'Март',
+        'апрель': 'Апр.',
+        'май': 'Май',
+        'июнь': 'Июнь',
+        'июль': 'Июль',
+        'август': 'Авг.',
+        'сентябрь': 'Сент.',
+        'октябрь': 'Окт.',
+        'ноябрь': 'Нояб.',
+        'декабрь': 'Дек.'
+      };
+      return shortNames[fullMonth.toLowerCase()] || fullMonth;
+    }
+    return fullMonth;
+  };
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden">
       {/* Week days */}
@@ -234,10 +259,10 @@ export function CalendarView({
                           {i === firstDayIndex && (
                             <div className="flex flex-col items-center w-full">
                               <div className={cn(
-                                "text-xl font-bold capitalize tracking-tight py-2 text-center border-b border-slate-200 dark:border-slate-700 px-2",
+                                "text-xl font-bold capitalize tracking-tight py-2 text-center border-b border-slate-200 dark:border-slate-700 px-2 whitespace-nowrap",
                                 isSameMonth(week[i], new Date()) ? "text-[#ff3b30] border-[#ff3b30]/30" : "text-slate-900 dark:text-slate-100"
                               )}>
-                                {format(week[i], 'LLLL', { locale: ru })}
+                                {getMonthName(week[i], i)}
                               </div>
                             </div>
                           )}

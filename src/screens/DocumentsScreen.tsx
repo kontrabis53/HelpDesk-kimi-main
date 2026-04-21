@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { CalendarView } from '@/components/documents/CalendarView';
+import { DayTimelineView } from '@/components/documents/DayTimelineView';
 import { 
   format, 
   addMonths, 
@@ -26,7 +27,8 @@ import {
   setMonth, 
   setYear, 
   getYear,
-  parseISO
+  parseISO,
+  isSameDay
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
@@ -82,24 +84,26 @@ export function DocumentsScreen({
   const [searchQuery, setSearchQuery] = useState('');
   
   // Use localStorage to persist viewType and switch counts
-  const [viewType, setViewType] = useState<ViewType>(() => {
+  const [viewType, setViewType] = useState<ViewType | 'day'>(() => {
     return (localStorage.getItem('documentsViewType') as ViewType) || 'calendar';
   });
 
-  const handleViewTypeChange = (newType: ViewType) => {
+  const handleViewTypeChange = (newType: ViewType | 'day') => {
     setViewType(newType);
     
     // Update switch counts to determine preferred default
-    const countsJson = localStorage.getItem('documentsViewTypeCounts');
-    const counts = countsJson ? JSON.parse(countsJson) : { list: 0, calendar: 0, grid: 0 };
-    counts[newType] = (counts[newType] || 0) + 1;
-    
-    // If user switches to this type 3 or more times, make it the permanent default
-    if (counts[newType] >= 3) {
-      localStorage.setItem('documentsViewType', newType);
+    if (newType !== 'day') {
+      const countsJson = localStorage.getItem('documentsViewTypeCounts');
+      const counts = countsJson ? JSON.parse(countsJson) : { list: 0, calendar: 0, grid: 0 };
+      counts[newType] = (counts[newType] || 0) + 1;
+      
+      // If user switches to this type 3 or more times, make it the permanent default
+      if (counts[newType] >= 3) {
+        localStorage.setItem('documentsViewType', newType);
+      }
+      
+      localStorage.setItem('documentsViewTypeCounts', JSON.stringify(counts));
     }
-    
-    localStorage.setItem('documentsViewTypeCounts', JSON.stringify(counts));
   };
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -219,14 +223,10 @@ export function DocumentsScreen({
   const handleSearchResultClick = (doc: Document) => {
     setSelectedDocId(doc.id);
     const docDate = parseISO(doc.createdAt);
-    const isSameDay = 
-      docDate.getDate() === currentDate.getDate() &&
-      docDate.getMonth() === currentDate.getMonth() &&
-      docDate.getFullYear() === currentDate.getFullYear();
 
-    if (isSameDay) {
-      // If already on this date, open the document
-      onDocumentClick(doc);
+    if (isSameDay(docDate, currentDate)) {
+      // If already on this date, open the day timeline view
+      handleViewTypeChange('day');
     } else {
       // If different date, just jump to it first
       setCurrentDate(docDate);
@@ -235,7 +235,18 @@ export function DocumentsScreen({
 
   return (
     <div className="h-full bg-slate-50 dark:bg-slate-900 overflow-hidden flex flex-col relative">
-      {/* Header - iOS Calendar Style */}
+      {viewType === 'day' ? (
+        <DayTimelineView
+          currentDate={currentDate}
+          documents={documents}
+          onBack={() => setViewType('calendar')}
+          onDocumentClick={onDocumentClick}
+          onCreateClick={onCreateClick}
+          onDateChange={setCurrentDate}
+        />
+      ) : (
+        <>
+          {/* Header - iOS Calendar Style */}
       <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-4 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2 sticky top-0 z-[60] border-b border-slate-100/50 dark:border-slate-700/50">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -643,12 +654,15 @@ export function DocumentsScreen({
               )
             ) : (
               <CalendarView
-                documents={documents}
-                onDocumentClick={onDocumentClick}
-                currentDate={currentDate}
-                selectedDocId={selectedDocId}
-                onMonthChange={handleMonthChange}
-              />
+               documents={documents}
+               currentDate={currentDate}
+               selectedDocId={selectedDocId}
+               onMonthChange={handleMonthChange}
+               onDateChange={(date) => {
+                 setCurrentDate(date);
+                 handleViewTypeChange('day');
+               }}
+             />
             )}
 
             {/* Floating "Today" Button (iOS Style) - Positioned relative to main content */}
@@ -709,6 +723,8 @@ export function DocumentsScreen({
           )}
         </div>
       </div>
-    </div>
-  );
+    </>
+  )}
+</div>
+);
 }

@@ -63,85 +63,62 @@ export function CalendarView({
     return months;
   }, []);
 
-  // Intersection Observer to detect which month is visible
+  // Intersection Observer for performance
   useEffect(() => {
     if (!scrollContainerRef.current || !onMonthChange) return;
 
     const options = {
       root: scrollContainerRef.current,
-      threshold: [0, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-      rootMargin: '0px 0px -90% 0px' // Focus strictly on the very top (top 10%)
+      threshold: 0,
+      rootMargin: '-10% 0px -85% 0px' 
     };
 
     const observer = new IntersectionObserver((entries) => {
-      // Find entries that are intersecting
-      const intersectingEntries = entries.filter(entry => entry.isIntersecting);
-      if (intersectingEntries.length === 0) return;
+      const intersecting = entries.filter(e => e.isIntersecting);
+      if (intersecting.length === 0) return;
 
-      // Sort by their top position relative to the root container
-      // The one closest to 0 (top of the container) is our current month
-      const sortedEntries = intersectingEntries.sort((a, b) => {
-        return Math.abs(a.boundingClientRect.top - (scrollContainerRef.current?.getBoundingClientRect().top || 0)) - 
-               Math.abs(b.boundingClientRect.top - (scrollContainerRef.current?.getBoundingClientRect().top || 0));
-      });
+      const topEntry = intersecting.reduce((prev, curr) => 
+        (Math.abs(curr.boundingClientRect.top) < Math.abs(prev.boundingClientRect.top) ? curr : prev)
+      );
       
-      const visibleMonth = sortedEntries[0];
-      
-      if (visibleMonth) {
-        const monthId = visibleMonth.target.getAttribute('data-month-id');
-        if (monthId && monthId !== lastReportedMonthId.current) {
-          const [year, month] = monthId.split('-').map(Number);
-          const visibleDate = new Date(year, month - 1, 1);
-          lastReportedMonthId.current = monthId;
-          onMonthChange(visibleDate);
-        }
+      const monthId = topEntry.target.getAttribute('data-month-id');
+      if (monthId && monthId !== lastReportedMonthId.current) {
+        const [year, month] = monthId.split('-').map(Number);
+        lastReportedMonthId.current = monthId;
+        // Batch updates or delay to prevent UI lag
+        requestAnimationFrame(() => {
+          onMonthChange(new Date(year, month - 1, 1));
+        });
       }
     }, options);
 
-    // Observe all month containers
-    Object.values(monthRefs.current).forEach((el) => {
-      if (el) observer.observe(el);
-    });
-
+    Object.values(monthRefs.current).forEach(el => el && observer.observe(el));
     return () => observer.disconnect();
   }, [calendarMonths, onMonthChange]);
 
-  // Initial scroll to current month without animation
+  // Use layoutEffect for instant positioning before paint
   useEffect(() => {
     if (!initialScrolled.current) {
       const monthId = format(currentDate, 'yyyy-MM');
-      lastReportedMonthId.current = monthId; // Mark as handled to avoid scroll-back
+      lastReportedMonthId.current = monthId;
       const element = monthRefs.current[monthId];
-      if (element) {
-        // Use immediate scroll for initial load to avoid "flying" effect
-        element.scrollIntoView({ behavior: 'auto', block: 'start' });
+      if (element && scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = element.offsetTop;
         initialScrolled.current = true;
-        
-        // Final sync with parent header
-        setTimeout(() => {
-          onMonthChange?.(startOfMonth(currentDate));
-        }, 50);
       }
     }
-  }, [calendarMonths, currentDate, onMonthChange]);
+  }, [calendarMonths, currentDate]);
 
-  // Subsequent scrolls with animation (e.g. when clicking "Today")
+  // Handle month changes from header
   useEffect(() => {
     if (initialScrolled.current) {
       const monthId = format(currentDate, 'yyyy-MM');
-      
-      // CRITICAL: Only scroll if the currentDate update did NOT come from our own IntersectionObserver
       if (monthId !== lastReportedMonthId.current) {
         const element = monthRefs.current[monthId];
-        if (element) {
-          // Check if we are already at this month to avoid jitter
-          const rect = element.getBoundingClientRect();
-          const containerRect = scrollContainerRef.current?.getBoundingClientRect();
-          if (containerRect && (Math.abs(rect.top - containerRect.top) > 10)) {
-            // Use 'auto' for instant jump instead of 'smooth' to avoid "flying"
-            element.scrollIntoView({ behavior: 'auto', block: 'start' });
-            lastReportedMonthId.current = monthId;
-          }
+        if (element && scrollContainerRef.current) {
+          // Use instant scroll to avoid laggy smooth animations
+          scrollContainerRef.current.scrollTop = element.offsetTop;
+          lastReportedMonthId.current = monthId;
         }
       }
     }
@@ -231,7 +208,7 @@ export function CalendarView({
       {/* Calendar Content - Scrollable Months */}
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto scrollbar-hide scroll-smooth"
+        className="flex-1 overflow-y-auto scrollbar-hide"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {calendarMonthsWithWeeks.map((month) => (

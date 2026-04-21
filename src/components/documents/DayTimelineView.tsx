@@ -143,7 +143,7 @@ export function DayTimelineView({
         </div>
 
         {/* Day Picker (Horizontal) */}
-        <div className="grid grid-cols-7 px-2 pb-3">
+        <div className="grid grid-cols-7 px-2 pb-3 select-none touch-pan-x">
           {weekDays.map((day) => {
             const isActive = isSameDay(day, currentDate);
             const isToday = isSameDay(day, new Date());
@@ -197,7 +197,7 @@ export function DayTimelineView({
         {/* Scrollable Area */}
         <div 
           ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto scrollbar-hide relative"
+          className="flex-1 overflow-y-auto scrollbar-hide relative overscroll-contain touch-pan-y"
         >
           <div className={cn(
             "grid min-h-full",
@@ -225,7 +225,7 @@ export function DayTimelineView({
 
               {/* Current Time Indicator Line (iOS Style) */}
               <div 
-                className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+                className="absolute left-0 right-0 z-20 pointer-events-none flex items-center will-change-transform"
                 style={{ top: `${currentTimePosition}px` }}
               >
                 <div className="absolute -left-[50px] md:-left-[60px] flex items-center justify-center w-[44px] md:w-[50px]">
@@ -233,7 +233,7 @@ export function DayTimelineView({
                     {format(now, 'HH:mm')}
                   </span>
                 </div>
-                <div className="w-2 h-2 rounded-full bg-[#ff3b30] -ml-1 shadow-sm" />
+                <div className="w-2.5 h-2.5 rounded-full bg-[#ff3b30] -ml-1.5 shadow-sm border-2 border-white dark:border-slate-950" />
                 <div className="flex-1 h-[2px] bg-[#ff3b30]" />
               </div>
 

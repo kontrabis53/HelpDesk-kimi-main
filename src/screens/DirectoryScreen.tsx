@@ -173,6 +173,43 @@ export function DirectoryScreen() {
   const [isModalOpen, setIsCalendarOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<DirectoryEntry | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
+  const [tagInputValue, setTagInputValue] = useState('');
+
+  // Form state
+  const [formData, setFormData] = useState<Omit<DirectoryEntry, 'id'>>({
+    name: '',
+    position: '',
+    department: '',
+    cabinet: '',
+    internalPhone: '',
+    mobilePhone: '',
+    telegram: '',
+    tags: []
+  });
+
+  // Update tag input value when formData.tags changes
+  useEffect(() => {
+    if (formData.tags) {
+      const tagsStr = formData.tags.join(', ');
+      // Only update if current input doesn't match the normalized string
+      // and we are not in the middle of typing a separator
+      if (!tagInputValue.endsWith(',') && !tagInputValue.endsWith(', ') && tagsStr !== tagInputValue) {
+        setTagInputValue(tagsStr);
+      }
+    }
+  }, [formData.tags]);
+
+  const handleTagInputChange = (value: string) => {
+    setTagInputValue(value);
+    
+    // Convert input string to array for formData
+    const tagsArray = value
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag !== '');
+    
+    setFormData(prev => ({ ...prev, tags: tagsArray }));
+  };
 
   // Debounce search query update
   useEffect(() => {
@@ -203,18 +240,6 @@ export function DirectoryScreen() {
     return `+373 ${digits}`;
   };
 
-  // Form state
-  const [formData, setFormData] = useState<Omit<DirectoryEntry, 'id'>>({
-    name: '',
-    position: '',
-    department: '',
-    cabinet: '',
-    internalPhone: '',
-    mobilePhone: '',
-    telegram: '',
-    tags: []
-  });
-
   const handleOpenAdd = () => {
     setEditingEntry(null);
     setFormData({
@@ -227,6 +252,7 @@ export function DirectoryScreen() {
       telegram: '',
       tags: []
     });
+    setTagInputValue('');
     setIsCalendarOpen(true);
   };
 
@@ -242,6 +268,7 @@ export function DirectoryScreen() {
       telegram: entry.telegram || '',
       tags: entry.tags || []
     });
+    setTagInputValue(entry.tags?.join(', ') || '');
     setIsCalendarOpen(true);
   };
 
@@ -561,11 +588,8 @@ export function DirectoryScreen() {
               <Label htmlFor="tags">Теги (через запятую)</Label>
               <Input
                 id="tags"
-                value={formData.tags?.join(', ') || ''}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '') 
-                })}
+                value={tagInputValue}
+                onChange={(e) => handleTagInputChange(e.target.value)}
                 placeholder="сисадмин, принтер, интернет"
               />
               <p className="text-[10px] text-slate-500 italic">Помогает искать сотрудника по ключевым словам (админ, техник и т.д.)</p>

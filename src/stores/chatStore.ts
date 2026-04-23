@@ -4,39 +4,68 @@ import { chatService } from '@/api/chat';
 
 interface ChatMessage {
   id: string;
+  chatId: string;
   text: string;
   senderId: string;
-  sender: {
-    id: string;
-    name: string;
-    avatar?: string;
-    role: string;
-  };
+  senderName: string;
+  senderRealName?: string;
   createdAt: string;
+  timestamp?: string;
+}
+
+interface Chat {
+  id: string;
+  name: string;
+  type: 'direct' | 'group';
+  participants: string[];
+  lastMessage?: string;
+  lastMessageTime?: string;
+  unreadCount: number;
+  isPinned?: boolean;
+  isHidden?: boolean;
+  isMuted?: boolean;
 }
 
 interface ChatStore {
+  chats: Chat[];
   messages: ChatMessage[];
+  activeChatId: string | null;
   socket: Socket | null;
   isLoading: boolean;
+  showHiddenChats: boolean;
   
   initSocket: () => void;
   fetchMessages: () => Promise<void>;
-  sendMessage: (text: string) => Promise<void>;
+  setActiveChat: (chatId: string | null) => void;
+  sendMessage: (chatId: string, text: string, senderId: string, senderName: string, recipientName: string) => Promise<void>;
+  createDirectChat: (participantId: string, name: string) => Promise<string>;
   addMessage: (message: ChatMessage) => void;
+  clearUnread: (chatId: string) => void;
+  togglePinChat: (chatId: string) => void;
+  toggleHideChat: (chatId: string) => void;
+  toggleMuteChat: (chatId: string) => void;
+  deleteChat: (chatId: string) => void;
+  setShowHiddenChats: (show: boolean) => void;
 }
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
 
 export const useChatStore = create<ChatStore>((set, get) => ({
+  chats: [],
   messages: [],
+  activeChatId: null,
   socket: null,
   isLoading: false,
+  showHiddenChats: false,
 
   initSocket: () => {
     if (get().socket) return;
 
-    const socket = io(SOCKET_URL);
+    console.log('Connecting to socket at:', SOCKET_URL);
+    const socket = io(SOCKET_URL, {
+      transports: ['websocket'],
+      upgrade: false
+    });
     
     socket.on('chat:message', (message: ChatMessage) => {
       get().addMessage(message);
@@ -56,18 +85,99 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
   },
 
-  sendMessage: async (text: string) => {
+  setActiveChat: (chatId) => set({ activeChatId: chatId }),
+
+  sendMessage: async (chatId, text, senderId, senderName, _recipientName) => {
     try {
-      await chatService.sendMessage(text);
-      // We don't add to state here because Socket.io will broadcast it back to us
+      // Mock for now until backend supports full chat model
+      const newMessage: ChatMessage = {
+        id: Date.now().toString(),
+        chatId,
+        text,
+        senderId,
+        senderName,
+        senderRealName: senderName, // Fallback
+        createdAt: new Date().toISOString(),
+        timestamp: new Date().toISOString()
+      };
+      
+      set(state => ({
+        messages: [...state.messages, newMessage],
+        chats: state.chats.map(c => c.id === chatId ? {
+          ...c,
+          lastMessage: text,
+          lastMessageTime: newMessage.createdAt
+        } : c)
+      }));
+
+      await chatService.sendMessage(text, chatId);
     } catch (error: any) {
       console.error('Send message error:', error);
     }
+  },
+
+  createDirectChat: async (participantId, name) => {
+    const existingChat = get().chats.find(c => 
+      c.type === 'direct' && c.participants.includes(participantId)
+    );
+    
+    if (existingChat) {
+      set({ activeChatId: existingChat.id });
+      return existingChat.id;
+    }
+
+    const newChat: Chat = {
+      id: `chat-${Date.now()}`,
+      name,
+      type: 'direct',
+      participants: ['current-user', participantId],
+      unreadCount: 0
+    };
+
+    set(state => ({
+      chats: [newChat, ...state.chats],
+      activeChatId: newChat.id
+    }));
+
+    return newChat.id;
   },
 
   addMessage: (message: ChatMessage) => {
     set((state) => ({
       messages: [...state.messages, message]
     }));
-  }
+  },
+
+  clearUnread: (chatId) => {
+    set(state => ({
+      chats: state.chats.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c)
+    }));
+  },
+
+  togglePinChat: (chatId) => {
+    set(state => ({
+      chats: state.chats.map(c => c.id === chatId ? { ...c, isPinned: !c.isPinned } : c)
+    }));
+  },
+
+  toggleHideChat: (chatId) => {
+    set(state => ({
+      chats: state.chats.map(c => c.id === chatId ? { ...c, isHidden: !c.isHidden } : c)
+    }));
+  },
+
+  toggleMuteChat: (chatId) => {
+    set(state => ({
+      chats: state.chats.map(c => c.id === chatId ? { ...c, isMuted: !c.isMuted } : c)
+    }));
+  },
+
+  deleteChat: (chatId) => {
+    set(state => ({
+      chats: state.chats.filter(c => c.id !== chatId),
+      activeChatId: state.activeChatId === chatId ? null : state.activeChatId
+    }));
+  },
+
+  setShowHiddenChats: (show) => set({ showHiddenChats: show })
 }));

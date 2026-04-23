@@ -65,7 +65,8 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
   fetchUsers: async () => {
     set({ isLoading: true });
     try {
-      const response = await apiClient.get('/directory'); // Or /users if we add it
+      console.log('Fetching users from:', apiClient.defaults.baseURL + '/auth/users');
+      const response = await apiClient.get('/auth/users');
       set({ users: response.data, isLoading: false });
     } catch (error: any) {
       console.error('Fetch users error:', error);

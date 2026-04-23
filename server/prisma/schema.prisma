@@ -124,8 +124,10 @@ model DirectoryEntry {
 model KBArticle {
   id          String   @id @default(uuid())
   title       String
+  description String   @default("")
   content     String
   category    String
+  steps       Json?    @default("[]")
   tags        String[]
   views       Int      @default(0)
   createdAt   DateTime @default(now())

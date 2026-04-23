@@ -18,7 +18,7 @@ interface KnowledgeStore {
   incrementViews: (id: string) => Promise<void>;
 }
 
-export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
+export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
   articles: [],
   filter: {},
   selectedArticle: null,

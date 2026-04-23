@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Ticket, TicketFilter, TicketStatus, TicketPriority, User } from '@/types';
+import type { Ticket, TicketFilter, TicketStatus, TicketPriority } from '@/types';
 import { ticketService } from '@/api/tickets';
 
 interface TicketStore {
@@ -13,7 +13,7 @@ interface TicketStore {
   setSelectedTicket: (ticket: Ticket | null) => void;
   getTicketById: (id: string) => Promise<Ticket | null>;
   createTicket: (ticket: any) => Promise<Ticket>;
-  updateTicket: (id: string, updates: Partial<Ticket>) => Promise<void>;
+  updateTicket: (id: string, updates: Partial<Ticket> & { assigneeId?: string | null }) => Promise<void>;
   deleteTicket: (id: string) => Promise<void>;
   updateTicketStatus: (id: string, status: TicketStatus) => Promise<void>;
   updateTicketPriority: (id: string, priority: TicketPriority) => Promise<void>;
@@ -34,7 +34,6 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
   isLoading: false,
   
   fetchTickets: async () => {
-    const { filter } = get();
     set({ isLoading: true });
     try {
       const tickets = await ticketService.getAll();
@@ -80,11 +79,18 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
   },
 
   updateTicket: async (id, updates) => {
-    const updatedTicket = await ticketService.update(id, updates);
-    set((state) => ({
-      tickets: state.tickets.map((t) => t.id === id ? updatedTicket : t),
-      selectedTicket: state.selectedTicket?.id === id ? updatedTicket : state.selectedTicket
-    }));
+    set({ isLoading: true });
+    try {
+      const updatedTicket = await ticketService.update(id, updates);
+      set((state) => ({
+        tickets: state.tickets.map((t) => t.id === id ? updatedTicket : t),
+        selectedTicket: state.selectedTicket?.id === id ? updatedTicket : state.selectedTicket,
+        isLoading: false
+      }));
+    } catch (error: any) {
+      console.error('Update ticket error:', error);
+      set({ isLoading: false });
+    }
   },
 
   deleteTicket: async (id) => {

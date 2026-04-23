@@ -61,10 +61,10 @@ export function TicketCard({ ticket, onClick, className }: TicketCardProps) {
           </div>
         </div>
         
-        {ticket.comments.length > 0 && (
+        {( (ticket.comments?.length ?? 0) > 0 || (ticket._count?.comments ?? 0) > 0 ) && (
           <div className="flex items-center gap-1">
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>{ticket.comments.length}</span>
+            <span>{ticket._count?.comments ?? ticket.comments?.length}</span>
           </div>
         )}
       </div>

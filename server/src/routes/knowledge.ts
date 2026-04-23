@@ -15,7 +15,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
   fastify.get('/', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    const articles = await prisma.kbArticle.findMany({
+    const articles = await prisma.kBArticle.findMany({
       include: {
         author: {
           select: { id: true, name: true }
@@ -33,7 +33,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
     const { id } = request.params as { id: string };
     
     // Increment views
-    const article = await prisma.kbArticle.update({
+    const article = await prisma.kBArticle.update({
       where: { id },
       data: { views: { increment: 1 } },
       include: {
@@ -60,7 +60,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
 
     try {
       const data = kbArticleSchema.parse(request.body);
-      const article = await prisma.kbArticle.create({
+      const article = await prisma.kBArticle.create({
         data: {
           ...data,
           authorId: user.id
@@ -82,7 +82,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
     const user = request.user as any;
     const { id } = request.params as { id: string };
 
-    const article = await prisma.kbArticle.findUnique({ where: { id } });
+    const article = await prisma.kBArticle.findUnique({ where: { id } });
     if (!article) return reply.status(404).send({ message: 'Статья не найдена' });
 
     if (user.role !== 'admin' && article.authorId !== user.id) {
@@ -91,7 +91,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
 
     try {
       const data = kbArticleSchema.partial().parse(request.body);
-      const updated = await prisma.kbArticle.update({
+      const updated = await prisma.kBArticle.update({
         where: { id },
         data
       });
@@ -99,5 +99,23 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
     } catch (error: any) {
       return reply.status(500).send({ message: 'Ошибка при обновлении' });
     }
+  });
+
+  // Delete article
+  fastify.delete('/:id', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    const user = request.user as any;
+    const { id } = request.params as { id: string };
+
+    const article = await prisma.kBArticle.findUnique({ where: { id } });
+    if (!article) return reply.status(404).send({ message: 'Статья не найдена' });
+
+    if (user.role !== 'admin' && article.authorId !== user.id) {
+      return reply.status(403).send({ message: 'Вы можете удалять только свои статьи' });
+    }
+
+    await prisma.kBArticle.delete({ where: { id } });
+    return { success: true };
   });
 }

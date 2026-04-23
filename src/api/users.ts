@@ -7,7 +7,7 @@ export const userService = {
     return response.data;
   },
 
-  getById: async (id: string): Promise<User> => {
+  getById: async (_id: string): Promise<User> => {
     const response = await apiClient.get(`/auth/me`); // Or specific user route if implemented
     return response.data;
   },

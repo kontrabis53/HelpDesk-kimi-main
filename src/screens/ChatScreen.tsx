@@ -87,8 +87,8 @@ export function ChatScreen() {
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
   
   const scrollRef = useRef<HTMLDivElement>(null);
-  const activeChat = chats.find(c => c.id === activeChatId);
-  const chatMessages = messages.filter(m => m.chatId === activeChatId);
+  const activeChat = (chats || []).find(c => c.id === activeChatId);
+  const chatMessages = (messages || []).filter(m => m.chatId === activeChatId);
 
   // Find directory info for active chat participant if it's a direct chat
   const activeChatDirectoryInfo = useMemo(() => {
@@ -140,7 +140,7 @@ export function ChatScreen() {
     }
   };
 
-   const handleCreateDirectChat = (entry: any) => {
+      const handleCreateDirectChat = async (entry: any) => {
       let participantId = entry.id;
       
       // Find actual user ID if this is a directory entry
@@ -155,7 +155,7 @@ export function ChatScreen() {
         participantId = registeredUser.id;
       }
  
-      const id = createDirectChat(participantId, entry.name);
+      const id = await createDirectChat(participantId, entry.name);
       
       if (id) {
         setActiveChat(id);
@@ -491,7 +491,7 @@ export function ChatScreen() {
                             "text-[9px] mt-1 block opacity-60",
                             isMe ? "text-right" : "text-left"
                           )}>
-                            {format(new Date(msg.timestamp), 'HH:mm')}
+                            {format(new Date(msg.timestamp || msg.createdAt), 'HH:mm')}
                           </span>
                         </div>
                       </div>

@@ -1,4 +1,4 @@
-import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight } from 'lucide-react';
+import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { 
@@ -176,6 +176,23 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
                 </div>
               </div>
             </div>
+
+            {/* About Page Link */}
+            <button 
+              onClick={() => navigate('/about')}
+              className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Info className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-slate-700 dark:text-slate-200">О программе</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Версия, история обновлений, тех. стек</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600" />
+            </button>
           </div>
         </div>
 
@@ -207,10 +224,11 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Version */}
-        <p className="text-center text-xs text-slate-400 dark:text-slate-500">
-          Медин v1.0.7
-        </p>
+        <div className="pt-8 text-center pb-8">
+          <p className="text-xs font-bold text-slate-300 dark:text-slate-700 uppercase tracking-widest">
+            Медин v1.1.1
+          </p>
+        </div>
       </div>
     </div>
   );

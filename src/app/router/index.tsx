@@ -22,6 +22,7 @@ import { GuideDetailPage } from '@/pages/GuideDetailPage';
 import { CreateGuidePage } from '@/pages/CreateGuidePage';
 import { EditGuidePage } from '@/pages/EditGuidePage';
 import { ProfilePage, AdminPage, SettingsPage } from '@/pages';
+import { AboutPage } from '@/pages/AboutPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RequestAccountPage } from '@/pages/RequestAccountPage';
 
@@ -172,6 +173,11 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsPage />,
+      },
+      // About
+      {
+        path: 'about',
+        element: <AboutPage />,
       },
     ],
   },

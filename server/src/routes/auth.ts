@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import { z } from 'zod';
 
@@ -20,6 +20,10 @@ const registerSchema = z.object({
 
 export default async function authRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
   
+  fastify.get('/', async () => {
+    return { message: 'Auth API root' };
+  });
+
   // Login
   fastify.post('/login', async (request, reply) => {
     try {
@@ -113,5 +117,33 @@ export default async function authRoutes(fastify: FastifyInstance, options: Fast
 
     const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
+  });
+
+  // Get all users (Admin/Technician)
+  fastify.get('/users', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          email: true,
+          role: true,
+          roleId: true,
+          position: true,
+          department: true,
+          avatar: true,
+          isActive: true,
+          createdAt: true,
+          lastLogin: true
+        }
+      });
+      return users;
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка при получении списка пользователей' });
+    }
   });
 }

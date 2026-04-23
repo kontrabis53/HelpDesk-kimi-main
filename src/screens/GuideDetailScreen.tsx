@@ -63,8 +63,8 @@ export function GuideDetailScreen({ article, onBack, onEdit }: GuideDetailScreen
 
             {/* Steps */}
             <div className="space-y-8">
-              {article.steps.map((step, index) => (
-                <div key={step.id} className="relative pl-12">
+              {(article.steps || []).map((step, index) => (
+                <div key={step.id || index} className="relative pl-12">
                   <div className="absolute left-0 top-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold shadow-lg shadow-blue-500/20">
                     {index + 1}
                   </div>

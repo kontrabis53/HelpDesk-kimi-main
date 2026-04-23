@@ -37,10 +37,6 @@ export function InventoryPage() {
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [allItems, filter]);
 
-  const lowStockItems = useMemo(() => {
-    return allItems.filter(item => item.quantity <= item.minQuantity);
-  }, [allItems]);
-
   const storeStats = useMemo(() => {
     const lowStock = allItems.filter(item => item.quantity <= item.minQuantity);
     const totalValue = allItems.reduce((sum, item) => sum + ((item.price ?? 0) * item.quantity), 0);
@@ -108,7 +104,6 @@ export function InventoryPage() {
   return (
     <InventoryScreen
       items={items}
-      lowStockItems={lowStockItems}
       stats={{
         total: storeStats.totalItems,
         lowStock: storeStats.lowStockItems,

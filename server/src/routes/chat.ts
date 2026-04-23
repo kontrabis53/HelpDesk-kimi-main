@@ -49,7 +49,9 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
       });
 
       // REAL-TIME: Emit message to all connected clients
-      io.emit('chat:message', message);
+      if (io) {
+        io.emit('chat:message', message);
+      }
 
       return reply.status(201).send(message);
     } catch (error: any) {

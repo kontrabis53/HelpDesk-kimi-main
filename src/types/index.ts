@@ -51,6 +51,9 @@ export interface Ticket {
   author: User;
   assignee?: User;
   comments: Comment[];
+  _count?: {
+    comments: number;
+  };
 }
 
 export interface TicketFilter {

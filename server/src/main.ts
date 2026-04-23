@@ -77,13 +77,6 @@ declare module 'fastify' {
   }
 }
 
-// Socket.io setup for Live Monitoring
-const io = new Server(fastify.server, {
-  cors: {
-    origin: '*',
-  },
-});
-
 // Global hook to broadcast ALL server logs to dashboard
 fastify.addHook('onResponse', async (request, reply) => {
   const message = `${request.method} ${request.url} - ${reply.statusCode} (${Math.round(reply.elapsedTime)}ms)`;
@@ -97,7 +90,7 @@ fastify.addHook('onResponse', async (request, reply) => {
 });
 
 // Global Error Handler (SECURITY: Don't leak internals)
-fastify.setErrorHandler((error, request, reply) => {
+fastify.setErrorHandler((error: any, _request, reply) => {
   const statusCode = error.statusCode || 500;
   
   // Log the full error internally
@@ -124,21 +117,28 @@ fastify.setErrorHandler((error, request, reply) => {
 });
 
 // Register Routes
+fastify.get('/api', async () => {
+  return { 
+    message: 'HelpDesk CRM API Server', 
+    version: '1.1.1',
+    status: 'running' 
+  };
+});
+
 fastify.register(authRoutes, { prefix: '/api/auth' });
 fastify.register(ticketRoutes, { prefix: '/api/tickets' });
 fastify.register(inventoryRoutes, { prefix: '/api/inventory' });
 fastify.register(directoryRoutes, { prefix: '/api/directory' });
 fastify.register(documentRoutes, { prefix: '/api/documents' });
 fastify.register(knowledgeRoutes, { prefix: '/api/knowledge' });
-fastify.register(chatRoutes, { prefix: '/api/chat', io });
 
 // Health check endpoint
-fastify.get('/health', async (request, reply) => {
+fastify.get('/health', async (_request, _reply) => {
   return { status: 'ok', uptime: process.uptime() };
 });
 
 // Basic Dashboard Route (Web UI for logs)
-fastify.get('/dashboard', async (request, reply) => {
+fastify.get('/dashboard', async (_request, reply) => {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -218,6 +218,15 @@ fastify.get('/dashboard', async (request, reply) => {
   return reply.type('text/html').send(html);
 });
 
+// Initialize Socket.io immediately
+const io = new Server(fastify.server, {
+  cors: {
+    origin: '*',
+  },
+});
+
+fastify.register(chatRoutes, { prefix: '/api/chat', io });
+
 // Periodic stats broadcast
 let clientCount = 0;
 io.on('connection', (socket) => {
@@ -230,7 +239,7 @@ setInterval(() => {
   const hours = Math.floor(uptime / 3600);
   const minutes = Math.floor((uptime % 3600) / 60);
   const seconds = Math.floor(uptime % 60);
-  const uptimeStr = \`\${hours.toString().padStart(2, '0')}:\${minutes.toString().padStart(2, '0')}:\${seconds.toString().padStart(2, '0')}\`;
+  const uptimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   
   io.emit('stats', {
     clients: clientCount,
@@ -243,6 +252,7 @@ const start = async () => {
   try {
     const port = parseInt(process.env.PORT || '3000');
     await fastify.listen({ port, host: '0.0.0.0' });
+    fastify.log.info(`Server started`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

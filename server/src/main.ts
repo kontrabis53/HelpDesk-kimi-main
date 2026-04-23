@@ -5,7 +5,9 @@ import fastifyJwt from '@fastify/jwt';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyCors from '@fastify/cors';
 import fastifyRateLimit from '@fastify/rate-limit';
+import os from 'os';
 
+import prisma from './lib/prisma.js';
 import authRoutes from './routes/auth.js';
 import ticketRoutes from './routes/tickets.js';
 import inventoryRoutes from './routes/inventory.js';
@@ -141,45 +143,122 @@ fastify.get('/health', async (_request, _reply) => {
 fastify.get('/dashboard', async (_request, reply) => {
   const html = `
     <!DOCTYPE html>
-    <html>
+    <html lang="ru">
       <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>HelpDesk Admin Dashboard</title>
         <script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
         <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
+          @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
           .log-entry { font-family: 'Fira Code', monospace; }
+          ::-webkit-scrollbar { width: 8px; }
+          ::-webkit-scrollbar-track { background: #1e293b; }
+          ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb:hover { background: #475569; }
         </style>
       </head>
-      <body class="bg-slate-900 text-slate-100 p-8">
-        <div class="max-w-6xl mx-auto">
-          <header class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-blue-400">HelpDesk CRM Server</h1>
-            <div id="status" class="px-4 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/50">
-              Online
+      <body class="bg-slate-950 text-slate-100 p-4 md:p-8 min-h-screen">
+        <div class="max-w-7xl mx-auto">
+          <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+              <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 tracking-tight">
+                HelpDesk CRM
+              </h1>
+              <p class="text-slate-500 text-sm font-medium uppercase tracking-widest mt-1">Admin Control Center</p>
+            </div>
+            <div class="flex items-center gap-4">
+              <div id="status" class="flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/30 text-sm font-bold">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                SERVER ONLINE
+              </div>
+              <div class="text-slate-500 text-xs font-mono" id="node-version"></div>
             </div>
           </header>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <h3 class="text-slate-400 text-sm uppercase mb-1">Uptime</h3>
-              <p id="uptime" class="text-2xl font-mono">00:00:00</p>
+          <!-- Real-time Stats Grid -->
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg">
+              <h3 class="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-wider">Uptime</h3>
+              <p id="uptime" class="text-xl font-mono text-blue-400">00:00:00</p>
             </div>
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <h3 class="text-slate-400 text-sm uppercase mb-1">Active Clients</h3>
-              <p id="clients" class="text-2xl font-mono">0</p>
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg">
+              <h3 class="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-wider">Active Clients</h3>
+              <p id="clients" class="text-xl font-mono text-indigo-400">0</p>
             </div>
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <h3 class="text-slate-400 text-sm uppercase mb-1">Memory Usage</h3>
-              <p id="memory" class="text-2xl font-mono">0 MB</p>
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg">
+              <h3 class="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-wider">Memory</h3>
+              <p id="memory" class="text-xl font-mono text-purple-400">0 MB</p>
+            </div>
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg">
+              <h3 class="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-wider">CPU Load</h3>
+              <p id="cpu" class="text-xl font-mono text-pink-400">0%</p>
+            </div>
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg">
+              <h3 class="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-wider">OS</h3>
+              <p id="os-info" class="text-sm font-medium text-slate-300 mt-1 truncate">-</p>
+            </div>
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg">
+              <h3 class="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-wider">Storage</h3>
+              <p id="storage" class="text-xl font-mono text-emerald-400">Local</p>
             </div>
           </div>
 
-          <div class="bg-black rounded-xl p-4 border border-slate-700 shadow-2xl h-[500px] flex flex-col">
-            <div class="flex items-center justify-between mb-2 pb-2 border-b border-slate-800">
-              <span class="text-xs text-slate-500 uppercase font-bold tracking-widest">Live Server Logs</span>
-              <button onclick="clearLogs()" class="text-xs text-blue-400 hover:text-blue-300">Clear</button>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            <div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div class="bg-slate-900/50 p-6 rounded-2xl border border-slate-800/50 flex flex-col items-center justify-center text-center">
+                <span class="text-3xl mb-2">&#127915;</span>
+                <p id="stat-tickets" class="text-3xl font-black text-white">0</p>
+                <p class="text-slate-500 text-xs uppercase font-bold">Total Tickets</p>
+              </div>
+              <div class="bg-slate-900/50 p-6 rounded-2xl border border-slate-800/50 flex flex-col items-center justify-center text-center">
+                <span class="text-3xl mb-2">&#128101;</span>
+                <p id="stat-users" class="text-3xl font-black text-white">0</p>
+                <p class="text-slate-500 text-xs uppercase font-bold">Users</p>
+              </div>
+              <div class="bg-slate-900/50 p-6 rounded-2xl border border-slate-800/50 flex flex-col items-center justify-center text-center">
+                <span class="text-3xl mb-2">&#128230;</span>
+                <p id="stat-inventory" class="text-3xl font-black text-white">0</p>
+                <p class="text-slate-500 text-xs uppercase font-bold">Inventory</p>
+              </div>
+              <div class="bg-slate-900/50 p-6 rounded-2xl border border-slate-800/50 flex flex-col items-center justify-center text-center">
+                <span class="text-3xl mb-2">&#128196;</span>
+                <p id="stat-docs" class="text-3xl font-black text-white">0</p>
+                <p class="text-slate-500 text-xs uppercase font-bold">Documents</p>
+              </div>
             </div>
-            <div id="logs" class="overflow-y-auto flex-grow text-sm space-y-1"></div>
+            
+            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-lg h-full">
+              <h3 class="text-slate-400 text-xs uppercase font-bold mb-4 tracking-widest">Ticket Distribution</h3>
+              <canvas id="ticketChart" class="max-h-[150px]"></canvas>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Logs Panel -->
+            <div class="lg:col-span-2 bg-black rounded-3xl p-6 border border-slate-800 shadow-2xl h-[500px] flex flex-col relative overflow-hidden">
+              <div class="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
+              <div class="flex items-center justify-between mb-4 pb-4 border-b border-slate-800 relative z-10">
+                <div class="flex items-center gap-3">
+                  <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                  <span class="text-xs text-slate-400 uppercase font-black tracking-[0.2em]">Live Stream Console</span>
+                </div>
+                <div class="flex gap-2">
+                   <button onclick="clearLogs()" class="px-3 py-1 text-[10px] font-bold text-slate-400 hover:text-white border border-slate-700 rounded-lg transition-colors">CLEAR</button>
+                </div>
+              </div>
+              <div id="logs" class="overflow-y-auto flex-grow text-xs space-y-1 relative z-10 scroll-smooth"></div>
+            </div>
+
+            <!-- Registration Requests -->
+            <div class="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-lg h-[500px] flex flex-col">
+               <h3 class="text-slate-400 text-xs uppercase font-bold mb-4 tracking-widest">Pending Requests</h3>
+               <div id="requests" class="space-y-3 overflow-y-auto pr-2">
+                  <p class="text-slate-600 text-sm italic">No pending requests</p>
+               </div>
+            </div>
           </div>
         </div>
 
@@ -189,14 +268,54 @@ fastify.get('/dashboard', async (_request, reply) => {
           const clientsCount = document.getElementById('clients');
           const uptimeDisplay = document.getElementById('uptime');
           const memoryDisplay = document.getElementById('memory');
+          const cpuDisplay = document.getElementById('cpu');
+          const osDisplay = document.getElementById('os-info');
+          const nodeDisplay = document.getElementById('node-version');
+          const requestsContainer = document.getElementById('requests');
+
+          // Business stats
+          const ticketsStat = document.getElementById('stat-tickets');
+          const usersStat = document.getElementById('stat-users');
+          const inventoryStat = document.getElementById('stat-inventory');
+          const docsStat = document.getElementById('stat-docs');
+
+          let ticketChart;
+
+          function initChart(data) {
+            const ctx = document.getElementById('ticketChart').getContext('2d');
+            ticketChart = new Chart(ctx, {
+              type: 'doughnut',
+              data: {
+                labels: Object.keys(data),
+                datasets: [{
+                  data: Object.values(data),
+                  backgroundColor: ['#60a5fa', '#818cf8', '#fbbf24', '#f87171', '#34d399'],
+                  borderWidth: 0,
+                  spacing: 4
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: 'right',
+                    labels: { color: '#94a3b8', font: { size: 10, weight: 'bold' }, usePointStyle: true }
+                  }
+                },
+                cutout: '70%'
+              }
+            });
+          }
 
           function addLog(log) {
             const el = document.createElement('div');
-            el.className = 'log-entry py-1 border-b border-slate-900 last:border-0';
+            el.className = 'log-entry py-1.5 border-b border-slate-900/50 last:border-0 hover:bg-slate-900/30 transition-colors px-2 rounded';
             const color = log.type === 'error' ? 'text-red-400' : (log.type === 'warn' ? 'text-yellow-400' : 'text-blue-400');
             const time = log.timestamp.split('T')[1].split('.')[0];
-            el.innerHTML = '<span class="text-slate-500">[' + time + ']</span> <span class="' + color + '">[' + log.type.toUpperCase() + ']</span> ' + log.message;
+            el.innerHTML = '<span class="text-slate-600 font-medium">[' + time + ']</span> <span class="' + color + ' font-bold">[' + log.type.toUpperCase() + ']</span> <span class="text-slate-300">' + log.message + '</span>';
             logsContainer.appendChild(el);
+            if (logsContainer.childNodes.length > 100) logsContainer.removeChild(logsContainer.firstChild);
             logsContainer.scrollTop = logsContainer.scrollHeight;
           }
 
@@ -207,6 +326,40 @@ fastify.get('/dashboard', async (_request, reply) => {
             clientsCount.innerText = stats.clients;
             uptimeDisplay.innerText = stats.uptime;
             memoryDisplay.innerText = stats.memory + ' MB';
+            cpuDisplay.innerText = stats.cpu + '%';
+            osDisplay.innerText = stats.os;
+            nodeDisplay.innerText = 'Node ' + stats.nodeVersion;
+
+            // Business stats
+            ticketsStat.innerText = stats.db.tickets;
+            usersStat.innerText = stats.db.users;
+            inventoryStat.innerText = stats.db.inventory;
+            docsStat.innerText = stats.db.documents;
+
+            // Update chart
+            if (!ticketChart) {
+              initChart(stats.db.ticketStatus);
+            } else {
+              ticketChart.data.labels = Object.keys(stats.db.ticketStatus);
+              ticketChart.data.datasets[0].data = Object.values(stats.db.ticketStatus);
+              ticketChart.update();
+            }
+
+            // Update requests
+            if (stats.db.pendingRequests && stats.db.pendingRequests.length > 0) {
+              requestsContainer.innerHTML = stats.db.pendingRequests.map(r => \`
+                <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                  <div class="flex justify-between items-start mb-1">
+                    <p class="text-sm font-bold text-white">\${r.name}</p>
+                    <span class="text-[10px] text-blue-400 font-mono">\${new Date(r.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <p class="text-xs text-slate-400 mb-1">\${r.email} • \${r.department}</p>
+                  <p class="text-[10px] text-slate-500 italic">\${r.reason}</p>
+                </div>
+              \`).join('');
+            } else {
+              requestsContainer.innerHTML = '<p class="text-slate-600 text-sm italic text-center py-4">No pending requests</p>';
+            }
           });
 
           // Initial log
@@ -215,7 +368,7 @@ fastify.get('/dashboard', async (_request, reply) => {
       </body>
     </html>
   `;
-  return reply.type('text/html').send(html);
+  return reply.type('text/html; charset=utf-8').send(html);
 });
 
 // Initialize Socket.io immediately
@@ -234,6 +387,76 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => { clientCount--; });
 });
 
+interface DashboardStats {
+  tickets: number;
+  users: number;
+  inventory: number;
+  documents: number;
+  ticketStatus: Record<string, number>;
+  pendingRequests: any[];
+}
+
+async function getDbStats(): Promise<DashboardStats> {
+  try {
+    const [tickets, users, inventory, documents, ticketStatus, pendingRequests] = await Promise.all([
+      prisma.ticket.count(),
+      prisma.user.count(),
+      prisma.inventoryItem.count(),
+      prisma.document.count(),
+      prisma.ticket.groupBy({
+        by: ['status'],
+        _count: true,
+      }),
+      prisma.registrationRequest.findMany({
+        where: { status: 'pending' },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const statusMap: Record<string, number> = {};
+    (ticketStatus as any[]).forEach((s) => {
+      statusMap[s.status] = s._count;
+    });
+
+    return {
+      tickets,
+      users,
+      inventory,
+      documents,
+      ticketStatus: statusMap,
+      pendingRequests,
+    };
+  } catch (err) {
+    console.error('Error fetching DB stats:', err);
+    return {
+      tickets: 0,
+      users: 0,
+      inventory: 0,
+      documents: 0,
+      ticketStatus: {},
+      pendingRequests: [],
+    };
+  }
+}
+
+let cachedDbStats: DashboardStats = {
+  tickets: 0,
+  users: 0,
+  inventory: 0,
+  documents: 0,
+  ticketStatus: {},
+  pendingRequests: [],
+};
+
+// Update DB stats every 10 seconds
+setInterval(async () => {
+  cachedDbStats = await getDbStats();
+}, 10000);
+
+// Initial fetch
+getDbStats().then(stats => cachedDbStats = stats);
+
 setInterval(() => {
   const uptime = process.uptime();
   const hours = Math.floor(uptime / 3600);
@@ -241,10 +464,17 @@ setInterval(() => {
   const seconds = Math.floor(uptime % 60);
   const uptimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   
+  const cpus = os.cpus();
+  const cpuLoad = Math.round(os.loadavg()[0] * 100 / cpus.length);
+
   io.emit('stats', {
     clients: clientCount,
     uptime: uptimeStr,
     memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    cpu: cpuLoad,
+    os: `${os.type()} ${os.release()}`,
+    nodeVersion: process.version,
+    db: cachedDbStats,
   });
 }, 1000);
 

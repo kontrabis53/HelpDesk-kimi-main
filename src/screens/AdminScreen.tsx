@@ -46,6 +46,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 type AdminTab = 'users' | 'roles' | 'requests' | 'locations' | 'logs' | 'about';
 
@@ -362,24 +363,31 @@ export function AdminScreen({
     setShowRoleForm(true);
   };
 
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     if (!userFormData.name.trim() || !userFormData.roleId || !userFormData.department.trim()) {
       return;
     }
 
-    if (editingUser) {
-      onUpdateUser(editingUser.id, userFormData);
-    } else {
-      // Find role object to get role name
-      const role = roles.find(r => r.id === userFormData.roleId);
-      
-      onCreateUser({
-        ...userFormData,
-        role: (role?.id as any) || 'user', // This is a workaround, ideally we should type this properly
-      });
+    try {
+      if (editingUser) {
+        await onUpdateUser(editingUser.id, userFormData);
+        toast.success('Данные пользователя обновлены');
+      } else {
+        // Find role object to get role name
+        const role = roles.find(r => r.id === userFormData.roleId);
+        
+        await onCreateUser({
+          ...userFormData,
+          role: (role?.id as any) || 'user', // This is a workaround, ideally we should type this properly
+        } as any);
+        toast.success('Пользователь создан');
+      }
+      setShowUserForm(false);
+      setEditingUser(null);
+    } catch (error) {
+      console.error('Save user error:', error);
+      toast.error('Ошибка при сохранении пользователя');
     }
-    setShowUserForm(false);
-    setEditingUser(null);
   };
 
   const handleSaveRole = () => {

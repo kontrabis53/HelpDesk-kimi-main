@@ -11,9 +11,9 @@ const DirectoryCard = memo(({
   otherStaffCount,
   formatDisplayPhone
 }: { 
-  entry: any, 
+  entry: DirectoryEntry & { isDirectHit?: boolean }, 
   canManage: boolean, 
-  onEdit: (e: any) => void, 
+  onEdit: (e: DirectoryEntry) => void, 
   onDelete: (id: string) => void,
   onContactAction: (type: 'call' | 'telegram', val: string) => void,
   otherStaffCount: number,
@@ -131,6 +131,16 @@ const DirectoryCard = memo(({
         </div>
       </div>
 
+      {entry.tags && entry.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-3">
+          {entry.tags.map((tag: string, i: number) => (
+            <span key={i} className="text-[9px] bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200/50 dark:border-slate-600/50">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       {otherStaffCount > 0 && (
         <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
           <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">В этом кабинете также: {otherStaffCount}</p>
@@ -170,7 +180,7 @@ export function DirectoryScreen() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [localSearchQuery, setLocalSearchQuery] = useState('');
-  const [isModalOpen, setIsCalendarOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<DirectoryEntry | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
   const [tagInputValue, setTagInputValue] = useState('');
@@ -201,7 +211,7 @@ export function DirectoryScreen() {
         setTagInputValue(tagsStr);
       }
     }
-  }, [formData.tags]);
+  }, [formData.tags, tagInputValue]);
 
   const handleTagInputChange = (value: string) => {
     setTagInputValue(value);
@@ -257,39 +267,44 @@ export function DirectoryScreen() {
       tags: []
     });
     setTagInputValue('');
-    setIsCalendarOpen(true);
+    setIsModalOpen(true);
   };
 
   const handleOpenEdit = (entry: DirectoryEntry) => {
     setEditingEntry(entry);
     setFormData({
-      name: entry.name,
-      position: entry.position,
-      department: entry.department,
-      cabinet: entry.cabinet,
-      internalPhone: entry.internalPhone,
+      name: entry.name || '',
+      position: entry.position || '',
+      department: entry.department || '',
+      cabinet: entry.cabinet || '',
+      internalPhone: entry.internalPhone || '',
       mobilePhone: entry.mobilePhone || '',
       telegram: entry.telegram || '',
       tags: entry.tags || []
     });
     setTagInputValue(entry.tags?.join(', ') || '');
-    setIsCalendarOpen(true);
+    setIsModalOpen(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name || !formData.position || !formData.cabinet || !formData.internalPhone) {
       toast.error('Заполните обязательные поля');
       return;
     }
 
-    if (editingEntry) {
-      updateEntry(editingEntry.id, formData);
-      toast.success('Контакт обновлен');
-    } else {
-      addEntry(formData);
-      toast.success('Контакт добавлен');
+    try {
+      if (editingEntry) {
+        await updateEntry(editingEntry.id, formData);
+        toast.success('Контакт обновлен');
+      } else {
+        await addEntry(formData);
+        toast.success('Контакт добавлен');
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Submit directory entry error:', error);
+      toast.error('Ошибка при сохранении');
     }
-    setIsCalendarOpen(false);
   };
 
   const handleDelete = (id: string) => {
@@ -335,30 +350,34 @@ export function DirectoryScreen() {
     
     const results = entries
       .filter(entry => 
-        entry.name.toLowerCase().includes(query) ||
-        entry.position.toLowerCase().includes(query) ||
-        entry.department.toLowerCase().includes(query) ||
-        entry.cabinet.toLowerCase().includes(query) ||
-        entry.internalPhone.includes(query) ||
-        (entry.mobilePhone && entry.mobilePhone.includes(query)) ||
-        (entry.tags && entry.tags.some(tag => tag.toLowerCase().includes(query)))
+        (entry.name || '').toLowerCase().includes(query) ||
+        (entry.position || '').toLowerCase().includes(query) ||
+        (entry.department || '').toLowerCase().includes(query) ||
+        (entry.cabinet || '').toLowerCase().includes(query) ||
+        (entry.internalPhone || '').includes(query) ||
+        (entry.mobilePhone || '').includes(query) ||
+        (entry.tags && entry.tags.some(tag => (tag || '').toLowerCase().includes(query)))
       )
       .map(entry => {
         // Logic to determine if this entry is a "direct hit" (exactly what user searched for)
+        const nameLower = (entry.name || '').toLowerCase();
+        const posLower = (entry.position || '').toLowerCase();
+        const cabLower = (entry.cabinet || '').toLowerCase();
+
         const isDirectHit = 
-          entry.cabinet.toLowerCase() === query || 
-          entry.position.toLowerCase() === query ||
-          entry.name.toLowerCase().includes(query) ||
-          (entry.tags && entry.tags.some(tag => tag.toLowerCase() === query));
+          cabLower === query || 
+          posLower === query ||
+          nameLower.includes(query) ||
+          (entry.tags && entry.tags.some(tag => (tag || '').toLowerCase() === query));
         
         // Calculate relevance score for sorting
         let score = 0;
-        if (entry.name.toLowerCase() === query) score += 100;
-        else if (entry.name.toLowerCase().startsWith(query)) score += 50;
+        if (nameLower === query) score += 100;
+        else if (nameLower.startsWith(query)) score += 50;
         
-        if (entry.cabinet.toLowerCase() === query) score += 90;
-        if (entry.position.toLowerCase() === query) score += 80;
-        if (entry.tags && entry.tags.some(tag => tag.toLowerCase() === query)) score += 70;
+        if (cabLower === query) score += 90;
+        if (posLower === query) score += 80;
+        if (entry.tags && entry.tags.some(tag => (tag || '').toLowerCase() === query)) score += 70;
         if (entry.internalPhone === query) score += 60;
         
         return { ...entry, isDirectHit, score };
@@ -507,7 +526,7 @@ export function DirectoryScreen() {
       </div>
 
       {/* Edit/Add Modal */}
-      <Dialog open={isModalOpen} onOpenChange={setIsCalendarOpen}>
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-md bg-white dark:bg-slate-800">
           <DialogHeader>
             <DialogTitle>
@@ -520,7 +539,7 @@ export function DirectoryScreen() {
               <Label htmlFor="name">ФИО</Label>
               <Input
                 id="name"
-                value={formData.name}
+                value={formData.name || ''}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Иванов Иван Иванович"
               />
@@ -531,7 +550,7 @@ export function DirectoryScreen() {
                 <Label htmlFor="position">Должность</Label>
                 <Input
                   id="position"
-                  value={formData.position}
+                  value={formData.position || ''}
                   onChange={(e) => setFormData({ ...formData, position: e.target.value })}
                   placeholder="Врач-терапевт"
                 />
@@ -540,7 +559,7 @@ export function DirectoryScreen() {
                 <Label htmlFor="cabinet">Кабинет</Label>
                 <Input
                   id="cabinet"
-                  value={formData.cabinet}
+                  value={formData.cabinet || ''}
                   onChange={(e) => setFormData({ ...formData, cabinet: e.target.value })}
                   placeholder="306"
                 />
@@ -551,7 +570,7 @@ export function DirectoryScreen() {
               <Label htmlFor="department">Отделение</Label>
               <Input
                 id="department"
-                value={formData.department}
+                value={formData.department || ''}
                 onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                 placeholder="Технический отдел"
               />
@@ -562,7 +581,7 @@ export function DirectoryScreen() {
                 <Label htmlFor="internalPhone">Внутр. номер</Label>
                 <Input
                   id="internalPhone"
-                  value={formData.internalPhone}
+                  value={formData.internalPhone || ''}
                   onChange={(e) => setFormData({ ...formData, internalPhone: e.target.value })}
                   placeholder="101"
                 />
@@ -571,7 +590,7 @@ export function DirectoryScreen() {
                 <Label htmlFor="mobilePhone">Моб. номер</Label>
                 <Input
                   id="mobilePhone"
-                  value={formData.mobilePhone}
+                  value={formData.mobilePhone || ''}
                   onChange={(e) => setFormData({ ...formData, mobilePhone: e.target.value })}
                   placeholder="+7 (___) ___ __ __"
                 />
@@ -582,7 +601,7 @@ export function DirectoryScreen() {
               <Label htmlFor="telegram">Telegram (без @)</Label>
               <Input
                 id="telegram"
-                value={formData.telegram}
+                value={formData.telegram || ''}
                 onChange={(e) => setFormData({ ...formData, telegram: e.target.value })}
                 placeholder="username"
               />
@@ -592,7 +611,7 @@ export function DirectoryScreen() {
               <Label htmlFor="tags">Теги (через запятую)</Label>
               <Input
                 id="tags"
-                value={tagInputValue}
+                value={tagInputValue || ''}
                 onChange={(e) => handleTagInputChange(e.target.value)}
                 placeholder="сисадмин, принтер, интернет"
               />
@@ -601,7 +620,7 @@ export function DirectoryScreen() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCalendarOpen(false)}>Отмена</Button>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)}>Отмена</Button>
             <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700">
               {editingEntry ? 'Сохранить' : 'Добавить'}
             </Button>

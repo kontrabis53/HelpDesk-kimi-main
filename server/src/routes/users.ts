@@ -1,0 +1,156 @@
+import { FastifyInstance } from 'fastify';
+import bcrypt from 'bcryptjs';
+import prisma from '../lib/prisma.js';
+import { z } from 'zod';
+
+const userUpdateSchema = z.object({
+  username: z.string().min(3).optional().nullable().or(z.literal('')),
+  password: z.string().min(6).optional().nullable().or(z.literal('')),
+  name: z.string().optional().nullable(),
+  email: z.string().email().optional().nullable().or(z.literal('')),
+  role: z.enum(['admin', 'technician', 'user']).optional().nullable(),
+  roleId: z.string().optional().nullable(),
+  position: z.string().optional().nullable(),
+  department: z.string().optional().nullable(),
+  isActive: z.boolean().optional().nullable(),
+});
+
+export default async function userRoutes(fastify: FastifyInstance) {
+  // Get all users
+  fastify.get('/', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          email: true,
+          role: true,
+          roleId: true,
+          position: true,
+          department: true,
+          avatar: true,
+          isActive: true,
+          createdAt: true,
+          lastLogin: true
+        }
+      });
+      return users;
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка при получении списка пользователей' });
+    }
+  });
+
+  // Update user
+  fastify.patch('/:id', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const validation = userUpdateSchema.safeParse(request.body);
+      
+      if (!validation.success) {
+        fastify.log.error({ errors: validation.error.format() }, 'Validation error');
+        return reply.status(400).send({ 
+          message: 'Ошибка валидации данных', 
+          errors: validation.error.format() 
+        });
+      }
+
+      const body = validation.data;
+      const updateData: any = {};
+      
+      // Only include fields that are not empty, null or undefined
+      Object.keys(body).forEach(key => {
+        const value = (body as any)[key];
+        // Special handling for password: only if it has length >= 6
+        if (key === 'password') {
+          if (typeof value === 'string' && value.length >= 6) {
+            updateData[key] = value;
+          }
+        } else if (value !== '' && value !== undefined && value !== null) {
+          updateData[key] = value;
+        }
+      });
+
+      fastify.log.info({ id, updateData }, 'Updating user');
+      
+      if (Object.keys(updateData).length === 0) {
+        const user = await prisma.user.findUnique({
+          where: { id },
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            email: true,
+            role: true,
+            roleId: true,
+            position: true,
+            department: true,
+            avatar: true,
+            isActive: true,
+            createdAt: true,
+            lastLogin: true
+          }
+        });
+        return user;
+      }
+      
+      if (updateData.password) {
+        updateData.password = await bcrypt.hash(updateData.password, 10);
+      }
+      
+      const user = await prisma.user.update({
+        where: { id },
+        data: updateData,
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          email: true,
+          role: true,
+          roleId: true,
+          position: true,
+          department: true,
+          avatar: true,
+          isActive: true,
+          createdAt: true,
+          lastLogin: true
+        }
+      });
+      return user;
+    } catch (error: any) {
+      fastify.log.error(error);
+      if (error.code === 'P2002') {
+        return reply.status(400).send({ message: 'Этот логин или email уже заняты' });
+      }
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Пользователь не найден' });
+      }
+      return reply.status(500).send({ 
+        message: 'Ошибка при обновлении пользователя',
+        error: error.message,
+        code: error.code 
+      });
+    }
+  });
+
+  // Delete user
+  fastify.delete('/:id', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      await prisma.user.delete({
+        where: { id }
+      });
+      return { success: true };
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка при удалении пользователя' });
+    }
+  });
+}

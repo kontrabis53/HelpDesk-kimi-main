@@ -26,9 +26,9 @@ export function TicketsPage() {
       if (filter.search) {
         const searchLower = filter.search.toLowerCase();
         const matchesSearch = 
-          ticket.number.toLowerCase().includes(searchLower) ||
-          ticket.title.toLowerCase().includes(searchLower) ||
-          ticket.description.toLowerCase().includes(searchLower);
+          (ticket.number || '').toLowerCase().includes(searchLower) ||
+          (ticket.title || '').toLowerCase().includes(searchLower) ||
+          (ticket.description || '').toLowerCase().includes(searchLower);
         if (!matchesSearch) return false;
       }
       return true;

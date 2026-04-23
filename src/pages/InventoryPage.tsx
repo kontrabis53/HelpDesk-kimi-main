@@ -28,9 +28,9 @@ export function InventoryPage() {
       if (filter.search) {
         const searchLower = filter.search.toLowerCase();
         const matchesSearch = 
-          item.sku.toLowerCase().includes(searchLower) ||
-          item.name.toLowerCase().includes(searchLower) ||
-          item.location.toLowerCase().includes(searchLower);
+          (item.sku || '').toLowerCase().includes(searchLower) ||
+          (item.name || '').toLowerCase().includes(searchLower) ||
+          (item.location || '').toLowerCase().includes(searchLower);
         if (!matchesSearch) return false;
       }
       return true;

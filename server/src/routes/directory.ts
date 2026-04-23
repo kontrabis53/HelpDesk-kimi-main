@@ -4,11 +4,13 @@ import { z } from 'zod';
 
 const directoryEntrySchema = z.object({
   name: z.string().min(2),
-  position: z.string().optional(),
-  department: z.string().optional(),
-  cabinet: z.string().optional(),
-  internalPhone: z.string().optional(),
-  mobilePhone: z.string().optional(),
+  position: z.string().optional().nullable(),
+  department: z.string().optional().nullable(),
+  cabinet: z.string().optional().nullable(),
+  internalPhone: z.string().optional().nullable(),
+  mobilePhone: z.string().optional().nullable(),
+  telegram: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
 });
 
 export default async function directoryRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {

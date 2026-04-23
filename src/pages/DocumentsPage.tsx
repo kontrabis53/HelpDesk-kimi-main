@@ -26,10 +26,10 @@ export function DocumentsPage() {
       if (filter.search) {
         const searchLower = filter.search.toLowerCase();
         const matchesSearch =
-          doc.number.toLowerCase().includes(searchLower) ||
-          doc.title.toLowerCase().includes(searchLower) ||
-          doc.description.toLowerCase().includes(searchLower) ||
-          doc.equipmentName?.toLowerCase().includes(searchLower);
+          (doc.number || '').toLowerCase().includes(searchLower) ||
+          (doc.title || '').toLowerCase().includes(searchLower) ||
+          (doc.description || '').toLowerCase().includes(searchLower) ||
+          (doc.equipmentName || '').toLowerCase().includes(searchLower);
         if (!matchesSearch) return false;
       }
       return true;

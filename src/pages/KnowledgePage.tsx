@@ -27,9 +27,9 @@ export function KnowledgePage() {
       if (filter.search) {
         const searchLower = filter.search.toLowerCase();
         const matchesSearch =
-          article.title.toLowerCase().includes(searchLower) ||
-          article.content.toLowerCase().includes(searchLower) ||
-          article.tags.some(tag => tag.toLowerCase().includes(searchLower));
+          (article.title || '').toLowerCase().includes(searchLower) ||
+          (article.content || '').toLowerCase().includes(searchLower) ||
+          (article.tags || []).some(tag => (tag || '').toLowerCase().includes(searchLower));
         if (!matchesSearch) return false;
       }
       return true;

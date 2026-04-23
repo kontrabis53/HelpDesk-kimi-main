@@ -10,12 +10,14 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   username: z.string().min(3),
-  password: z.string().min(6),
+  password: z.string().min(6).optional(),
   name: z.string(),
   email: z.string().email(),
   role: z.enum(['admin', 'technician', 'user']).optional(),
+  roleId: z.string().optional(),
   position: z.string().optional(),
   department: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export default async function authRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
@@ -83,6 +85,10 @@ export default async function authRoutes(fastify: FastifyInstance, options: Fast
         return reply.status(400).send({ message: 'Пользователь с таким именем или email уже существует' });
       }
 
+      if (!data.password) {
+        return reply.status(400).send({ message: 'Пароль обязателен для регистрации' });
+      }
+
       const hashedPassword = await bcrypt.hash(data.password, 10);
       
       const user = await prisma.user.create({
@@ -117,33 +123,5 @@ export default async function authRoutes(fastify: FastifyInstance, options: Fast
 
     const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
-  });
-
-  // Get all users (Admin/Technician)
-  fastify.get('/users', {
-    onRequest: [fastify.authenticate]
-  }, async (request, reply) => {
-    try {
-      const users = await prisma.user.findMany({
-        select: {
-          id: true,
-          username: true,
-          name: true,
-          email: true,
-          role: true,
-          roleId: true,
-          position: true,
-          department: true,
-          avatar: true,
-          isActive: true,
-          createdAt: true,
-          lastLogin: true
-        }
-      });
-      return users;
-    } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({ message: 'Ошибка при получении списка пользователей' });
-    }
   });
 }

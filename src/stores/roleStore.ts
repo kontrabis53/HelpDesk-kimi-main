@@ -143,21 +143,21 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
   },
   
   updateUser: async (userId, data) => {
-    const response = await apiClient.patch(`/directory/${userId}`, data);
+    const response = await apiClient.patch(`/users/${userId}`, data);
     set(state => ({
       users: state.users.map(u => u.id === userId ? { ...u, ...response.data } : u)
     }));
   },
   
   addUser: async (userData) => {
-    const response = await apiClient.post('/directory', userData);
+    const response = await apiClient.post('/auth/register', userData);
     set(state => ({
       users: [response.data, ...state.users]
     }));
   },
   
   deleteUser: async (userId) => {
-    await apiClient.delete(`/directory/${userId}`);
+    await apiClient.delete(`/users/${userId}`);
     set(state => ({
       users: state.users.filter(u => u.id !== userId)
     }));

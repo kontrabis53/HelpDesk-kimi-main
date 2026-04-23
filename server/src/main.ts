@@ -9,6 +9,7 @@ import os from 'os';
 
 import prisma from './lib/prisma.js';
 import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
 import ticketRoutes from './routes/tickets.js';
 import inventoryRoutes from './routes/inventory.js';
 import directoryRoutes from './routes/directory.js';
@@ -63,6 +64,13 @@ fastify.register(fastifyJwt, {
   },
 });
 
+// Initialize Socket.io immediately
+const io = new Server(fastify.server, {
+  cors: {
+    origin: '*',
+  },
+});
+
 // Authenticate decorator
 fastify.decorate("authenticate", async function(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -81,12 +89,38 @@ declare module 'fastify' {
 
 // Global hook to broadcast ALL server logs to dashboard
 fastify.addHook('onResponse', async (request, reply) => {
-  const message = `${request.method} ${request.url} - ${reply.statusCode} (${Math.round(reply.elapsedTime)}ms)`;
+  let user = 'Anonymous';
+  try {
+    const token = request.headers.authorization?.split(' ')[1];
+    if (token) {
+      const decoded: any = fastify.jwt.decode(token);
+      if (decoded && decoded.username) {
+        user = decoded.username;
+      }
+    }
+  } catch (err) {
+    // Ignore JWT decode errors for logs
+  }
+
+  // Filter sensitive data from body for logging
+  let bodyInfo = '';
+  if (request.body && typeof request.body === 'object') {
+    const filteredBody = { ...(request.body as any) };
+    if (filteredBody.password) filteredBody.password = '********';
+    bodyInfo = ` | BODY: ${JSON.stringify(filteredBody)}`;
+  }
+
+  const queryInfo = Object.keys(request.query as any).length > 0 
+    ? ` | QUERY: ${JSON.stringify(request.query)}` 
+    : '';
+
+  const message = `${request.method} ${request.url}${queryInfo}${bodyInfo} - ${reply.statusCode} (${Math.round(reply.elapsedTime)}ms)`;
   const type = reply.statusCode >= 400 ? 'error' : 'info';
   
   io.emit('log', {
     timestamp: new Date().toISOString(),
     type,
+    user,
     message,
   });
 });
@@ -128,6 +162,7 @@ fastify.get('/api', async () => {
 });
 
 fastify.register(authRoutes, { prefix: '/api/auth' });
+fastify.register(userRoutes, { prefix: '/api/users' });
 fastify.register(ticketRoutes, { prefix: '/api/tickets' });
 fastify.register(inventoryRoutes, { prefix: '/api/inventory' });
 fastify.register(directoryRoutes, { prefix: '/api/directory' });
@@ -201,8 +236,8 @@ fastify.get('/dashboard', async (_request, reply) => {
               <p id="os-info" class="text-sm font-medium text-slate-300 mt-1 truncate">-</p>
             </div>
             <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg">
-              <h3 class="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-wider">Storage</h3>
-              <p id="storage" class="text-xl font-mono text-emerald-400">Local</p>
+              <h3 class="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-wider">Database</h3>
+              <p id="db-status" class="text-xs font-mono text-emerald-400 truncate">Connected</p>
             </div>
           </div>
 
@@ -252,12 +287,26 @@ fastify.get('/dashboard', async (_request, reply) => {
               <div id="logs" class="overflow-y-auto flex-grow text-xs space-y-1 relative z-10 scroll-smooth"></div>
             </div>
 
-            <!-- Registration Requests -->
-            <div class="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-lg h-[500px] flex flex-col">
-               <h3 class="text-slate-400 text-xs uppercase font-bold mb-4 tracking-widest">Pending Requests</h3>
-               <div id="requests" class="space-y-3 overflow-y-auto pr-2">
-                  <p class="text-slate-600 text-sm italic">No pending requests</p>
-               </div>
+            <!-- Right Sidebar Panel -->
+            <div class="flex flex-col gap-6">
+              <!-- Registration Requests -->
+              <div class="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-lg h-[250px] flex flex-col">
+                 <h3 class="text-slate-400 text-xs uppercase font-bold mb-4 tracking-widest flex justify-between">
+                   <span>Pending Requests</span>
+                   <span id="request-count" class="text-blue-500">0</span>
+                 </h3>
+                 <div id="requests" class="space-y-3 overflow-y-auto pr-2">
+                    <p class="text-slate-600 text-sm italic text-center py-4">No pending requests</p>
+                 </div>
+              </div>
+
+              <!-- Active Users/Sessions -->
+              <div class="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-lg h-[225px] flex flex-col">
+                 <h3 class="text-slate-400 text-xs uppercase font-bold mb-4 tracking-widest">Active Sessions</h3>
+                 <div id="active-users" class="space-y-2 overflow-y-auto pr-2">
+                    <p class="text-slate-600 text-sm italic text-center py-4">Waiting for activity...</p>
+                 </div>
+              </div>
             </div>
           </div>
         </div>
@@ -272,6 +321,8 @@ fastify.get('/dashboard', async (_request, reply) => {
           const osDisplay = document.getElementById('os-info');
           const nodeDisplay = document.getElementById('node-version');
           const requestsContainer = document.getElementById('requests');
+          const requestCount = document.getElementById('request-count');
+          const activeUsersContainer = document.getElementById('active-users');
 
           // Business stats
           const ticketsStat = document.getElementById('stat-tickets');
@@ -280,6 +331,7 @@ fastify.get('/dashboard', async (_request, reply) => {
           const docsStat = document.getElementById('stat-docs');
 
           let ticketChart;
+          let activeSessions = new Map();
 
           function initChart(data) {
             const ctx = document.getElementById('ticketChart').getContext('2d');
@@ -310,10 +362,19 @@ fastify.get('/dashboard', async (_request, reply) => {
 
           function addLog(log) {
             const el = document.createElement('div');
-            el.className = 'log-entry py-1.5 border-b border-slate-900/50 last:border-0 hover:bg-slate-900/30 transition-colors px-2 rounded';
+            el.className = 'log-entry py-1.5 border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors px-2 rounded';
             const color = log.type === 'error' ? 'text-red-400' : (log.type === 'warn' ? 'text-yellow-400' : 'text-blue-400');
             const time = log.timestamp.split('T')[1].split('.')[0];
-            el.innerHTML = '<span class="text-slate-600 font-medium">[' + time + ']</span> <span class="' + color + ' font-bold">[' + log.type.toUpperCase() + ']</span> <span class="text-slate-300">' + log.message + '</span>';
+            const userBadge = log.user && log.user !== 'Anonymous' 
+              ? '<span class="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 uppercase tracking-tighter">' + log.user + '</span>'
+              : '<span class="bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 uppercase tracking-tighter">SYS</span>';
+            
+            el.innerHTML = '<div class="flex items-start gap-2">' +
+                '<span class="text-slate-600 font-medium min-w-[65px] flex-shrink-0">[' + time + ']</span>' +
+                userBadge +
+                '<span class="' + color + ' font-bold min-w-[50px] flex-shrink-0">[' + log.type.toUpperCase() + ']</span>' +
+                '<span class="text-slate-300 break-all">' + log.message + '</span>' +
+              '</div>';
             logsContainer.appendChild(el);
             if (logsContainer.childNodes.length > 100) logsContainer.removeChild(logsContainer.firstChild);
             logsContainer.scrollTop = logsContainer.scrollHeight;
@@ -321,7 +382,39 @@ fastify.get('/dashboard', async (_request, reply) => {
 
           function clearLogs() { logsContainer.innerHTML = ''; }
 
-          socket.on('log', addLog);
+          socket.on('log', (log) => {
+            addLog(log);
+            // Update active sessions based on logs
+            if (log.user && log.user !== 'Anonymous') {
+              activeSessions.set(log.user, {
+                lastAction: log.message.split(' - ')[0],
+                timestamp: new Date()
+              });
+              updateActiveUsersUI();
+            }
+          });
+
+          function updateActiveUsersUI() {
+            if (activeSessions.size === 0) return;
+            
+            const sortedUsers = Array.from(activeSessions.entries())
+              .sort((a, b) => b[1].timestamp - a[1].timestamp)
+              .slice(0, 5);
+
+            activeUsersContainer.innerHTML = sortedUsers.map(([username, data]) => \`
+              <div class="flex items-center justify-between bg-slate-800/30 p-2 rounded-lg border border-slate-700/30">
+                <div class="flex items-center gap-2 overflow-hidden">
+                  <div class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
+                  <div class="truncate">
+                    <p class="text-[11px] font-bold text-slate-200 truncate">\${username}</p>
+                    <p class="text-[9px] text-slate-500 truncate">\${data.lastAction}</p>
+                  </div>
+                </div>
+                <span class="text-[9px] text-slate-600 font-mono flex-shrink-0">\${data.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+              </div>
+            \`).join('');
+          }
+
           socket.on('stats', (stats) => {
             clientsCount.innerText = stats.clients;
             uptimeDisplay.innerText = stats.uptime;
@@ -347,6 +440,7 @@ fastify.get('/dashboard', async (_request, reply) => {
 
             // Update requests
             if (stats.db.pendingRequests && stats.db.pendingRequests.length > 0) {
+              requestCount.innerText = stats.db.pendingRequests.length;
               requestsContainer.innerHTML = stats.db.pendingRequests.map(r => \`
                 <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
                   <div class="flex justify-between items-start mb-1">
@@ -369,13 +463,6 @@ fastify.get('/dashboard', async (_request, reply) => {
     </html>
   `;
   return reply.type('text/html; charset=utf-8').send(html);
-});
-
-// Initialize Socket.io immediately
-const io = new Server(fastify.server, {
-  cors: {
-    origin: '*',
-  },
 });
 
 fastify.register(chatRoutes, { prefix: '/api/chat', io });

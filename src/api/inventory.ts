@@ -1,57 +1,28 @@
-import { mockInventory, mockInventoryMovements } from '@/data/mockDocuments';
+import apiClient from './client/apiClient';
 import type { InventoryItem, InventoryMovement } from '@/types';
-import { currentUser } from '@/data/mock';
 
-// In a real application, this would be an API client making HTTP requests
 export const inventoryService = {
-  getAll: (): InventoryItem[] => {
-    return mockInventory;
+  getAll: async (): Promise<InventoryItem[]> => {
+    const response = await apiClient.get('/inventory');
+    return response.data;
   },
 
-  getAllMovements: (): InventoryMovement[] => {
-    return mockInventoryMovements;
+  getById: async (id: string): Promise<InventoryItem> => {
+    const response = await apiClient.get(`/inventory/${id}`);
+    return response.data;
   },
 
-  create: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>): InventoryItem => {
-    const newItem = {
-      ...item,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    } as InventoryItem;
-    
-    mockInventory.push(newItem);
-    return newItem;
+  create: async (item: any): Promise<InventoryItem> => {
+    const response = await apiClient.post('/inventory', item);
+    return response.data;
   },
 
-  createMovement: (movement: Omit<InventoryMovement, 'id' | 'createdAt' | 'author' | 'item'>): InventoryMovement | undefined => {
-    const item = mockInventory.find(i => i.id === movement.itemId);
-    if (!item) return undefined;
-
-    const newMovement: InventoryMovement = {
-      ...movement,
-      id: Date.now().toString(),
-      item,
-      createdAt: new Date().toISOString(),
-      author: currentUser, // Using imported currentUser mock
-    };
-    
-    mockInventoryMovements.push(newMovement);
-    return newMovement;
-  },
-
-  update: (id: string, updates: Partial<InventoryItem>): InventoryItem | undefined => {
-    const index = mockInventory.findIndex(i => i.id === id);
-    if (index === -1) return undefined;
-    
-    mockInventory[index] = { ...mockInventory[index], ...updates };
-    return mockInventory[index];
+  update: async (id: string, updates: any): Promise<InventoryItem> => {
+    const response = await apiClient.patch(`/inventory/${id}`, updates);
+    return response.data;
   },
   
-  delete: (id: string): void => {
-    const index = mockInventory.findIndex(i => i.id === id);
-    if (index !== -1) {
-      mockInventory.splice(index, 1);
-    }
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/inventory/${id}`);
   }
 };

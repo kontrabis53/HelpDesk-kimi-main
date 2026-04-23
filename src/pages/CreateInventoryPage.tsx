@@ -14,13 +14,17 @@ export function CreateInventoryPage() {
     navigate('/inventory');
   };
   
-  const handleSubmit = (data: InventoryFormValues) => {
-    const newItem = createItem(data);
-    addLog('inventory.created', 'inventory', newItem.id, newItem.name, `Добавлен товар: ${newItem.name}`);
-    toast.success('Товар добавлен', {
-      description: `${newItem.name} (${newItem.sku}) добавлен на склад`,
-    });
-    navigate('/inventory');
+  const handleSubmit = async (data: InventoryFormValues) => {
+    try {
+      const newItem = await createItem(data);
+      addLog('inventory.created', 'inventory', newItem.id, newItem.name, `Добавлен товар: ${newItem.name}`);
+      toast.success('Товар добавлен', {
+        description: `${newItem.name} (${newItem.sku}) добавлен на склад`,
+      });
+      navigate('/inventory');
+    } catch (error) {
+      toast.error('Ошибка при добавлении товара');
+    }
   };
   
   return (

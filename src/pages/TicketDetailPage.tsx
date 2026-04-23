@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { TicketDetailScreen } from '@/screens/TicketDetailScreen';
 import { useTicketStore } from '@/stores/ticketStore';
 import { useRoleStore } from '@/stores/roleStore';
@@ -8,40 +8,50 @@ import { toast } from 'sonner';
 export function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
   
   const selectedTicket = useTicketStore((state) => state.selectedTicket);
   const getTicketById = useTicketStore((state) => state.getTicketById);
   const setSelectedTicket = useTicketStore((state) => state.setSelectedTicket);
   const updateTicketStatus = useTicketStore((state) => state.updateTicketStatus);
-  const assignTicket = useTicketStore((state) => state.assignTicket);
+  const updateTicket = useTicketStore((state) => state.updateTicket);
   const addComment = useTicketStore((state) => state.addComment);
-  const getAvailableAssignees = useTicketStore((state) => state.getAvailableAssignees);
   
   const hasPermission = useRoleStore((state) => state.hasPermission);
   const addLog = useRoleStore((state) => state.addLog);
+  const users = useRoleStore((state) => state.users);
   
   useEffect(() => {
-    if (id) {
-      const ticket = getTicketById(id);
-      if (ticket) {
-        setSelectedTicket(ticket);
-      } else {
-        toast.error('Заявка не найдена');
-        navigate('/tickets');
+    async function loadTicket() {
+      if (id) {
+        setLoading(true);
+        const ticket = await getTicketById(id);
+        if (ticket) {
+          setSelectedTicket(ticket);
+        } else {
+          toast.error('Заявка не найдена');
+          navigate('/tickets');
+        }
+        setLoading(false);
       }
     }
+    loadTicket();
   }, [id, getTicketById, setSelectedTicket, navigate]);
   
-  if (!selectedTicket) {
-    return null;
+  if (loading || !selectedTicket) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
   
   const handleBack = () => {
     navigate('/tickets');
   };
   
-  const handleStatusChange = (ticketId: string, status: any) => {
-    updateTicketStatus(ticketId, status);
+  const handleStatusChange = async (ticketId: string, status: any) => {
+    await updateTicketStatus(ticketId, status);
     const statusLabels: Record<string, string> = {
       new: 'Новая', 
       in_progress: 'В работе', 
@@ -55,8 +65,8 @@ export function TicketDetailPage() {
     });
   };
   
-  const handleAddComment = (ticketId: string, text: string) => {
-    addComment(ticketId, text);
+  const handleAddComment = async (ticketId: string, text: string) => {
+    await addComment(ticketId, text);
     addLog('ticket.comment_added', 'ticket', ticketId, undefined, 'Добавлен комментарий');
     toast.success('Комментарий добавлен');
   };
@@ -69,14 +79,14 @@ export function TicketDetailPage() {
     navigate(`/tickets/${selectedTicket.id}/edit`);
   };
   
-  const handleAssign = (ticketId: string, assigneeId: string) => {
+  const handleAssign = async (ticketId: string, assigneeId: string) => {
     if (!assigneeId) {
-      assignTicket(ticketId, '');
+      await updateTicket(ticketId, { assigneeId: null });
       addLog('ticket.unassigned', 'ticket', ticketId, undefined, 'Исполнитель снят');
       toast.success('Исполнитель снят');
     } else {
-      assignTicket(ticketId, assigneeId);
-      const assignee = getAvailableAssignees().find(u => u.id === assigneeId);
+      await updateTicket(ticketId, { assigneeId });
+      const assignee = users.find(u => u.id === assigneeId);
       addLog('ticket.assigned', 'ticket', ticketId, undefined, `Назначен исполнитель: ${assignee?.name}`);
       toast.success('Исполнитель назначен', {
         description: assignee ? `${assignee.name} назначен исполнителем` : undefined,
@@ -92,7 +102,7 @@ export function TicketDetailPage() {
       onAddComment={handleAddComment}
       onEdit={handleEdit}
       onAssign={handleAssign}
-      availableAssignees={getAvailableAssignees()}
+      availableAssignees={users.filter(u => u.role === 'technician' || u.role === 'admin')}
     />
   );
 }

@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils';
 interface InventoryScreenProps {
   items: InventoryItem[];
   lowStockItems: InventoryItem[];
-  _lowStockItems?: InventoryItem[];
   stats: {
     total: number;
     lowStock: number;
@@ -33,7 +32,7 @@ const categoryColors: Record<InventoryCategory, string> = {
 
 export function InventoryScreen({ 
   items, 
-  lowStockItems: _lowStockItems,
+  lowStockItems,
   stats,
   onItemClick,
   onAddMovement,

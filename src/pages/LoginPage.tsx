@@ -11,7 +11,7 @@ import { Stethoscope, Moon, Sun, AlertCircle } from 'lucide-react';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const setUser = useAuthStore((state) => state.setUser);
+  const login = useAuthStore((state) => state.login);
   const { theme, toggleTheme } = useThemeStore();
   
   const [username, setUsername] = useState('');
@@ -30,21 +30,16 @@ export function LoginPage() {
     
     setIsLoading(true);
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
     try {
-      const users = useRoleStore.getState().users;
-      const foundUser = users.find(u => u.username === username && u.password === password);
+      const success = await login(username, password);
       
-      if (foundUser) {
-        setUser(foundUser);
+      if (success) {
         toast.success('Успешный вход');
         navigate('/');
       } else {
         setError('Неверный логин или пароль');
       }
-    } catch (error) {
+    } catch (error: any) {
       setError('Ошибка сервера. Попробуйте позже.');
     } finally {
       setIsLoading(false);

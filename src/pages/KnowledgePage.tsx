@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { KnowledgeScreen } from '@/screens/KnowledgeScreen';
 import { useKnowledgeStore } from '@/stores/knowledgeStore';
 import { useRoleStore } from '@/stores/roleStore';
@@ -10,11 +10,16 @@ export function KnowledgePage() {
   const navigate = useNavigate();
   
   const allArticles = useKnowledgeStore((state) => state.articles);
+  const fetchArticles = useKnowledgeStore((state) => state.fetchArticles);
+  const incrementViews = useKnowledgeStore((state) => state.incrementViews);
   const filter = useKnowledgeStore((state) => state.filter);
   const setFilter = useKnowledgeStore((state) => state.setFilter);
   const setSelectedArticle = useKnowledgeStore((state) => state.setSelectedArticle);
-  const incrementViews = useKnowledgeStore((state) => state.incrementViews);
   const hasPermission = useRoleStore((state) => state.hasPermission);
+
+  useEffect(() => {
+    fetchArticles();
+  }, [fetchArticles]);
 
   const articles = useMemo(() => {
     return allArticles.filter((article) => {
@@ -23,7 +28,7 @@ export function KnowledgePage() {
         const searchLower = filter.search.toLowerCase();
         const matchesSearch =
           article.title.toLowerCase().includes(searchLower) ||
-          article.description.toLowerCase().includes(searchLower) ||
+          article.content.toLowerCase().includes(searchLower) ||
           article.tags.some(tag => tag.toLowerCase().includes(searchLower));
         if (!matchesSearch) return false;
       }

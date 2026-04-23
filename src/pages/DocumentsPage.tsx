@@ -1,6 +1,6 @@
 // Documents Page
 import { useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { DocumentsScreen } from '@/screens/DocumentsScreen';
 import { useDocumentStore } from '@/stores/documentStore';
 import { useRoleStore } from '@/stores/roleStore';
@@ -10,9 +10,14 @@ export function DocumentsPage() {
   const navigate = useNavigate();
   
   const allDocuments = useDocumentStore((state) => state.documents);
+  const fetchDocuments = useDocumentStore((state) => state.fetchDocuments);
   const filter = useDocumentStore((state) => state.filter);
   const setFilter = useDocumentStore((state) => state.setFilter);
   const hasPermission = useRoleStore((state) => state.hasPermission);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
   const documents = useMemo(() => {
     return allDocuments.filter((doc) => {

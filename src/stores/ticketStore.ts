@@ -1,24 +1,24 @@
 import { create } from 'zustand';
 import type { Ticket, TicketFilter, TicketStatus, TicketPriority, User } from '@/types';
 import { ticketService } from '@/api/tickets';
-import { userService } from '@/api/users';
-import { useRoleStore } from './roleStore';
 
 interface TicketStore {
   tickets: Ticket[];
   filter: TicketFilter;
   selectedTicket: Ticket | null;
+  isLoading: boolean;
+  
+  fetchTickets: () => Promise<void>;
   setFilter: (filter: Partial<TicketFilter>) => void;
   setSelectedTicket: (ticket: Ticket | null) => void;
-  getTicketById: (id: string) => Ticket | undefined;
-  createTicket: (ticket: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt' | 'number' | 'comments' | 'status' | 'author'>) => Ticket;
-  updateTicket: (id: string, updates: Partial<Ticket>) => void;
-  deleteTicket: (id: string) => void;
-  updateTicketStatus: (id: string, status: TicketStatus) => void;
-  updateTicketPriority: (id: string, priority: TicketPriority) => void;
-  addComment: (ticketId: string, text: string) => void;
-  assignTicket: (ticketId: string, userId: string) => void;
-  getAvailableAssignees: () => User[];
+  getTicketById: (id: string) => Promise<Ticket | null>;
+  createTicket: (ticket: any) => Promise<Ticket>;
+  updateTicket: (id: string, updates: Partial<Ticket>) => Promise<void>;
+  deleteTicket: (id: string) => Promise<void>;
+  updateTicketStatus: (id: string, status: TicketStatus) => Promise<void>;
+  updateTicketPriority: (id: string, priority: TicketPriority) => Promise<void>;
+  addComment: (ticketId: string, text: string) => Promise<void>;
+  
   stats: () => {
     total: number;
     open: number;
@@ -28,10 +28,23 @@ interface TicketStore {
 }
 
 export const useTicketStore = create<TicketStore>((set, get) => ({
-  tickets: ticketService.getAll(),
+  tickets: [],
   filter: {},
   selectedTicket: null,
+  isLoading: false,
   
+  fetchTickets: async () => {
+    const { filter } = get();
+    set({ isLoading: true });
+    try {
+      const tickets = await ticketService.getAll();
+      set({ tickets, isLoading: false });
+    } catch (error: any) {
+      console.error('Fetch tickets error:', error);
+      set({ isLoading: false });
+    }
+  },
+
   setFilter: (newFilter) => set((state) => ({ 
     filter: { ...state.filter, ...newFilter } 
   })),
@@ -48,118 +61,75 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
   
   setSelectedTicket: (ticket) => set({ selectedTicket: ticket }),
   
-  getTicketById: (id) => {
-    return ticketService.getById(id);
+  getTicketById: async (id) => {
+    try {
+      const ticket = await ticketService.getById(id);
+      return ticket;
+    } catch (error: any) {
+      console.error('Get ticket error:', error);
+      return null;
+    }
   },
   
-  createTicket: (ticketData) => {
-    const currentUser = useRoleStore.getState().currentUser();
-    if (!currentUser) throw new Error('Пользователь не авторизован');
-
-    const newTicket = ticketService.create({
-      ...ticketData,
-      status: 'new',
-      author: currentUser,
-      comments: [],
-    });
-    set((state) => {
-      if (state.tickets.some(t => t.id === newTicket.id)) {
-        return state;
-      }
-      return {
-        tickets: [newTicket, ...state.tickets]
-      };
-    });
+  createTicket: async (ticketData) => {
+    const newTicket = await ticketService.create(ticketData);
+    set((state) => ({
+      tickets: [newTicket, ...state.tickets]
+    }));
     return newTicket;
   },
 
-  updateTicket: (id, updates) => {
-    ticketService.update(id, { ...updates, updatedAt: new Date().toISOString() });
+  updateTicket: async (id, updates) => {
+    const updatedTicket = await ticketService.update(id, updates);
     set((state) => ({
-      tickets: state.tickets.map((t) => 
-        t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
-      ),
+      tickets: state.tickets.map((t) => t.id === id ? updatedTicket : t),
+      selectedTicket: state.selectedTicket?.id === id ? updatedTicket : state.selectedTicket
     }));
   },
 
-  deleteTicket: (id) => {
-    ticketService.delete(id);
+  deleteTicket: async (id) => {
+    await ticketService.delete(id);
     set((state) => ({
       tickets: state.tickets.filter((t) => t.id !== id),
+      selectedTicket: state.selectedTicket?.id === id ? null : state.selectedTicket
     }));
   },
   
-  updateTicketStatus: (id, status) => {
-    ticketService.update(id, { status, updatedAt: new Date().toISOString() });
+  updateTicketStatus: async (id, status) => {
+    const updatedTicket = await ticketService.update(id, { status });
     set((state) => ({
-      tickets: state.tickets.map((t) => 
-        t.id === id ? { ...t, status, updatedAt: new Date().toISOString() } : t
-      ),
+      tickets: state.tickets.map((t) => t.id === id ? updatedTicket : t),
+      selectedTicket: state.selectedTicket?.id === id ? updatedTicket : state.selectedTicket
     }));
   },
   
-  updateTicketPriority: (id, priority) => {
-    ticketService.update(id, { priority, updatedAt: new Date().toISOString() });
+  updateTicketPriority: async (id, priority) => {
+    const updatedTicket = await ticketService.update(id, { priority });
     set((state) => ({
-      tickets: state.tickets.map((t) => 
-        t.id === id ? { ...t, priority, updatedAt: new Date().toISOString() } : t
-      ),
+      tickets: state.tickets.map((t) => t.id === id ? updatedTicket : t),
+      selectedTicket: state.selectedTicket?.id === id ? updatedTicket : state.selectedTicket
     }));
   },
-  
-  addComment: (ticketId, text) => {
-    const ticket = get().getTicketById(ticketId);
-    if (!ticket) return;
 
-    // Use current user from roleStore
-    const currentUser = useRoleStore.getState().currentUser();
-    
-    if (!currentUser) return;
-
-    const newComment = {
-      id: Date.now().toString(),
-      text,
-      author: currentUser,
-      createdAt: new Date().toISOString(),
-    };
-
-    const updatedComments = [...(ticket.comments || []), newComment];
-    ticketService.update(ticketId, { comments: updatedComments });
-
-    set((state) => ({
-      tickets: state.tickets.map((t) => 
-        t.id === ticketId ? { ...t, comments: updatedComments } : t
-      ),
-    }));
-    
-    // Update selected ticket if it's the one being modified
-    const { selectedTicket } = get();
-    if (selectedTicket?.id === ticketId) {
-      set({ selectedTicket: { ...selectedTicket, comments: updatedComments } });
-    }
-  },
-  
-  assignTicket: (ticketId, userId) => {
-    const assignee = userService.getById(userId);
-    if (!assignee) return;
-
-    const updatedTicket = ticketService.assign(ticketId, assignee);
-    if (updatedTicket) {
-      set((state) => ({
-        tickets: state.tickets.map((t) => 
-          t.id === ticketId ? updatedTicket : t
-        ),
-      }));
+  addComment: async (ticketId, text) => {
+    const comment = await ticketService.addComment(ticketId, text);
+    set((state) => {
+      const tickets = state.tickets.map(t => {
+        if (t.id === ticketId) {
+          return { ...t, comments: [...(t.comments || []), comment] };
+        }
+        return t;
+      });
       
-      const { selectedTicket } = get();
+      let selectedTicket = state.selectedTicket;
       if (selectedTicket?.id === ticketId) {
-        set({ selectedTicket: updatedTicket });
+        selectedTicket = { 
+          ...selectedTicket, 
+          comments: [...(selectedTicket.comments || []), comment] 
+        };
       }
-    }
-  },
-  
-  getAvailableAssignees: () => {
-    // Return users with roles 'technician' or 'admin'
-    return userService.getByRole('technician').concat(userService.getByRole('admin'));
-  },
+      
+      return { tickets, selectedTicket };
+    });
+  }
 }));

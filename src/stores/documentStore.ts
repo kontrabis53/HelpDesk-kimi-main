@@ -5,45 +5,60 @@ import { documentService } from '@/api/documents';
 interface DocumentStore {
   documents: Document[];
   filter: DocumentFilter;
+  isLoading: boolean;
+  
+  fetchDocuments: () => Promise<void>;
   setFilter: (filter: Partial<DocumentFilter>) => void;
-  createDocument: (doc: Omit<Document, 'id' | 'createdAt' | 'updatedAt'>) => Document;
-  updateDocument: (id: string, updates: Partial<Document>) => void;
-  deleteDocument: (id: string) => void;
+  createDocument: (doc: any) => Promise<Document>;
+  updateDocument: (id: string, updates: Partial<Document>) => Promise<void>;
+  archiveDocument: (id: string) => Promise<void>;
+  deleteDocument: (id: string) => Promise<void>;
 }
 
-export const useDocumentStore = create<DocumentStore>((set) => ({
-  documents: documentService.getAll(),
+export const useDocumentStore = create<DocumentStore>((set, get) => ({
+  documents: [],
   filter: {},
+  isLoading: false,
   
+  fetchDocuments: async () => {
+    set({ isLoading: true });
+    try {
+      const documents = await documentService.getAll();
+      set({ documents, isLoading: false });
+    } catch (error: any) {
+      console.error('Fetch documents error:', error);
+      set({ isLoading: false });
+    }
+  },
+
   setFilter: (newFilter) => set((state) => ({ 
     filter: { ...state.filter, ...newFilter } 
   })),
   
-  createDocument: (docData) => {
-    const newDoc = documentService.create(docData);
-    set((state) => {
-      // Check if document with this ID already exists to prevent duplicates from React StrictMode
-      if (state.documents.some(d => d.id === newDoc.id)) {
-        return state;
-      }
-      return {
-        documents: [newDoc, ...state.documents]
-      };
-    });
+  createDocument: async (docData) => {
+    const newDoc = await documentService.create(docData);
+    set((state) => ({
+      documents: [newDoc, ...state.documents]
+    }));
     return newDoc;
   },
 
-  updateDocument: (id, updates) => {
-    documentService.update(id, updates);
+  updateDocument: async (id, updates) => {
+    const updated = await documentService.update(id, updates);
     set((state) => ({
-      documents: state.documents.map((d) => 
-        d.id === id ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d
-      ),
+      documents: state.documents.map((d) => d.id === id ? updated : d),
+    }));
+  },
+
+  archiveDocument: async (id) => {
+    const updated = await documentService.archive(id);
+    set((state) => ({
+      documents: state.documents.map((d) => d.id === id ? updated : d),
     }));
   },
   
-  deleteDocument: (id) => {
-    documentService.delete(id);
+  deleteDocument: async (id) => {
+    await documentService.delete(id);
     set((state) => ({
       documents: state.documents.filter((d) => d.id !== id),
     }));

@@ -1,37 +1,33 @@
-import { mockDocuments } from '@/data/mockDocuments';
+import apiClient from './client/apiClient';
 import type { Document } from '@/types';
 
-// In a real application, this would be an API client making HTTP requests
 export const documentService = {
-  getAll: (): Document[] => {
-    return mockDocuments;
+  getAll: async (): Promise<Document[]> => {
+    const response = await apiClient.get('/documents');
+    return response.data;
   },
 
-  create: (doc: Omit<Document, 'id' | 'createdAt' | 'updatedAt'>): Document => {
-    const newDoc = {
-      ...doc,
-      id: Date.now().toString(),
-      number: doc.number || `ДОК-${new Date().getFullYear()}-${String(mockDocuments.length + 1).padStart(3, '0')}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    } as Document;
-    
-    mockDocuments.push(newDoc);
-    return newDoc;
+  getById: async (id: string): Promise<Document> => {
+    const response = await apiClient.get(`/documents/${id}`);
+    return response.data;
   },
 
-  update: (id: string, updates: Partial<Document>): Document | undefined => {
-    const index = mockDocuments.findIndex(d => d.id === id);
-    if (index === -1) return undefined;
-    
-    mockDocuments[index] = { ...mockDocuments[index], ...updates };
-    return mockDocuments[index];
+  create: async (doc: any): Promise<Document> => {
+    const response = await apiClient.post('/documents', doc);
+    return response.data;
+  },
+
+  update: async (id: string, updates: any): Promise<Document> => {
+    const response = await apiClient.patch(`/documents/${id}`, updates);
+    return response.data;
+  },
+
+  archive: async (id: string): Promise<Document> => {
+    const response = await apiClient.patch(`/documents/${id}/archive`);
+    return response.data;
   },
   
-  delete: (id: string): void => {
-    const index = mockDocuments.findIndex(d => d.id === id);
-    if (index !== -1) {
-      mockDocuments.splice(index, 1);
-    }
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/documents/${id}`);
   }
 };

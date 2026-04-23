@@ -1,78 +1,93 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, RegistrationRequest } from '@/types';
-import { users, mockRequests } from '@/data/mock';
+import apiClient from '@/api/client/apiClient';
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+  token: string | null;
   requests: RegistrationRequest[];
   
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   setUser: (user: User) => void;
+  checkAuth: () => Promise<void>;
   
   // Registration requests
-  addRequest: (data: Omit<RegistrationRequest, 'id' | 'status' | 'createdAt'>) => void;
-  approveRequest: (id: string) => void;
-  rejectRequest: (id: string) => void;
-  deleteRequest: (id: string) => void;
+  addRequest: (data: Omit<RegistrationRequest, 'id' | 'status' | 'createdAt'>) => Promise<void>;
+  approveRequest: (id: string) => Promise<void>;
+  rejectRequest: (id: string) => Promise<void>;
+  deleteRequest: (id: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
-      user: null, // Start with null to require login
+    (set, get) => ({
+      user: null,
       isAuthenticated: false,
-      requests: mockRequests,
+      token: null,
+      requests: [],
 
       login: async (username, password) => {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const foundUser = users.find(u => u.username === username && u.password === password);
-        
-        if (foundUser) {
-          set({ user: foundUser, isAuthenticated: true });
+        try {
+          const response = await apiClient.post('/auth/login', { username, password });
+          const { token, user } = response.data;
+          
+          localStorage.setItem('auth_token', token);
+          set({ user, token, isAuthenticated: true });
           return true;
+        } catch (error: any) {
+          console.error('Login error:', error);
+          return false;
         }
-        
-        return false;
       },
 
       logout: () => {
-        set({ user: null, isAuthenticated: false });
+        localStorage.removeItem('auth_token');
+        set({ user: null, token: null, isAuthenticated: false });
       },
 
       setUser: (user) => {
         set({ user, isAuthenticated: true });
       },
 
-      addRequest: (data) => {
-        const newRequest: RegistrationRequest = {
-          ...data,
-          id: Date.now().toString(),
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-        };
-        
-        set(state => ({
-          requests: [newRequest, ...state.requests]
-        }));
+      checkAuth: async () => {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+
+        try {
+          const response = await apiClient.get('/auth/me');
+          set({ user: response.data, token, isAuthenticated: true });
+        } catch (error: any) {
+          localStorage.removeItem('auth_token');
+          set({ user: null, token: null, isAuthenticated: false });
+        }
       },
 
-      approveRequest: (id) => {
+      addRequest: async (data) => {
+        try {
+          const response = await apiClient.post('/auth/register', data);
+          const newRequest = response.data;
+          set(state => ({
+            requests: [newRequest, ...state.requests]
+          }));
+        } catch (error: any) {
+          console.error('Add request error:', error);
+        }
+      },
+
+      approveRequest: async (id) => {
+        // Implement when backend endpoint is ready
         set(state => ({
           requests: state.requests.map(req => 
             req.id === id ? { ...req, status: 'approved' } : req
           )
         }));
-        
-        // In a real app, this would also create a user account
-        // Here we could simulate it by adding to the users list in memory if needed
       },
 
-      rejectRequest: (id) => {
+      rejectRequest: async (id) => {
+        // Implement when backend endpoint is ready
         set(state => ({
           requests: state.requests.map(req => 
             req.id === id ? { ...req, status: 'rejected' } : req
@@ -80,7 +95,8 @@ export const useAuthStore = create<AuthState>()(
         }));
       },
       
-      deleteRequest: (id) => {
+      deleteRequest: async (id) => {
+        // Implement when backend endpoint is ready
         set(state => ({
           requests: state.requests.filter(req => req.id !== id)
         }));
@@ -91,6 +107,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({ 
         user: state.user, 
         isAuthenticated: state.isAuthenticated,
+        token: state.token,
         requests: state.requests 
       }),
     }

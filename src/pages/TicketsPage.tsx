@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { TicketListScreen } from '@/screens/TicketListScreen';
 import { useTicketStore } from '@/stores/ticketStore';
 import { useNavigate } from 'react-router-dom';
@@ -8,10 +8,15 @@ import { toast } from 'sonner';
 export function TicketsPage() {
   const navigate = useNavigate();
   const allTickets = useTicketStore((state) => state.tickets);
+  const fetchTickets = useTicketStore((state) => state.fetchTickets);
   const filter = useTicketStore((state) => state.filter);
   const setFilter = useTicketStore((state) => state.setFilter);
   const setSelectedTicket = useTicketStore((state) => state.setSelectedTicket);
   const hasPermission = useRoleStore((state) => state.hasPermission);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
 
   const tickets = useMemo(() => {
     return allTickets.filter((ticket) => {

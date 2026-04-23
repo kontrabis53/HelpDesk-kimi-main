@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { InventoryScreen } from '@/screens/InventoryScreen';
 import { useInventoryStore } from '@/stores/inventoryStore';
 import { useRoleStore } from '@/stores/roleStore';
@@ -10,11 +10,16 @@ export function InventoryPage() {
   const navigate = useNavigate();
   
   const allItems = useInventoryStore((state) => state.items);
+  const fetchItems = useInventoryStore((state) => state.fetchItems);
+  const updateItemQuantity = useInventoryStore((state) => state.updateItemQuantity);
   const filter = useInventoryStore((state) => state.filter);
-  const addMovement = useInventoryStore((state) => state.addMovement);
   const setFilter = useInventoryStore((state) => state.setFilter);
   const hasPermission = useRoleStore((state) => state.hasPermission);
   const addLog = useRoleStore((state) => state.addLog);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
 
   const items = useMemo(() => {
     return allItems.filter((item) => {
@@ -60,18 +65,27 @@ export function InventoryPage() {
     };
   }, [allItems]);
   
+  const handleAddMovement = async (itemId: string, type: 'in' | 'out', quantity: number, reason: string) => {
+    const item = allItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    const newQuantity = type === 'in' ? item.quantity + quantity : item.quantity - quantity;
+    
+    if (newQuantity < 0) {
+      toast.error('Ошибка', { description: 'Недостаточно товара на складе' });
+      return;
+    }
+
+    await updateItemQuantity(itemId, newQuantity);
+    addLog('inventory.movement', 'inventory', itemId, item.name, `${type === 'in' ? 'Приход' : 'Расход'}: ${quantity} шт. - ${reason}`);
+    toast.success(type === 'in' ? 'Приход оформлен' : 'Расход оформлен', {
+      description: `${quantity} ед. - ${reason}`,
+    });
+  };
+
   const handleItemClick = (item: any) => {
     toast.info(item.name, {
       description: `На складе: ${item.quantity} шт. • Минимум: ${item.minQuantity} шт. • ${item.location}`,
-    });
-  };
-  
-  const handleAddMovement = (itemId: string, type: 'in' | 'out', quantity: number, reason: string) => {
-    addMovement({ itemId, type, quantity, reason });
-    const item = items.find(i => i.id === itemId);
-    addLog('inventory.movement', 'inventory', itemId, item?.name, `${type === 'in' ? 'Приход' : 'Расход'}: ${quantity} шт. - ${reason}`);
-    toast.success(type === 'in' ? 'Приход оформлен' : 'Расход оформлен', {
-      description: `${quantity} ед. - ${reason}`,
     });
   };
   
@@ -95,7 +109,6 @@ export function InventoryPage() {
     <InventoryScreen
       items={items}
       lowStockItems={lowStockItems}
-      _lowStockItems={lowStockItems}
       stats={{
         total: storeStats.totalItems,
         lowStock: storeStats.lowStockItems,

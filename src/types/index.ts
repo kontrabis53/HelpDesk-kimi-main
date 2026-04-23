@@ -219,7 +219,7 @@ export interface KBArticle {
   title: string;
   category: KBArticleCategory;
   description: string;
-  content?: string; // Markdown или HTML
+  content: string; // Markdown или HTML
   steps: { id: string; order: number; title: string; description: string }[];
   tags: string[];
   successRate: number;

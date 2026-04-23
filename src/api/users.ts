@@ -1,17 +1,19 @@
-import { users } from '@/data/mock';
+import apiClient from './client/apiClient';
 import type { User } from '@/types';
 
-// In a real application, this would be an API client making HTTP requests
 export const userService = {
-  getAll: (): User[] => {
-    return users;
+  getAll: async (): Promise<User[]> => {
+    const response = await apiClient.get('/directory'); // We can use directory for general user list or add a specific route
+    return response.data;
   },
 
-  getById: (id: string): User | undefined => {
-    return users.find(user => user.id === id);
+  getById: async (id: string): Promise<User> => {
+    const response = await apiClient.get(`/auth/me`); // Or specific user route if implemented
+    return response.data;
   },
 
-  getByRole: (role: string): User[] => {
-    return users.filter(user => user.role === role);
+  getByRole: async (role: string): Promise<User[]> => {
+    const response = await apiClient.get('/directory');
+    return response.data.filter((user: User) => user.role === role);
   },
 };

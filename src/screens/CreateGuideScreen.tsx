@@ -44,7 +44,7 @@ export function CreateGuideScreen() {
     setSteps(newSteps);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!title.trim() || !description.trim()) {
@@ -77,7 +77,7 @@ export function CreateGuideScreen() {
       return;
     }
 
-    createArticle({
+    await createArticle({
       title,
       description,
       category,

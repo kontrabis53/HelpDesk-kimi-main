@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  username      String   @unique
+  password      String
+  name          String
+  email         String   @unique
+  role          String   @default("user") // admin, technician, user
+  roleId        String   @default("user")
+  position      String?
+  department    String?
+  avatar        String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  lastLogin     DateTime?
+  
+  // Relations
+  ticketsCreated  Ticket[] @relation("CreatedBy")
+  ticketsAssigned Ticket[] @relation("AssignedTo")
+  comments        Comment[]
+  documents       Document[]
+  kbArticles      KBArticle[]
+  sentMessages    ChatMessage[] @relation("SentMessages")
+  receivedMessages ChatMessage[] @relation("ReceivedMessages")
+}
+
+model RegistrationRequest {
+  id          String   @id @default(uuid())
+  name        String
+  email       String
+  department  String
+  reason      String
+  status      String   @default("pending") // pending, approved, rejected
+  createdAt   DateTime @default(now())
+}
+
+model Ticket {
+  id          String   @id @default(uuid())
+  number      String   @unique
+  title       String
+  description String
+  category    String
+  priority    String   @default("medium") // low, medium, high, critical
+  status      String   @default("new") // new, in_progress, waiting, resolved, closed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  authorId    String
+  author      User     @relation("CreatedBy", fields: [authorId], references: [id])
+  assigneeId  String?
+  assignee    User?    @relation("AssignedTo", fields: [assigneeId], references: [id])
+  comments    Comment[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  text      String
+  createdAt DateTime @default(now())
+  
+  // Relations
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model Document {
+  id                String   @id @default(uuid())
+  number            String   @unique
+  title             String
+  type              String   // act, repair, maintenance, inventory
+  status            String   @default("active") // active, archived
+  description       String?
+  equipmentName     String?
+  equipmentLocation String?
+  repairDate        DateTime?
+  repairCost        Float    @default(0)
+  partsUsed         Json?    // Array of strings or complex objects
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  authorId          String
+  author            User     @relation(fields: [authorId], references: [id])
+}
+
+model InventoryItem {
+  id          String   @id @default(uuid())
+  sku         String   @unique
+  name        String
+  category    String
+  description String?
+  quantity    Int      @default(0)
+  minQuantity Int      @default(0)
+  unit        String   @default("pcs")
+  location    String?
+  supplier    String?
+  price       Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DirectoryEntry {
+  id            String   @id @default(uuid())
+  name          String
+  position      String?
+  department    String?
+  cabinet       String?
+  internalPhone String?
+  mobilePhone   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model KBArticle {
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  category    String
+  tags        String[]
+  views       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+}
+
+model ChatMessage {
+  id          String   @id @default(uuid())
+  text        String
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  senderId    String?
+  sender      User?    @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId  String?
+  receiver    User?    @relation("ReceivedMessages", fields: [receiverId], references: [id])
+}

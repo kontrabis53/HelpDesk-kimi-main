@@ -1,26 +1,29 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { DirectoryEntry, SearchStat } from '@/types';
-import { mockDirectory } from '@/data/mockDirectory';
+import { directoryService } from '@/api/directory';
 
 interface DirectoryStore {
   entries: DirectoryEntry[];
   searchStats: SearchStat[];
   searchQuery: string;
+  isLoading: boolean;
+  
+  fetchEntries: () => Promise<void>;
   setSearchQuery: (query: string) => void;
   recordSearch: (query: string) => void;
   getTopStats: (limit?: number) => SearchStat[];
-  addEntry: (entry: Omit<DirectoryEntry, 'id'>) => void;
-  updateEntry: (id: string, updates: Partial<DirectoryEntry>) => void;
-  deleteEntry: (id: string) => void;
+  addEntry: (entry: any) => Promise<void>;
+  updateEntry: (id: string, updates: Partial<DirectoryEntry>) => Promise<void>;
+  deleteEntry: (id: string) => Promise<void>;
 }
 
 export const useDirectoryStore = create<DirectoryStore>()(
   persist(
     (set, get) => ({
-      entries: mockDirectory,
+      entries: [],
       searchQuery: '',
-      // Initial stats to show something useful
+      isLoading: false,
       searchStats: [
         { query: '306', count: 10, lastSearched: new Date().toISOString() },
         { query: 'Регистратура', count: 8, lastSearched: new Date().toISOString() },
@@ -28,11 +31,21 @@ export const useDirectoryStore = create<DirectoryStore>()(
         { query: 'Лаборатория', count: 4, lastSearched: new Date().toISOString() },
       ],
 
+      fetchEntries: async () => {
+        set({ isLoading: true });
+        try {
+          const entries = await directoryService.getAll();
+          set({ entries, isLoading: false });
+        } catch (error: any) {
+          console.error('Fetch directory error:', error);
+          set({ isLoading: false });
+        }
+      },
+
       setSearchQuery: (query) => set({ searchQuery: query }),
 
       recordSearch: (query) => {
         const q = query.trim();
-        // Condition: search query must be at least 3 characters long to be "frequent"
         if (!q || q.length < 3) return;
         
         set((state) => {
@@ -61,32 +74,28 @@ export const useDirectoryStore = create<DirectoryStore>()(
       getTopStats: (limit = 4) => {
         return [...get().searchStats]
           .sort((a, b) => {
-            // Sorting algorithm: 
-            // 1. By count (popularity)
-            // 2. By date (freshness) if count is equal
             if (b.count !== a.count) return b.count - a.count;
             return new Date(b.lastSearched).getTime() - new Date(a.lastSearched).getTime();
           })
           .slice(0, limit);
       },
 
-      addEntry: (entryData) => {
-        const newEntry: DirectoryEntry = {
-          ...entryData,
-          id: Date.now().toString(),
-        };
+      addEntry: async (entryData) => {
+        const newEntry = await directoryService.create(entryData);
         set((state) => ({
           entries: [newEntry, ...state.entries]
         }));
       },
 
-      updateEntry: (id, updates) => {
+      updateEntry: async (id, updates) => {
+        const updated = await directoryService.update(id, updates);
         set((state) => ({
-          entries: state.entries.map(e => e.id === id ? { ...e, ...updates } : e)
+          entries: state.entries.map(e => e.id === id ? updated : e)
         }));
       },
 
-      deleteEntry: (id) => {
+      deleteEntry: async (id) => {
+        await directoryService.delete(id);
         set((state) => ({
           entries: state.entries.filter(e => e.id !== id)
         }));

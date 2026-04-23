@@ -1,75 +1,58 @@
 import { create } from 'zustand';
-import type { InventoryItem, InventoryFilter, InventoryMovement } from '@/types';
+import type { InventoryItem, InventoryFilter } from '@/types';
 import { inventoryService } from '@/api/inventory';
 
 interface InventoryStore {
   items: InventoryItem[];
-  movements: InventoryMovement[];
   filter: InventoryFilter;
+  isLoading: boolean;
+  
+  fetchItems: () => Promise<void>;
   setFilter: (filter: Partial<InventoryFilter>) => void;
-  createItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => InventoryItem;
-  updateItemQuantity: (id: string, quantity: number) => void;
-  deleteItem: (id: string) => void;
-  addMovement: (movement: { itemId: string; type: 'in' | 'out'; quantity: number; reason: string; ticketId?: string }) => void;
+  createItem: (item: any) => Promise<InventoryItem>;
+  updateItemQuantity: (id: string, quantity: number) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
 }
 
 export const useInventoryStore = create<InventoryStore>((set, get) => ({
-  items: inventoryService.getAll(),
-  movements: inventoryService.getAllMovements(),
+  items: [],
   filter: {},
+  isLoading: false,
   
+  fetchItems: async () => {
+    set({ isLoading: true });
+    try {
+      const items = await inventoryService.getAll();
+      set({ items, isLoading: false });
+    } catch (error: any) {
+      console.error('Fetch items error:', error);
+      set({ isLoading: false });
+    }
+  },
+
   setFilter: (newFilter) => set((state) => ({ 
     filter: { ...state.filter, ...newFilter } 
   })),
   
-  createItem: (itemData) => {
-    const newItem = inventoryService.create(itemData);
-    set((state) => {
-      if (state.items.some(i => i.id === newItem.id)) {
-        return state;
-      }
-      return {
-        items: [newItem, ...state.items]
-      };
-    });
+  createItem: async (itemData) => {
+    const newItem = await inventoryService.create(itemData);
+    set((state) => ({
+      items: [newItem, ...state.items]
+    }));
     return newItem;
   },
   
-  updateItemQuantity: (id, quantity) => {
-    inventoryService.update(id, { quantity, updatedAt: new Date().toISOString() });
+  updateItemQuantity: async (id, quantity) => {
+    const updated = await inventoryService.update(id, { quantity });
     set((state) => ({
-      items: state.items.map((i) => 
-        i.id === id ? { ...i, quantity, updatedAt: new Date().toISOString() } : i
-      ),
+      items: state.items.map((i) => i.id === id ? updated : i),
     }));
   },
   
-  deleteItem: (id) => {
-    inventoryService.delete(id);
+  deleteItem: async (id) => {
+    await inventoryService.delete(id);
     set((state) => ({
       items: state.items.filter((i) => i.id !== id),
     }));
-  },
-
-  addMovement: ({ itemId, type, quantity, reason, ticketId }) => {
-    const item = get().items.find(i => i.id === itemId);
-    if (!item) return;
-
-    const newQuantity = type === 'in' ? item.quantity + quantity : item.quantity - quantity;
-    get().updateItemQuantity(itemId, newQuantity);
-    
-    const newMovement = inventoryService.createMovement({
-      itemId,
-      type,
-      quantity,
-      reason,
-      ticketId,
-    });
-
-    if (newMovement) {
-      set((state) => ({
-        movements: [...state.movements, newMovement]
-      }));
-    }
   },
 }));

@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import type { Role, ActivityLog, ModuleId, SystemSettings } from '@/types/roles';
 import type { User } from '@/types';
 import { defaultRoles } from '@/types/roles';
-import { users } from '@/data/mock';
 import { useAuthStore } from './authStore';
+import apiClient from '@/api/client/apiClient';
 
 const defaultSettings: SystemSettings = {
   companyName: 'Медин',
@@ -20,6 +20,7 @@ interface RoleStore {
   users: User[];
   logs: ActivityLog[];
   settings: SystemSettings;
+  isLoading: boolean;
   
   // Computed
   currentUser: () => User | undefined;
@@ -27,6 +28,7 @@ interface RoleStore {
   availableModules: () => ModuleId[];
   
   // Actions
+  fetchUsers: () => Promise<void>;
   setRoles: (roles: Role[]) => void;
   setUsers: (users: User[]) => void;
   setSettings: (settings: SystemSettings) => void;
@@ -34,9 +36,9 @@ interface RoleStore {
   getUserById: (userId: string) => User | undefined;
   hasPermission: (moduleId: ModuleId, action: 'view' | 'create' | 'edit' | 'delete') => boolean;
   addLog: (action: string, entityType: ActivityLog['entityType'], entityId?: string, entityName?: string, details?: string) => void;
-  updateUser: (userId: string, data: Partial<User>) => void;
-  addUser: (user: User) => void;
-  deleteUser: (userId: string) => void;
+  updateUser: (userId: string, data: Partial<User>) => Promise<void>;
+  addUser: (user: User) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
   createRole: (role: Omit<Role, 'id'>) => void;
   updateRole: (id: string, role: Partial<Role>) => void;
   deleteRole: (id: string) => void;
@@ -45,7 +47,8 @@ interface RoleStore {
 export const useRoleStore = create<RoleStore>((set, get) => ({
   // Initial state
   roles: defaultRoles,
-  users: users,
+  users: [],
+  isLoading: false,
   logs: [
     {
       id: '1',
@@ -58,6 +61,17 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
     }
   ],
   settings: defaultSettings,
+
+  fetchUsers: async () => {
+    set({ isLoading: true });
+    try {
+      const response = await apiClient.get('/directory'); // Or /users if we add it
+      set({ users: response.data, isLoading: false });
+    } catch (error: any) {
+      console.error('Fetch users error:', error);
+      set({ isLoading: false });
+    }
+  },
   
   // Computed selectors
   currentUser: () => {
@@ -68,7 +82,7 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
   currentUserRole: () => {
     const user = get().currentUser();
     if (!user) return undefined;
-    return get().roles.find(r => r.id === user.roleId);
+    return get().roles.find(r => r.id === (user.roleId || user.role));
   },
   
   availableModules: () => {
@@ -99,9 +113,6 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
     const role = get().currentUserRole();
     if (!role) return false;
     
-    // Admin has full access
-    if (role.id === 'admin') return true;
-    
     const permission = role.permissions.find(p => p.moduleId === moduleId);
     if (!permission) return false;
     
@@ -119,7 +130,7 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
     const newLog: ActivityLog = {
       id: Date.now().toString(),
       userId: user?.id || 'system',
-      userName: user?.name || 'System',
+      userName: user?.name || 'Система',
       action,
       entityType,
       entityId,
@@ -127,32 +138,27 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
       details,
       createdAt: new Date().toISOString(),
     };
-    
-    set((state) => ({
-      logs: [newLog, ...state.logs]
+    set(state => ({ logs: [newLog, ...state.logs] }));
+  },
+  
+  updateUser: async (userId, data) => {
+    const response = await apiClient.patch(`/directory/${userId}`, data);
+    set(state => ({
+      users: state.users.map(u => u.id === userId ? { ...u, ...response.data } : u)
     }));
   },
   
-  updateUser: (userId, data) => {
-    set((state) => ({
-      users: state.users.map((user) => {
-        if (user.id === userId) {
-          return { ...user, ...data };
-        }
-        return user;
-      }),
+  addUser: async (userData) => {
+    const response = await apiClient.post('/directory', userData);
+    set(state => ({
+      users: [response.data, ...state.users]
     }));
   },
   
-  addUser: (user) => {
-    set((state) => ({
-      users: [...state.users, user]
-    }));
-  },
-  
-  deleteUser: (userId) => {
-    set((state) => ({
-      users: state.users.filter((u) => u.id !== userId),
+  deleteUser: async (userId) => {
+    await apiClient.delete(`/directory/${userId}`);
+    set(state => ({
+      users: state.users.filter(u => u.id !== userId)
     }));
   },
 

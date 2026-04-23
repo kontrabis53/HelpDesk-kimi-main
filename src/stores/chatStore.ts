@@ -1,192 +1,73 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import type { Chat, ChatMessage } from '@/types';
-import { useAuthStore } from './authStore';
+import { io, Socket } from 'socket.io-client';
+import { chatService } from '@/api/chat';
 
-interface ChatStore {
-  chats: Chat[];
-  messages: ChatMessage[];
-  activeChatId: string | null;
-  showHiddenChats: boolean;
-  
-  setActiveChat: (id: string | null) => void;
-  setShowHiddenChats: (show: boolean) => void;
-  sendMessage: (chatId: string, text: string, senderId: string, senderName: string, senderRealName?: string) => void;
-  createGroupChat: (name: string, participants: string[]) => string;
-  createDirectChat: (participantId: string, participantName: string) => string;
-  clearUnread: (chatId: string) => void;
-  togglePinChat: (chatId: string) => void;
-  toggleHideChat: (chatId: string) => void;
-  toggleMuteChat: (chatId: string) => void;
-  deleteChat: (chatId: string) => void;
+interface ChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  sender: {
+    id: string;
+    name: string;
+    avatar?: string;
+    role: string;
+  };
+  createdAt: string;
 }
 
-export const useChatStore = create<ChatStore>()(
-  persist(
-    (set, get) => ({
-      chats: [
-        {
-          id: 'group-1',
-          name: 'Medin Reception & CC',
-          type: 'group',
-          participants: ['Medin Reception', 'Medin CC'],
-          lastMessage: 'Добро пожаловать в общий чат!',
-          lastMessageTime: new Date().toISOString(),
-          unreadCount: 0,
-          isPinned: true
-        },
-        {
-          id: 'direct-1',
-          name: 'Сисадмин',
-          type: 'direct',
-          participants: ['current-user', 'admin'],
-          lastMessage: 'Привет, проверь принтер в 306',
-          lastMessageTime: new Date().toISOString(),
-          unreadCount: 1
-        }
-      ],
-      messages: [
-        {
-          id: 'm1',
-          chatId: 'group-1',
-          senderId: 'system',
-          senderName: 'System',
-          text: 'Группа создана',
-          timestamp: new Date(Date.now() - 3600000).toISOString()
-        },
-        {
-          id: 'm2',
-          chatId: 'group-1',
-          senderId: 'Medin Reception',
-          senderName: 'Medin Reception',
-          text: 'Добро пожаловать в общий чат!',
-          timestamp: new Date().toISOString()
-        }
-      ],
-      activeChatId: null,
-      showHiddenChats: false,
+interface ChatStore {
+  messages: ChatMessage[];
+  socket: Socket | null;
+  isLoading: boolean;
+  
+  initSocket: () => void;
+  fetchMessages: () => Promise<void>;
+  sendMessage: (text: string) => Promise<void>;
+  addMessage: (message: ChatMessage) => void;
+}
 
-      setActiveChat: (id) => set({ activeChatId: id }),
-      
-      setShowHiddenChats: (show) => set({ showHiddenChats: show }),
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
 
-      sendMessage: (chatId, text, senderId, senderName, senderRealName) => {
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          chatId,
-          senderId,
-          senderName,
-          senderRealName,
-          text,
-          timestamp: new Date().toISOString()
-        };
+export const useChatStore = create<ChatStore>((set, get) => ({
+  messages: [],
+  socket: null,
+  isLoading: false,
 
-        set((state) => ({
-          messages: [...state.messages, newMessage],
-          chats: state.chats.map(chat => 
-            chat.id === chatId 
-              ? { 
-                  ...chat, 
-                  lastMessage: text, 
-                  lastMessageTime: newMessage.timestamp,
-                  unreadCount: state.activeChatId === chatId ? 0 : chat.unreadCount + 1,
-                  isHidden: false // Show chat if new message arrives
-                } 
-              : chat
-          )
-        }));
-      },
+  initSocket: () => {
+    if (get().socket) return;
 
-      createGroupChat: (name, participants) => {
-        const id = `group-${Date.now()}`;
-        const newChat: Chat = {
-          id,
-          name,
-          type: 'group',
-          participants,
-          unreadCount: 0,
-          lastMessage: 'Группа создана',
-          lastMessageTime: new Date().toISOString()
-        };
-        set((state) => ({ chats: [newChat, ...state.chats] }));
-        return id;
-      },
+    const socket = io(SOCKET_URL);
+    
+    socket.on('chat:message', (message: ChatMessage) => {
+      get().addMessage(message);
+    });
 
-      createDirectChat: (participantId, participantName) => {
-        const currentUserId = useAuthStore.getState().user?.id || 'current-user';
-        
-        // Prevent creating chat with yourself
-        if (participantId === currentUserId) {
-          return '';
-        }
+    set({ socket });
+  },
 
-        // Check if chat already exists
-        const existing = get().chats.find(c => 
-          c.type === 'direct' && c.participants.includes(participantId) && c.participants.includes(currentUserId)
-        );
-        
-        if (existing) {
-          if (existing.isHidden) {
-            set(state => ({
-              chats: state.chats.map(c => c.id === existing.id ? { ...c, isHidden: false, lastMessageTime: new Date().toISOString() } : c)
-            }));
-          }
-          return existing.id;
-        }
-
-        const id = `direct-${Date.now()}`;
-        const newChat: Chat = {
-          id,
-          name: participantName,
-          type: 'direct',
-          participants: [currentUserId, participantId],
-          unreadCount: 0,
-          lastMessageTime: new Date().toISOString()
-        };
-        
-        set((state) => ({ 
-          chats: [newChat, ...state.chats],
-          activeChatId: id // Automatically set active chat
-        }));
-        
-        return id;
-      },
-
-      clearUnread: (chatId) => {
-        set((state) => ({
-          chats: state.chats.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c)
-        }));
-      },
-
-      togglePinChat: (chatId) => {
-        set((state) => ({
-          chats: state.chats.map(c => c.id === chatId ? { ...c, isPinned: !c.isPinned } : c)
-        }));
-      },
-
-      toggleHideChat: (chatId) => {
-        set((state) => ({
-          chats: state.chats.map(c => c.id === chatId ? { ...c, isHidden: !c.isHidden } : c),
-          activeChatId: get().activeChatId === chatId ? null : get().activeChatId
-        }));
-      },
-
-      toggleMuteChat: (chatId) => {
-        set((state) => ({
-          chats: state.chats.map(c => c.id === chatId ? { ...c, isMuted: !c.isMuted } : c)
-        }));
-      },
-
-      deleteChat: (chatId) => {
-        set((state) => ({
-          chats: state.chats.filter(c => c.id !== chatId),
-          messages: state.messages.filter(m => m.chatId !== chatId),
-          activeChatId: get().activeChatId === chatId ? null : get().activeChatId
-        }));
-      }
-    }),
-    {
-      name: 'helpdesk-chat-storage'
+  fetchMessages: async () => {
+    set({ isLoading: true });
+    try {
+      const messages = await chatService.getMessages();
+      set({ messages, isLoading: false });
+    } catch (error: any) {
+      console.error('Fetch messages error:', error);
+      set({ isLoading: false });
     }
-  )
-);
+  },
+
+  sendMessage: async (text: string) => {
+    try {
+      await chatService.sendMessage(text);
+      // We don't add to state here because Socket.io will broadcast it back to us
+    } catch (error: any) {
+      console.error('Send message error:', error);
+    }
+  },
+
+  addMessage: (message: ChatMessage) => {
+    set((state) => ({
+      messages: [...state.messages, message]
+    }));
+  }
+}));

@@ -164,7 +164,7 @@ import {
 import { toast } from 'sonner';
 
 export function DirectoryScreen() {
-  const { entries, getTopStats, recordSearch, addEntry, updateEntry, deleteEntry } = useDirectoryStore();
+  const { entries, fetchEntries, getTopStats, recordSearch, addEntry, updateEntry, deleteEntry } = useDirectoryStore();
   const hasPermission = useRoleStore((state) => state.hasPermission);
   const canManage = hasPermission('directory', 'edit');
 
@@ -174,6 +174,10 @@ export function DirectoryScreen() {
   const [editingEntry, setEditingEntry] = useState<DirectoryEntry | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
   const [tagInputValue, setTagInputValue] = useState('');
+
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
 
   // Form state
   const [formData, setFormData] = useState<Omit<DirectoryEntry, 'id'>>({

@@ -1,48 +1,33 @@
-import { mockKBArticles } from '../data/mockDocuments';
+import apiClient from './client/apiClient';
 import type { KBArticle } from '@/types';
 
-// In a real application, this would be an API client making HTTP requests
 export const knowledgeService = {
-  getAll: (): KBArticle[] => {
-    return mockKBArticles;
+  getAll: async (): Promise<KBArticle[]> => {
+    const response = await apiClient.get('/knowledge');
+    return response.data;
   },
 
-  getById: (id: string): KBArticle | undefined => {
-    return mockKBArticles.find((article: KBArticle) => article.id === id);
+  getById: async (id: string): Promise<KBArticle> => {
+    const response = await apiClient.get(`/knowledge/${id}`);
+    return response.data;
   },
 
-  create: (articleData: Omit<KBArticle, 'id' | 'createdAt' | 'updatedAt'>): KBArticle => {
-    const newArticle = {
-      ...articleData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      views: 0,
-    } as KBArticle;
-    
-    mockKBArticles.push(newArticle);
-    return newArticle;
+  create: async (articleData: any): Promise<KBArticle> => {
+    const response = await apiClient.post('/knowledge', articleData);
+    return response.data;
   },
 
-  update: (id: string, updates: Partial<KBArticle>): KBArticle | undefined => {
-    const index = mockKBArticles.findIndex((g: KBArticle) => g.id === id);
-    if (index === -1) return undefined;
-    
-    mockKBArticles[index] = { ...mockKBArticles[index], ...updates };
-    return mockKBArticles[index];
+  update: async (id: string, updates: Partial<KBArticle>): Promise<KBArticle> => {
+    const response = await apiClient.patch(`/knowledge/${id}`, updates);
+    return response.data;
+  },
+
+  incrementViews: async (id: string): Promise<void> => {
+    // This is often handled automatically by getById on server, but we can have an explicit call
+    await apiClient.patch(`/knowledge/${id}`, { incrementViews: true });
   },
   
-  delete: (id: string): void => {
-    const index = mockKBArticles.findIndex((g: KBArticle) => g.id === id);
-    if (index !== -1) {
-      mockKBArticles.splice(index, 1);
-    }
-  },
-
-  incrementViews: (id: string): void => {
-    const article = mockKBArticles.find((g: KBArticle) => g.id === id);
-    if (article) {
-      article.views += 1;
-    }
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/knowledge/${id}`);
   }
 };

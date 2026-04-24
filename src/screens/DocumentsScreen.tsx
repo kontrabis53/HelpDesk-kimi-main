@@ -74,8 +74,14 @@ const typeColors: Record<DocumentType, string> = {
 };
 
 export function DocumentsScreen({ 
-  documents, 
-  documentsByType, 
+  documents = [], 
+  documentsByType = {
+    all: [],
+    act: [],
+    repair: [],
+    maintenance: [],
+    inventory: [],
+  }, 
   onDocumentClick,
   onCreateClick,
   onSearch 

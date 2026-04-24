@@ -121,6 +121,20 @@ export function TicketDetailScreen({
             </Button>
           </>
         );
+      case 'resolved':
+      case 'cancelled':
+        return (
+          <>
+            <Button 
+              onClick={() => onStatusChange(ticket.id, 'in_progress')}
+              variant="outline"
+              className="flex-1 dark:border-slate-600 dark:text-slate-300"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Вернуть в работу
+            </Button>
+          </>
+        );
       default:
         return null;
     }
@@ -213,11 +227,9 @@ export function TicketDetailScreen({
         </div>
 
         {/* Action Buttons */}
-        {ticket.status !== 'resolved' && ticket.status !== 'cancelled' && (
-          <div className="flex gap-3">
-            {getActionButtons()}
-          </div>
-        )}
+        <div className="flex gap-3">
+          {getActionButtons()}
+        </div>
 
         {/* Comments Section */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">

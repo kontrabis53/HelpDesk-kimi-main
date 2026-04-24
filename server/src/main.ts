@@ -20,6 +20,7 @@ import chatRoutes from './routes/chat.js';
 dotenv.config();
 
 const fastify = Fastify({
+  ignoreTrailingSlash: true,
   logger: {
     transport: {
       target: 'pino-pretty',
@@ -80,6 +81,20 @@ fastify.decorate("authenticate", async function(request: FastifyRequest, reply: 
   }
 });
 
+// Debug hook to catch validation errors
+ fastify.addHook('preValidation', async (request) => {
+   if (request.method === 'POST' && request.url.includes('/api/knowledge')) {
+     const logMsg = `DEBUG: preValidation hook | URL: ${request.url} | Body: ${JSON.stringify(request.body)}`;
+     fastify.log.info(logMsg);
+     io.emit('log', {
+       timestamp: new Date().toISOString(),
+       type: 'info',
+       user: 'System',
+       message: logMsg
+     });
+   }
+ });
+
 // Extend FastifyInstance type for the decorator
 declare module 'fastify' {
   export interface FastifyInstance {
@@ -129,7 +144,7 @@ fastify.addHook('onResponse', async (request, reply) => {
 
   // Save to DB for persistence
   try {
-    await prisma.systemLog.create({
+    await (prisma as any).systemLog.create({
       data: {
         type,
         message,
@@ -138,7 +153,7 @@ fastify.addHook('onResponse', async (request, reply) => {
       }
     });
   } catch (err) {
-    fastify.log.error('Failed to save log to DB:', err);
+    fastify.log.error(err, 'Failed to save log to DB:');
   }
 });
 
@@ -152,16 +167,21 @@ fastify.setErrorHandler(async (error: any, _request, reply) => {
   const logData = {
     timestamp: new Date().toISOString(),
     type: 'error',
-    message: `ERROR: ${error.message}`,
+    message: `ERROR: [${statusCode}] ${error.message} ${error.code ? '(' + error.code + ')' : ''}`,
     user: 'System'
   };
+
+  // If validation error, include details
+  if (error.validation) {
+    logData.message += ` | Validation: ${JSON.stringify(error.validation)}`;
+  }
 
   // Emit to dashboard
   io.emit('log', logData);
 
   // Save error to DB
   try {
-    await prisma.systemLog.create({
+    await (prisma as any).systemLog.create({
       data: {
         type: 'error',
         message: `ERROR: ${error.message}`,
@@ -170,7 +190,7 @@ fastify.setErrorHandler(async (error: any, _request, reply) => {
       }
     });
   } catch (err) {
-    fastify.log.error('Failed to save error log to DB:', err);
+    fastify.log.error(err, 'Failed to save error log to DB:');
   }
 
   // Send generic message to client in production
@@ -190,8 +210,15 @@ fastify.setErrorHandler(async (error: any, _request, reply) => {
 fastify.get('/api', async () => {
   return { 
     message: 'HelpDesk CRM API Server', 
-    version: '1.1.1',
-    status: 'running' 
+    version: '1.1.5',
+    status: 'running',
+    changelog: {
+      "1.1.5": "Исправлена ошибка дублирования маршрута чата, улучшена обработка завершающих слешей в URL (ignoreTrailingSlash), исправлена типизация тестовых скриптов.",
+      "1.1.4": "Оптимизация работы с Prisma Client, исправление проблем с отображением SystemLog в IDE, очистка неиспользуемых импортов и иконок.",
+      "1.1.3": "Стандартизация сигнатур маршрутов Fastify (удаление FastifyPluginOptions), исправление логики валидации в базе знаний.",
+      "1.1.2": "Добавлена поддержка Socket.io для чата, исправлен порядок аргументов в логгере ошибок, обновлены схемы валидации Zod.",
+      "1.1.1": "Начальная стабильная версия с базовым функционалом CRM и авторизацией."
+    }
   };
 });
 
@@ -202,6 +229,7 @@ fastify.register(inventoryRoutes, { prefix: '/api/inventory' });
 fastify.register(directoryRoutes, { prefix: '/api/directory' });
 fastify.register(documentRoutes, { prefix: '/api/documents' });
 fastify.register(knowledgeRoutes, { prefix: '/api/knowledge' });
+fastify.register(chatRoutes, { prefix: '/api/chat', io });
 
 // Health check endpoint
 fastify.get('/health', async (_request, _reply) => {
@@ -228,7 +256,7 @@ fastify.get('/api/system-logs', {
     if (endDate) where.timestamp.lte = new Date(endDate);
   }
 
-  const logs = await prisma.systemLog.findMany({
+  const logs = await (prisma as any).systemLog.findMany({
     where,
     orderBy: { timestamp: 'desc' },
     take: 500
@@ -595,8 +623,6 @@ fastify.get('/dashboard', async (_request, reply) => {
   `;
   return reply.type('text/html; charset=utf-8').send(html);
 });
-
-fastify.register(chatRoutes, { prefix: '/api/chat', io });
 
 // Periodic stats broadcast
 let clientCount = 0;

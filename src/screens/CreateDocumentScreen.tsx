@@ -462,14 +462,14 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
             </div>
 
             {/* Related Guides Section */}
-            {relatedData.guides.length > 0 && (
+            {(relatedData.guides?.length ?? 0) > 0 && (
               <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-2 mb-3">
                   <Book className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Связанные инструкции</h3>
                 </div>
                 <div className="space-y-2">
-                  {relatedData.guides.map(guide => (
+                  {relatedData.guides?.map(guide => (
                     <div 
                       key={guide.id}
                       className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 transition-all group cursor-pointer"

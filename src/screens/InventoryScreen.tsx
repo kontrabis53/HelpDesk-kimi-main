@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { InventoryItem, InventoryCategory } from '@/types';
 import { inventoryCategoryLabels, inventoryUnitLabels } from '@/types';
 import { EmptyState } from '@/components/EmptyState';
-import { Search, AlertTriangle, Plus, Minus, MapPin, TrendingDown, X } from 'lucide-react';
+import { Search, AlertTriangle, Plus, Minus, MapPin, TrendingDown, X, Edit2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ interface InventoryScreenProps {
     totalValue: number;
   };
   onItemClick: (item: InventoryItem) => void;
+  onEditClick: (item: InventoryItem) => void;
   onAddMovement: (itemId: string, type: 'in' | 'out', quantity: number, reason: string) => void;
   onCreateClick: () => void;
   onSearch: (query: string) => void;
@@ -30,9 +31,14 @@ const categoryColors: Record<InventoryCategory, string> = {
 };
 
 export function InventoryScreen({ 
-  items, 
-  stats,
+  items = [], 
+  stats = {
+    total: 0,
+    lowStock: 0,
+    totalValue: 0,
+  },
   onItemClick,
+  onEditClick,
   onAddMovement,
   onCreateClick,
   onSearch,
@@ -216,6 +222,16 @@ export function InventoryScreen({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            onEditClick(item);
+                          }}
+                          className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200"
+                          title="Редактировать"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             handleOpenMovement(item, 'in');
                           }}
                           className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center hover:bg-emerald-200"
@@ -255,6 +271,7 @@ export function InventoryScreen({
                 <Input
                   type="number"
                   min="1"
+                  max="25000"
                   value={movementQuantity}
                   onChange={(e) => setMovementQuantity(e.target.value)}
                   className="h-12 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"

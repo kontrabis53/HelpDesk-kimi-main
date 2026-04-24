@@ -67,15 +67,28 @@ export function InventoryPage() {
 
     const newQuantity = type === 'in' ? item.quantity + quantity : item.quantity - quantity;
     
-    if (newQuantity < 0) {
-      toast.error('Ошибка', { description: 'Недостаточно товара на складе' });
+    if (newQuantity < -5000) {
+      toast.error('Ошибка', { description: 'Превышен лимит пересорта (-5000)' });
+      return;
+    }
+
+    if (newQuantity > 25000) {
+      toast.error('Ошибка', { description: 'Превышен лимит остатка (25000)' });
       return;
     }
 
     await updateItemQuantity(itemId, newQuantity);
-    addLog('inventory.movement', 'inventory', itemId, item.name, `${type === 'in' ? 'Приход' : 'Расход'}: ${quantity} шт. - ${reason}`);
+    
+    const isOversell = newQuantity < 0;
+    const movementText = type === 'in' ? 'Приход' : 'Расход';
+    const logMessage = `${movementText}: ${quantity} шт. - ${reason}${isOversell ? ` (Пересорт: ${Math.abs(newQuantity)})` : ''}`;
+    
+    addLog('inventory.movement', 'inventory', itemId, item.name, logMessage);
+    
     toast.success(type === 'in' ? 'Приход оформлен' : 'Расход оформлен', {
-      description: `${quantity} ед. - ${reason}`,
+      description: isOversell 
+        ? `${quantity} ед. - ${reason} (Внимание: пересорт ${newQuantity})`
+        : `${quantity} ед. - ${reason}`,
     });
   };
 
@@ -83,6 +96,14 @@ export function InventoryPage() {
     toast.info(item.name, {
       description: `На складе: ${item.quantity} шт. • Минимум: ${item.minQuantity} шт. • ${item.location}`,
     });
+  };
+
+  const handleEditClick = (item: any) => {
+    if (!hasPermission('inventory', 'edit')) {
+      toast.error('Нет прав', { description: 'У вас нет прав для редактирования товаров' });
+      return;
+    }
+    navigate(`/inventory/${item.id}/edit`);
   };
   
   const handleCreateClick = () => {
@@ -110,6 +131,7 @@ export function InventoryPage() {
         totalValue: storeStats.totalValue,
       }}
       onItemClick={handleItemClick}
+      onEditClick={handleEditClick}
       onAddMovement={handleAddMovement}
       onCreateClick={handleCreateClick}
       onSearch={handleSearch}

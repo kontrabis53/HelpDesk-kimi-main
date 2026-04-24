@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import { z } from 'zod';
 import { Server } from 'socket.io';

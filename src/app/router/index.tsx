@@ -13,6 +13,7 @@ import { DocumentDetailPage } from '@/pages/DocumentDetailPage';
 import { EditDocumentPage } from '@/pages/EditDocumentPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateInventoryPage } from '@/pages/CreateInventoryPage';
+import { EditInventoryPage } from '@/pages/EditInventoryPage';
 import { DirectoryPage } from '@/pages/DirectoryPage';
 import { ChatPage } from '@/pages/ChatPage';
 import { ParserPage } from '@/pages/ParserPage';
@@ -137,6 +138,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute moduleId="inventory" action="create">
             <CreateInventoryPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'inventory/:id/edit',
+        element: (
+          <ProtectedRoute moduleId="inventory" action="edit">
+            <EditInventoryPage />
           </ProtectedRoute>
         ),
       },

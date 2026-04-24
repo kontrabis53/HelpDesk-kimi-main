@@ -57,14 +57,14 @@ export function TicketCard({ ticket, onClick, className }: TicketCardProps) {
           </div>
           <div className="flex items-center gap-1">
             <User className="w-3.5 h-3.5" />
-            <span>{ticket.author.name}</span>
+            <span>{ticket.author?.name || 'Автор не указан'}</span>
           </div>
         </div>
         
         {( (ticket.comments?.length ?? 0) > 0 || (ticket._count?.comments ?? 0) > 0 ) && (
           <div className="flex items-center gap-1">
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>{ticket._count?.comments ?? ticket.comments?.length}</span>
+            <span>{ticket._count?.comments ?? (ticket.comments?.length || 0)}</span>
           </div>
         )}
       </div>
@@ -73,7 +73,7 @@ export function TicketCard({ ticket, onClick, className }: TicketCardProps) {
         <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
           {categoryLabels[ticket.category]}
         </span>
-        {ticket.assignee && (
+        {ticket.assignee?.name && (
           <span className="text-xs px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
             {ticket.assignee.name}
           </span>

@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import { z } from 'zod';
 
@@ -13,7 +13,7 @@ const directoryEntrySchema = z.object({
   tags: z.array(z.string()).optional(),
 });
 
-export default async function directoryRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
+export default async function directoryRoutes(fastify: FastifyInstance) {
   
   // List all directory entries
   fastify.get('/', {

@@ -8,9 +8,11 @@ interface InventoryStore {
   isLoading: boolean;
   
   fetchItems: () => Promise<void>;
+  fetchItem: (id: string) => Promise<InventoryItem>;
   setFilter: (filter: Partial<InventoryFilter>) => void;
   createItem: (item: any) => Promise<InventoryItem>;
   updateItemQuantity: (id: string, quantity: number) => Promise<void>;
+  updateItem: (id: string, data: any) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
 }
 
@@ -27,6 +29,24 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
     } catch (error: any) {
       console.error('Fetch items error:', error);
       set({ isLoading: false });
+    }
+  },
+
+  fetchItem: async (id) => {
+    set({ isLoading: true });
+    try {
+      const item = await inventoryService.getById(id);
+      set((state) => ({
+        items: state.items.some(i => i.id === id) 
+          ? state.items.map(i => i.id === id ? item : i)
+          : [...state.items, item],
+        isLoading: false
+      }));
+      return item;
+    } catch (error) {
+      console.error('Fetch item error:', error);
+      set({ isLoading: false });
+      throw error;
     }
   },
 
@@ -60,6 +80,21 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
       }));
     } catch (error) {
       console.error('Update quantity error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
+  },
+
+  updateItem: async (id, data) => {
+    set({ isLoading: true });
+    try {
+      const updated = await inventoryService.update(id, data);
+      set((state) => ({
+        items: state.items.map((i) => i.id === id ? updated : i),
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Update item error:', error);
       set({ isLoading: false });
       throw error;
     }

@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import { z } from 'zod';
 
@@ -13,7 +13,7 @@ const documentSchema = z.object({
   partsUsed: z.array(z.string()).optional(),
 });
 
-export default async function documentRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
+export default async function documentRoutes(fastify: FastifyInstance) {
   
   // List all documents
   fastify.get('/', {

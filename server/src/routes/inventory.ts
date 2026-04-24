@@ -1,21 +1,42 @@
-import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import { z } from 'zod';
 
+// Фильтр Zalgo-символов, эмодзи и подозрительных спецсимволов
+const noZalgoOrEmoji = (val: string) => {
+  if (!val) return true;
+  // Более строгий regex для Zalgo и комбинируемых символов
+  const zalgoRegex = /[\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u20D0-\u20FF\uFE20-\uFE2F\u0483-\u0489\u20D0-\u20F0]/;
+  // Эмодзи
+  const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F191}-\u{1F251}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F171}\u{1F17E}-\u{1F17F}\u{1F18E}\u{3030}\u{2B50}\u{2B55}\u{2934}-\u{2935}\u{2B05}-\u{2B07}\u{2B1B}-\u{2B1C}\u{3297}\u{3299}]/u;
+  
+  if (zalgoRegex.test(val) || emojiRegex.test(val)) return false;
+
+  // Разрешаем только буквы, цифры, пробелы и базовую пунктуацию
+  const cleanTextRegex = /^[a-zA-Z0-9а-яА-ЯёЁ\s\-\.\,\(\)\/\"\'\№\!\?\+\=\:\;\[\]\{\}\<\>\@\#\$\%\^\&\*\_\\|]*$/;
+  return cleanTextRegex.test(val);
+};
+
 const inventoryItemSchema = z.object({
-  sku: z.string().min(3),
-  name: z.string().min(2),
+  sku: z.string().min(1),
+  name: z.string()
+    .min(2)
+    .max(100)
+    .refine(noZalgoOrEmoji, { message: 'Название содержит недопустимые символы (Zalgo или эмодзи)' }),
   category: z.string(),
-  description: z.string().optional(),
-  quantity: z.number().int().nonnegative(),
-  minQuantity: z.number().int().nonnegative().optional(),
+  description: z.string()
+    .max(500)
+    .refine(noZalgoOrEmoji, { message: 'Описание содержит недопустимые символы (Zalgo или эмодзи)' })
+    .optional(),
+  quantity: z.number().int().min(-5000).max(25000),
+  minQuantity: z.number().int().min(0).max(25000).optional(),
   unit: z.string().default('pcs'),
   location: z.string().optional(),
   supplier: z.string().optional(),
-  price: z.number().nonnegative().optional(),
+  price: z.number().min(0).max(1000000).optional(),
 });
 
-export default async function inventoryRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
+export default async function inventoryRoutes(fastify: FastifyInstance) {
   
   // List all inventory items
   fastify.get('/', {

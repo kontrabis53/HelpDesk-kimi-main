@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import { z } from 'zod';
@@ -27,7 +27,7 @@ const registrationRequestSchema = z.object({
   reason: z.string(),
 });
 
-export default async function authRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
+export default async function authRoutes(fastify: FastifyInstance) {
   
   fastify.get('/', async () => {
     return { message: 'Auth API root' };

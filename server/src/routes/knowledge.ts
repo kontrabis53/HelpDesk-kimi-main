@@ -1,18 +1,10 @@
-import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
-import { z } from 'zod';
 
-const kbArticleSchema = z.object({
-  title: z.string().min(5),
-  content: z.string().min(10),
-  category: z.string(),
-  tags: z.array(z.string()).optional(),
-});
-
-export default async function knowledgeRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
+export default async function knowledgeRoutes(fastify: FastifyInstance) {
   
   // List all articles
-  fastify.get('/', {
+  fastify.get('', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
     const articles = await prisma.kBArticle.findMany({
@@ -55,8 +47,11 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
   });
 
   // Create article (Admin/Technician)
-  fastify.post('/', {
-    onRequest: [fastify.authenticate]
+  fastify.post('', {
+    onRequest: [fastify.authenticate],
+    preHandler: async (request, reply) => {
+      fastify.log.info({ body: request.body }, 'Knowledge POST preHandler');
+    }
   }, async (request, reply) => {
     const user = request.user as any;
     if (user.role === 'user') {
@@ -64,19 +59,24 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
     }
 
     try {
-      const data = kbArticleSchema.parse(request.body);
+      const body = request.body as any;
+      fastify.log.info({ kbBody: body }, 'Attempting to create KB article');
+      
       const article = await prisma.kBArticle.create({
         data: {
-          ...data,
+          title: String(body.title || 'Без заголовка'),
+          description: String(body.description || ''),
+          content: String(body.description || body.title || ''),
+          category: String(body.category || 'common'),
+          tags: Array.isArray(body.tags) ? body.tags.map(String) : [],
+          steps: Array.isArray(body.steps) ? body.steps : [],
           authorId: user.id
         }
       });
       return reply.status(201).send(article);
     } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        return reply.status(400).send({ message: 'Ошибка валидации', errors: error.errors });
-      }
-      return reply.status(500).send({ message: 'Ошибка сервера' });
+      fastify.log.error(error, 'Knowledge creation error');
+      return reply.status(500).send({ message: 'Ошибка сервера при создании статьи', error: error.message });
     }
   });
 
@@ -87,21 +87,37 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
     const user = request.user as any;
     const { id } = request.params as { id: string };
 
-    const article = await prisma.kBArticle.findUnique({ where: { id } });
-    if (!article) return reply.status(404).send({ message: 'Статья не найдена' });
-
-    if (user.role !== 'admin' && article.authorId !== user.id) {
-      return reply.status(403).send({ message: 'Вы можете редактировать только свои статьи' });
-    }
-
     try {
-      const data = kbArticleSchema.partial().parse(request.body);
+      const article = await prisma.kBArticle.findUnique({ where: { id } });
+      if (!article) return reply.status(404).send({ message: 'Статья не найдена' });
+
+      if (user.role !== 'admin' && article.authorId !== user.id) {
+        return reply.status(403).send({ message: 'Вы можете редактировать только свои статьи' });
+      }
+
+      const body = request.body as any;
+      const updateData: any = {};
+      
+      if (body.title !== undefined) updateData.title = String(body.title);
+      if (body.description !== undefined) {
+        updateData.description = String(body.description);
+        updateData.content = String(body.description);
+      }
+      if (body.category !== undefined) updateData.category = String(body.category);
+      if (body.tags !== undefined) updateData.tags = Array.isArray(body.tags) ? body.tags.map(String) : [];
+      if (body.steps !== undefined) updateData.steps = Array.isArray(body.steps) ? body.steps : [];
+
+      if (Object.keys(updateData).length === 0) {
+        return reply.send(article);
+      }
+
       const updated = await prisma.kBArticle.update({
         where: { id },
-        data
+        data: updateData
       });
       return updated;
     } catch (error: any) {
+      fastify.log.error(error, 'Knowledge update error');
       return reply.status(500).send({ message: 'Ошибка при обновлении' });
     }
   });

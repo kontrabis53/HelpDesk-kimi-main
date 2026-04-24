@@ -15,20 +15,18 @@ export function CreateTicketPage() {
     navigate(-1);
   };
   
-  const handleSubmit = (data: TicketFormValues) => {
-    const newTicket = createTicket(data);
-    
-    // If assignee is provided, assign the ticket
-    if (data.assigneeId) {
-      const assignTicket = useTicketStore.getState().assignTicket;
-      assignTicket(newTicket.id, data.assigneeId);
+  const handleSubmit = async (data: TicketFormValues) => {
+    try {
+      const newTicket = await createTicket(data);
+      
+      addLog('ticket.created', 'ticket', newTicket.id, newTicket.number, `Создана заявка: ${newTicket.title}`);
+      toast.success('Заявка создана', {
+        description: `Заявка ${newTicket.number} успешно создана`,
+      });
+      navigate('/tickets');
+    } catch (error) {
+      toast.error('Ошибка при создании заявки');
     }
-
-    addLog('ticket.created', 'ticket', newTicket.id, newTicket.number, `Создана заявка: ${newTicket.title}`);
-    toast.success('Заявка создана', {
-      description: `Заявка ${newTicket.number} успешно создана`,
-    });
-    navigate('/tickets');
   };
   
   return (

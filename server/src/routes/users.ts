@@ -4,14 +4,14 @@ import prisma from '../lib/prisma.js';
 import { z } from 'zod';
 
 const userUpdateSchema = z.object({
-  username: z.string().min(3).optional().nullable().or(z.literal('')),
-  password: z.string().min(6).optional().nullable().or(z.literal('')),
-  name: z.string().optional().nullable(),
-  email: z.string().email().optional().nullable().or(z.literal('')),
-  role: z.enum(['admin', 'technician', 'user']).optional().nullable(),
-  roleId: z.string().optional().nullable(),
-  position: z.string().optional().nullable(),
-  department: z.string().optional().nullable(),
+  username: z.string().optional().nullable().or(z.literal('')),
+  password: z.string().optional().nullable().or(z.literal('')),
+  name: z.string().optional().nullable().or(z.literal('')),
+  email: z.string().optional().nullable().or(z.literal('')),
+  role: z.string().optional().nullable().or(z.literal('')),
+  roleId: z.string().optional().nullable().or(z.literal('')),
+  position: z.string().optional().nullable().or(z.literal('')),
+  department: z.string().optional().nullable().or(z.literal('')),
   isActive: z.boolean().optional().nullable(),
 });
 

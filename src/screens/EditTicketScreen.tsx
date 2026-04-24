@@ -51,27 +51,30 @@ export function EditTicketScreen({
   onUpdate,
   onDelete 
 }: EditTicketScreenProps) {
-  const [title, setTitle] = useState(ticket.title);
-  const [description, setDescription] = useState(ticket.description);
+  const [title, setTitle] = useState(ticket.title || '');
+  const [description, setDescription] = useState(ticket.description || '');
   const [category, setCategory] = useState<TicketCategory>(ticket.category);
   const [priority, setPriority] = useState<TicketPriority>(ticket.priority);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
-    setTitle(ticket.title);
-    setDescription(ticket.description);
+    setTitle(ticket.title || '');
+    setDescription(ticket.description || '');
     setCategory(ticket.category);
     setPriority(ticket.priority);
   }, [ticket]);
 
   const handleSubmit = () => {
-    if (!title.trim() || !description.trim()) return;
+    const trimmedTitle = (title || '').trim();
+    const trimmedDescription = (description || '').trim();
+    
+    if (!trimmedTitle || !trimmedDescription) return;
     
     setIsSubmitting(true);
     onUpdate(ticket.id, {
-      title: title.trim(),
-      description: description.trim(),
+      title: trimmedTitle,
+      description: trimmedDescription,
       category,
       priority,
     });
@@ -82,7 +85,7 @@ export function EditTicketScreen({
     setShowDeleteDialog(false);
   };
 
-  const isValid = title.trim().length > 0 && description.trim().length > 0;
+  const isValid = (title || '').trim().length > 0 && (description || '').trim().length > 0;
   const hasChanges = 
     title !== ticket.title ||
     description !== ticket.description ||
@@ -96,29 +99,22 @@ export function EditTicketScreen({
         <div className="bg-white dark:bg-slate-800 px-4 py-3 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
           <button 
             onClick={onBack}
-            className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-slate-600 dark:text-slate-300"
           >
-            <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">Назад</span>
           </button>
+          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
           <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Редактировать заявку</h1>
-          <div className="ml-auto">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-              className="gap-2"
-            >
-              <Trash2 className="w-4 h-4" />
-              Удалить
-            </Button>
-          </div>
         </div>
 
         <div className="p-4 space-y-6 max-w-2xl mx-auto">
           {/* Ticket Number */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
-            <span className="text-sm text-slate-500 dark:text-slate-400">Номер заявки:</span>
-            <span className="ml-2 font-semibold text-slate-800 dark:text-slate-100">{ticket.number}</span>
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div>
+              <span className="text-sm text-slate-500 dark:text-slate-400">Номер заявки:</span>
+              <span className="ml-2 font-semibold text-slate-800 dark:text-slate-100">{ticket.number}</span>
+            </div>
           </div>
 
           {/* Title */}
@@ -197,27 +193,47 @@ export function EditTicketScreen({
             </div>
           </div>
 
-          {/* Submit Button */}
-          <div className="pt-4 space-y-2">
-            <Button
-              onClick={handleSubmit}
-              disabled={!isValid || isSubmitting || !hasChanges}
-              className="w-full h-12 text-base font-medium"
-            >
-              {isSubmitting ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Сохранение...
-                </span>
-              ) : (
-                'Сохранить изменения'
-              )}
-            </Button>
+          {/* Action Buttons */}
+          <div className="pt-4 space-y-3">
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={onBack}
+                className="flex-1 h-12 text-base font-medium dark:border-slate-700 dark:text-slate-300"
+              >
+                Отмена
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={!isValid || isSubmitting || !hasChanges}
+                className="flex-[2] h-12 text-base font-medium"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Сохранение...
+                  </span>
+                ) : (
+                  'Сохранить изменения'
+                )}
+              </Button>
+            </div>
             {!hasChanges && (
               <p className="text-sm text-center text-slate-400 dark:text-slate-500">
                 Нет изменений для сохранения
               </p>
             )}
+
+            <div className="pt-8 mt-8 border-t border-slate-200 dark:border-slate-800">
+              <Button
+                variant="ghost"
+                onClick={() => setShowDeleteDialog(true)}
+                className="w-full h-12 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Удалить заявку
+              </Button>
+            </div>
           </div>
         </div>
       </div>

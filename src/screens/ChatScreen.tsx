@@ -441,7 +441,7 @@ export function ChatScreen() {
                 <div>
                   <h2 className="font-bold text-slate-800 dark:text-slate-100 leading-none">{activeChat.name}</h2>
                   <p className="text-[10px] text-green-500 font-medium mt-1">
-                    {activeChat.type === 'group' ? `${activeChat.participants.length} участников` : 'В сети'}
+                    {activeChat.type === 'group' ? `${activeChat.participants?.length || 0} участников` : 'В сети'}
                   </p>
                 </div>
               </div>

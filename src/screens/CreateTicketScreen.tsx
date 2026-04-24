@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, Check, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRoleStore } from '@/stores/roleStore';
-import { useTicketStore } from '@/stores/ticketStore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ticketSchema, type TicketFormValues } from '@/lib/schemas';
@@ -20,9 +19,7 @@ interface CreateTicketScreenProps {
 
 export function CreateTicketScreen({ onBack, onSubmit }: CreateTicketScreenProps) {
   const currentUser = useRoleStore((state) => state.currentUser());
-  // Use useMemo to prevent infinite loop from getAvailableAssignees returning a new array
-  const getAvailableAssignees = useTicketStore((state) => state.getAvailableAssignees);
-  const users = useMemo(() => getAvailableAssignees(), [getAvailableAssignees]);
+  const users = useRoleStore((state) => state.users);
   
   const canAssign = currentUser?.roleId === 'admin';
 

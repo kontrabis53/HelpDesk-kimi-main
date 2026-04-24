@@ -32,8 +32,14 @@ const tabs: { id: TabType; label: string; count?: number }[] = [
 ];
 
 export function TicketListScreen({ 
-  tickets, 
-  ticketsByStatus, 
+  tickets = [], 
+  ticketsByStatus = {
+    all: [],
+    new: [],
+    in_progress: [],
+    waiting: [],
+    resolved: []
+  }, 
   onTicketClick,
   onSearch,
   onCreateClick
@@ -126,7 +132,7 @@ export function TicketListScreen({
 
       {/* Ticket List */}
       <div className="p-4 mx-auto">
-        {displayedTickets.length === 0 ? (
+        {(displayedTickets || []).length === 0 ? (
           <EmptyState 
             title="Ничего не найдено"
             description="Попробуйте изменить параметры поиска или фильтры"

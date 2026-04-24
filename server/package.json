@@ -1,6 +1,6 @@
 {
   "name": "helpdesk-server",
-  "version": "1.1.1",
+  "version": "1.1.5",
   "description": "Autonomous CRM Server for HelpDesk",
   "main": "dist/main.js",
   "scripts": {

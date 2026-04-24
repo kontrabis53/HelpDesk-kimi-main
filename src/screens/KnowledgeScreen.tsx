@@ -57,8 +57,15 @@ const categoryColors: Record<KBArticleCategory, string> = {
 };
 
 export function KnowledgeScreen({ 
-  articles, 
-  articlesByCategory, 
+  articles = [], 
+  articlesByCategory = {
+    all: [],
+    software: [],
+    network: [],
+    printer: [],
+    common: [],
+    security: [],
+  }, 
   onArticleClick,
   onSearch,
   onCreateClick
@@ -71,7 +78,7 @@ export function KnowledgeScreen({
     onSearch(value);
   };
 
-  const displayedArticles = articlesByCategory[activeTab] || articles;
+  const displayedArticles = articlesByCategory[activeTab] || articles || [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">

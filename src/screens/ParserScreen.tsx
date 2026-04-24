@@ -55,13 +55,13 @@ export function ParserScreen() {
     });
   };
 
-  const filteredDevices = devices.filter(d => 
+  const filteredDevices = (devices || []).filter(d => 
     d.hostname.toLowerCase().includes(searchQuery.toLowerCase()) ||
     d.ipAddress.includes(searchQuery) ||
     d.os.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const chartData = scanHistory.map(h => ({
+  const chartData = (scanHistory || []).map(h => ({
     time: format(new Date(h.timestamp), 'HH:mm'),
     online: h.onlineDevices,
     withApp: h.devicesWithApp,

@@ -47,12 +47,12 @@ export function CreateGuideScreen() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!title.trim() || !description.trim()) {
-      toast.error('Ошибка', { description: 'Заполните заголовок и описание' });
+    if (!title.trim()) {
+      toast.error('Ошибка', { description: 'Заголовок не может быть пустым' });
       return;
     }
 
-    // Filter out empty steps
+    // Filter out empty steps but don't block if there are none
     const validSteps = steps
       .filter(step => step.title.trim() || step.description.trim())
       .map((step, index) => ({
@@ -61,11 +61,6 @@ export function CreateGuideScreen() {
         title: step.title,
         description: step.description,
       }));
-
-    if (validSteps.length === 0) {
-      toast.error('Ошибка', { description: 'Добавьте хотя бы один шаг' });
-      return;
-    }
 
     const tags = tagsInput
       .split(',')
@@ -77,19 +72,22 @@ export function CreateGuideScreen() {
       return;
     }
 
-    await createArticle({
-      title,
-      description,
-      category,
-      tags,
-      steps: validSteps,
-      successRate: 0,
-      views: 0,
-      author: currentUser,
-    });
+    try {
+      await createArticle({
+        title,
+        description,
+        category,
+        tags,
+        steps: validSteps,
+      });
 
-    toast.success('Статья создана');
-    navigate('/knowledge');
+      toast.success('Статья создана');
+      navigate('/knowledge');
+    } catch (error: any) {
+      toast.error('Ошибка при создании статьи', {
+        description: error.response?.data?.message || 'Попробуйте позже'
+      });
+    }
   };
 
   return (

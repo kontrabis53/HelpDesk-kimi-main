@@ -19,15 +19,18 @@ export function EditTicketPage() {
   const addLog = useRoleStore((state) => state.addLog);
   
   useEffect(() => {
-    if (id) {
-      const ticket = getTicketById(id);
-      if (ticket) {
-        setSelectedTicket(ticket);
-      } else {
-        toast.error('Заявка не найдена');
-        navigate('/tickets');
+    const fetchTicket = async () => {
+      if (id) {
+        const ticket = await getTicketById(id);
+        if (ticket) {
+          setSelectedTicket(ticket);
+        } else {
+          toast.error('Заявка не найдена');
+          navigate('/tickets');
+        }
       }
-    }
+    };
+    fetchTicket();
   }, [id, getTicketById, setSelectedTicket, navigate]);
   
   if (!selectedTicket) {
@@ -38,13 +41,13 @@ export function EditTicketPage() {
     navigate(`/tickets/${id}`);
   };
   
-  const handleUpdate = (ticketId: string, data: {
+  const handleUpdate = async (ticketId: string, data: {
     title: string;
     description: string;
     category: TicketCategory;
     priority: TicketPriority;
   }) => {
-    updateTicket(ticketId, data);
+    await updateTicket(ticketId, data);
     addLog('ticket.updated', 'ticket', ticketId, undefined, `Заявка обновлена: ${data.title}`);
     toast.success('Заявка обновлена', {
       description: 'Изменения успешно сохранены',
@@ -52,9 +55,9 @@ export function EditTicketPage() {
     navigate(`/tickets/${ticketId}`);
   };
   
-  const handleDelete = (ticketId: string) => {
-    const ticket = getTicketById(ticketId);
-    deleteTicket(ticketId);
+  const handleDelete = async (ticketId: string) => {
+    const ticket = await getTicketById(ticketId);
+    await deleteTicket(ticketId);
     addLog('ticket.deleted', 'ticket', ticketId, ticket?.number, `Удалена заявка: ${ticket?.title}`);
     toast.success('Заявка удалена');
     navigate('/tickets');

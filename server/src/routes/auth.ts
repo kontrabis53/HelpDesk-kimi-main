@@ -20,6 +20,13 @@ const registerSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+const registrationRequestSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+  department: z.string(),
+  reason: z.string(),
+});
+
 export default async function authRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
   
   fastify.get('/', async () => {
@@ -37,6 +44,10 @@ export default async function authRoutes(fastify: FastifyInstance, options: Fast
 
       if (!user) {
         return reply.status(401).send({ message: 'Неверное имя пользователя или пароль' });
+      }
+
+      if (!user.isActive) {
+        return reply.status(403).send({ message: 'Аккаунт деактивирован' });
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -67,8 +78,15 @@ export default async function authRoutes(fastify: FastifyInstance, options: Fast
     }
   });
 
-  // Register
-  fastify.post('/register', async (request, reply) => {
+  // Register (Admin only or system use)
+  fastify.post('/register', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    const currentUser = request.user as any;
+    if (currentUser.role !== 'admin') {
+      return reply.status(403).send({ message: 'Только администратор может регистрировать пользователей' });
+    }
+
     try {
       const data = registerSchema.parse(request.body);
       
@@ -105,6 +123,104 @@ export default async function authRoutes(fastify: FastifyInstance, options: Fast
         return reply.status(400).send({ message: 'Ошибка валидации', errors: error.errors });
       }
       fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка сервера' });
+    }
+  });
+
+  // Request Registration
+  fastify.post('/request-registration', async (request, reply) => {
+    try {
+      const data = registrationRequestSchema.parse(request.body);
+      
+      const existingRequest = await prisma.registrationRequest.findFirst({
+        where: { email: data.email, status: 'pending' }
+      });
+
+      if (existingRequest) {
+        return reply.status(400).send({ message: 'Заявка с таким email уже находится на рассмотрении' });
+      }
+
+      const registrationRequest = await prisma.registrationRequest.create({
+        data
+      });
+
+      return reply.status(201).send(registrationRequest);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ message: 'Ошибка валидации', errors: error.errors });
+      }
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка сервера' });
+    }
+  });
+
+  // Get Registration Requests (Admin only)
+  fastify.get('/registration-requests', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    const user = request.user as any;
+    if (user.role !== 'admin') {
+      return reply.status(403).send({ message: 'Доступ запрещен' });
+    }
+
+    const requests = await prisma.registrationRequest.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+    return requests;
+  });
+
+  // Update Registration Request Status (Admin only)
+  fastify.patch('/registration-requests/:id', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    const user = request.user as any;
+    if (user.role !== 'admin') {
+      return reply.status(403).send({ message: 'Доступ запрещен' });
+    }
+
+    try {
+      const { id } = request.params as { id: string };
+      const { status } = request.body as { status: string };
+
+      if (!['approved', 'rejected', 'pending'].includes(status)) {
+        return reply.status(400).send({ message: 'Неверный статус' });
+      }
+
+      const updated = await prisma.registrationRequest.update({
+        where: { id },
+        data: { status }
+      });
+
+      return updated;
+    } catch (error: any) {
+      fastify.log.error(error);
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Заявка не найдена' });
+      }
+      return reply.status(500).send({ message: 'Ошибка сервера' });
+    }
+  });
+
+  // Delete Registration Request (Admin only)
+  fastify.delete('/registration-requests/:id', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    const user = request.user as any;
+    if (user.role !== 'admin') {
+      return reply.status(403).send({ message: 'Доступ запрещен' });
+    }
+
+    try {
+      const { id } = request.params as { id: string };
+      await prisma.registrationRequest.delete({
+        where: { id }
+      });
+      return { success: true };
+    } catch (error: any) {
+      fastify.log.error(error);
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Заявка не найдена' });
+      }
       return reply.status(500).send({ message: 'Ошибка сервера' });
     }
   });

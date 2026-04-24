@@ -15,16 +15,21 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
   fastify.get('/', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    const messages = await prisma.chatMessage.findMany({
-      include: {
-        sender: {
-          select: { id: true, name: true, avatar: true, role: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50
-    });
-    return messages.reverse();
+    try {
+      const messages = await prisma.chatMessage.findMany({
+        include: {
+          sender: {
+            select: { id: true, name: true, avatar: true, role: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      });
+      return messages.reverse();
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка при загрузке сообщений' });
+    }
   });
 
   // Send message

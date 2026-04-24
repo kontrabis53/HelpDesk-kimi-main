@@ -65,9 +65,9 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
   fetchUsers: async () => {
     set({ isLoading: true });
     try {
-      console.log('Fetching users from:', apiClient.defaults.baseURL + '/auth/users');
-      const response = await apiClient.get('/auth/users');
-      set({ users: response.data, isLoading: false });
+      console.log('Fetching users from:', apiClient.defaults.baseURL + '/users');
+      const response = await apiClient.get('/users');
+      set({ users: response.data || [], isLoading: false });
     } catch (error: any) {
       console.error('Fetch users error:', error);
       set({ isLoading: false });
@@ -143,24 +143,48 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
   },
   
   updateUser: async (userId, data) => {
-    const response = await apiClient.patch(`/users/${userId}`, data);
-    set(state => ({
-      users: state.users.map(u => u.id === userId ? { ...u, ...response.data } : u)
-    }));
+    set({ isLoading: true });
+    try {
+      const response = await apiClient.patch(`/users/${userId}`, data);
+      set(state => ({
+        users: state.users.map(u => u.id === userId ? { ...u, ...response.data } : u),
+        isLoading: false
+      }));
+    } catch (error: any) {
+      console.error('Update user error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
   
   addUser: async (userData) => {
-    const response = await apiClient.post('/auth/register', userData);
-    set(state => ({
-      users: [response.data, ...state.users]
-    }));
+    set({ isLoading: true });
+    try {
+      const response = await apiClient.post('/auth/register', userData);
+      set(state => ({
+        users: [response.data, ...state.users],
+        isLoading: false
+      }));
+    } catch (error: any) {
+      console.error('Add user error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
   
   deleteUser: async (userId) => {
-    await apiClient.delete(`/users/${userId}`);
-    set(state => ({
-      users: state.users.filter(u => u.id !== userId)
-    }));
+    set({ isLoading: true });
+    try {
+      await apiClient.delete(`/users/${userId}`);
+      set(state => ({
+        users: state.users.filter(u => u.id !== userId),
+        isLoading: false
+      }));
+    } catch (error: any) {
+      console.error('Delete user error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
 
   createRole: (roleData) => {

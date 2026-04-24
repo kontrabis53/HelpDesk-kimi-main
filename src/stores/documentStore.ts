@@ -36,31 +36,63 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
   })),
   
   createDocument: async (docData) => {
-    const newDoc = await documentService.create(docData);
-    set((state) => ({
-      documents: [newDoc, ...state.documents]
-    }));
-    return newDoc;
+    set({ isLoading: true });
+    try {
+      const newDoc = await documentService.create(docData);
+      set((state) => ({
+        documents: [newDoc, ...state.documents],
+        isLoading: false
+      }));
+      return newDoc;
+    } catch (error) {
+      console.error('Create document error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
 
   updateDocument: async (id, updates) => {
-    const updated = await documentService.update(id, updates);
-    set((state) => ({
-      documents: state.documents.map((d) => d.id === id ? updated : d),
-    }));
+    set({ isLoading: true });
+    try {
+      const updated = await documentService.update(id, updates);
+      set((state) => ({
+        documents: state.documents.map((d) => d.id === id ? updated : d),
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Update document error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
 
   archiveDocument: async (id) => {
-    const updated = await documentService.archive(id);
-    set((state) => ({
-      documents: state.documents.map((d) => d.id === id ? updated : d),
-    }));
+    set({ isLoading: true });
+    try {
+      const updated = await documentService.archive(id);
+      set((state) => ({
+        documents: state.documents.map((d) => d.id === id ? updated : d),
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Archive document error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
   
   deleteDocument: async (id) => {
-    await documentService.delete(id);
-    set((state) => ({
-      documents: state.documents.filter((d) => d.id !== id),
-    }));
+    set({ isLoading: true });
+    try {
+      await documentService.delete(id);
+      set((state) => ({
+        documents: state.documents.filter((d) => d.id !== id),
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Delete document error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
 }));

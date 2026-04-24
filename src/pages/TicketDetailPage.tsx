@@ -102,7 +102,7 @@ export function TicketDetailPage() {
       onAddComment={handleAddComment}
       onEdit={handleEdit}
       onAssign={handleAssign}
-      availableAssignees={users.filter(u => u.role === 'technician' || u.role === 'admin')}
+      availableAssignees={(users || []).filter(u => u.role === 'technician' || u.role === 'admin')}
     />
   );
 }

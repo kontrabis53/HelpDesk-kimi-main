@@ -91,16 +91,78 @@ export default async function documentRoutes(fastify: FastifyInstance, options: 
   fastify.patch('/:id/archive', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    const user = request.user as any;
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ message: 'Только администратор может архивировать документы' });
-    }
+    try {
+      const user = request.user as any;
+      if (user.role !== 'admin') {
+        return reply.status(403).send({ message: 'Только администратор может архивировать документы' });
+      }
 
-    const { id } = request.params as { id: string };
-    const document = await prisma.document.update({
-      where: { id },
-      data: { status: 'archived' }
-    });
-    return document;
+      const { id } = request.params as { id: string };
+      const document = await prisma.document.update({
+        where: { id },
+        data: { status: 'archived' }
+      });
+      return document;
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Документ не найден' });
+      }
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка сервера' });
+    }
+  });
+
+  // Update document
+  fastify.patch('/:id', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const user = request.user as any;
+      const { id } = request.params as { id: string };
+
+      const existingDoc = await prisma.document.findUnique({ where: { id } });
+      if (!existingDoc) {
+        return reply.status(404).send({ message: 'Документ не найден' });
+      }
+
+      if (user.role !== 'admin' && existingDoc.authorId !== user.id) {
+        return reply.status(403).send({ message: 'Вы можете редактировать только свои документы' });
+      }
+
+      const data = documentSchema.partial().parse(request.body);
+      const updated = await prisma.document.update({
+        where: { id },
+        data
+      });
+      return updated;
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ message: 'Ошибка валидации', errors: error.errors });
+      }
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка сервера' });
+    }
+  });
+
+  // Delete document
+  fastify.delete('/:id', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const user = request.user as any;
+      if (user.role !== 'admin') {
+        return reply.status(403).send({ message: 'Только администратор может удалять документы' });
+      }
+
+      const { id } = request.params as { id: string };
+      await prisma.document.delete({ where: { id } });
+      return { success: true };
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Документ не найден' });
+      }
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка сервера' });
+    }
   });
 }

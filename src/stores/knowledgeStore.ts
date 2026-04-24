@@ -78,26 +78,34 @@ export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
   },
 
   updateArticle: async (id, updates) => {
+    set({ isLoading: true });
     try {
       const updated = await knowledgeService.update(id, updates);
       set((state) => ({
         articles: state.articles.map((a) => a.id === id ? updated : a),
-        selectedArticle: state.selectedArticle?.id === id ? updated : state.selectedArticle
+        selectedArticle: state.selectedArticle?.id === id ? updated : state.selectedArticle,
+        isLoading: false
       }));
     } catch (error: any) {
       console.error('Update article error:', error);
+      set({ isLoading: false });
+      throw error;
     }
   },
 
   deleteArticle: async (id) => {
+    set({ isLoading: true });
     try {
       await knowledgeService.delete(id);
       set((state) => ({
         articles: state.articles.filter((a) => a.id !== id),
-        selectedArticle: state.selectedArticle?.id === id ? null : state.selectedArticle
+        selectedArticle: state.selectedArticle?.id === id ? null : state.selectedArticle,
+        isLoading: false
       }));
     } catch (error: any) {
       console.error('Delete article error:', error);
+      set({ isLoading: false });
+      throw error;
     }
   },
 }));

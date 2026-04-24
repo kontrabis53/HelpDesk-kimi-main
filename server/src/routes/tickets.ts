@@ -114,14 +114,37 @@ export default async function ticketRoutes(fastify: FastifyInstance, options: Fa
   }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
+      const user = request.user as any;
       const data = updateTicketSchema.parse(request.body);
+
+      // Check if ticket exists and get author
+      const existingTicket = await prisma.ticket.findUnique({ where: { id } });
+      if (!existingTicket) {
+        return reply.status(404).send({ message: 'Заявка не найдена' });
+      }
+
+      // Permission check: only admin, technician, or the author (if only changing status to closed) can update
+      if (user.role === 'user' && existingTicket.authorId !== user.id) {
+        return reply.status(403).send({ message: 'Нет прав на редактирование этой заявки' });
+      }
 
       const ticket = await prisma.ticket.update({
         where: { id },
         data,
         include: {
+          author: {
+            select: { id: true, name: true, role: true, avatar: true, position: true, department: true }
+          },
           assignee: {
-            select: { id: true, name: true }
+            select: { id: true, name: true, role: true, avatar: true, position: true, department: true }
+          },
+          comments: {
+            include: {
+              author: {
+                select: { id: true, name: true, avatar: true, role: true }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
           }
         }
       });

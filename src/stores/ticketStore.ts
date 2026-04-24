@@ -37,7 +37,7 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const tickets = await ticketService.getAll();
-      set({ tickets, isLoading: false });
+      set({ tickets: tickets || [], isLoading: false });
     } catch (error: any) {
       console.error('Fetch tickets error:', error);
       set({ isLoading: false });
@@ -71,11 +71,19 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
   },
   
   createTicket: async (ticketData) => {
-    const newTicket = await ticketService.create(ticketData);
-    set((state) => ({
-      tickets: [newTicket, ...state.tickets]
-    }));
-    return newTicket;
+    set({ isLoading: true });
+    try {
+      const newTicket = await ticketService.create(ticketData);
+      set((state) => ({
+        tickets: [newTicket, ...state.tickets],
+        isLoading: false
+      }));
+      return newTicket;
+    } catch (error) {
+      console.error('Create ticket error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
 
   updateTicket: async (id, updates) => {
@@ -90,52 +98,76 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
     } catch (error: any) {
       console.error('Update ticket error:', error);
       set({ isLoading: false });
+      throw error;
     }
   },
 
   deleteTicket: async (id) => {
-    await ticketService.delete(id);
-    set((state) => ({
-      tickets: state.tickets.filter((t) => t.id !== id),
-      selectedTicket: state.selectedTicket?.id === id ? null : state.selectedTicket
-    }));
+    set({ isLoading: true });
+    try {
+      await ticketService.delete(id);
+      set((state) => ({
+        tickets: state.tickets.filter((t) => t.id !== id),
+        selectedTicket: state.selectedTicket?.id === id ? null : state.selectedTicket,
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Delete ticket error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
   
   updateTicketStatus: async (id, status) => {
-    const updatedTicket = await ticketService.update(id, { status });
-    set((state) => ({
-      tickets: state.tickets.map((t) => t.id === id ? updatedTicket : t),
-      selectedTicket: state.selectedTicket?.id === id ? updatedTicket : state.selectedTicket
-    }));
+    try {
+      const updatedTicket = await ticketService.update(id, { status });
+      set((state) => ({
+        tickets: state.tickets.map((t) => t.id === id ? updatedTicket : t),
+        selectedTicket: state.selectedTicket?.id === id ? updatedTicket : state.selectedTicket
+      }));
+    } catch (error) {
+      console.error('Update status error:', error);
+      throw error;
+    }
   },
   
   updateTicketPriority: async (id, priority) => {
-    const updatedTicket = await ticketService.update(id, { priority });
-    set((state) => ({
-      tickets: state.tickets.map((t) => t.id === id ? updatedTicket : t),
-      selectedTicket: state.selectedTicket?.id === id ? updatedTicket : state.selectedTicket
-    }));
+    try {
+      const updatedTicket = await ticketService.update(id, { priority });
+      set((state) => ({
+        tickets: state.tickets.map((t) => t.id === id ? updatedTicket : t),
+        selectedTicket: state.selectedTicket?.id === id ? updatedTicket : state.selectedTicket
+      }));
+    } catch (error) {
+      console.error('Update priority error:', error);
+      throw error;
+    }
   },
 
   addComment: async (ticketId, text) => {
-    const comment = await ticketService.addComment(ticketId, text);
-    set((state) => {
-      const tickets = state.tickets.map(t => {
-        if (t.id === ticketId) {
-          return { ...t, comments: [...(t.comments || []), comment] };
+    try {
+      const comment = await ticketService.addComment(ticketId, text);
+      set((state) => {
+        const tickets = state.tickets.map(t => {
+          if (t.id === ticketId) {
+            return { ...t, comments: [...(t.comments || []), comment] };
+          }
+          return t;
+        });
+        
+        let selectedTicket = state.selectedTicket;
+        if (selectedTicket?.id === ticketId) {
+          selectedTicket = { 
+            ...selectedTicket, 
+            comments: [...(selectedTicket.comments || []), comment] 
+          };
         }
-        return t;
+        
+        return { tickets, selectedTicket };
       });
-      
-      let selectedTicket = state.selectedTicket;
-      if (selectedTicket?.id === ticketId) {
-        selectedTicket = { 
-          ...selectedTicket, 
-          comments: [...(selectedTicket.comments || []), comment] 
-        };
-      }
-      
-      return { tickets, selectedTicket };
-    });
+    } catch (error) {
+      console.error('Add comment error:', error);
+      throw error;
+    }
   }
 }));

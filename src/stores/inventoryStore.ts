@@ -35,24 +35,48 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
   })),
   
   createItem: async (itemData) => {
-    const newItem = await inventoryService.create(itemData);
-    set((state) => ({
-      items: [newItem, ...state.items]
-    }));
-    return newItem;
+    set({ isLoading: true });
+    try {
+      const newItem = await inventoryService.create(itemData);
+      set((state) => ({
+        items: [newItem, ...state.items],
+        isLoading: false
+      }));
+      return newItem;
+    } catch (error) {
+      console.error('Create item error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
   
   updateItemQuantity: async (id, quantity) => {
-    const updated = await inventoryService.update(id, { quantity });
-    set((state) => ({
-      items: state.items.map((i) => i.id === id ? updated : i),
-    }));
+    set({ isLoading: true });
+    try {
+      const updated = await inventoryService.update(id, { quantity });
+      set((state) => ({
+        items: state.items.map((i) => i.id === id ? updated : i),
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Update quantity error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
   
   deleteItem: async (id) => {
-    await inventoryService.delete(id);
-    set((state) => ({
-      items: state.items.filter((i) => i.id !== id),
-    }));
+    set({ isLoading: true });
+    try {
+      await inventoryService.delete(id);
+      set((state) => ({
+        items: state.items.filter((i) => i.id !== id),
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Delete item error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
 }));

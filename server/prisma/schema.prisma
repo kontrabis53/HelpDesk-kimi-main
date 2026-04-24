@@ -152,3 +152,12 @@ model ChatMessage {
   receiverId  String?
   receiver    User?    @relation("ReceivedMessages", fields: [receiverId], references: [id])
 }
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  type      String   // info, warn, error, request
+  message   String
+  user      String   @default("Anonymous")
+  timestamp DateTime @default(now())
+  details   Json?
+}

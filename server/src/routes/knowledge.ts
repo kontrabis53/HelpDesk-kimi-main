@@ -30,23 +30,28 @@ export default async function knowledgeRoutes(fastify: FastifyInstance, options:
   fastify.get('/:id', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    
-    // Increment views
-    const article = await prisma.kBArticle.update({
-      where: { id },
-      data: { views: { increment: 1 } },
-      include: {
-        author: {
-          select: { id: true, name: true, position: true }
+    try {
+      const { id } = request.params as { id: string };
+      
+      // Increment views
+      const article = await prisma.kBArticle.update({
+        where: { id },
+        data: { views: { increment: 1 } },
+        include: {
+          author: {
+            select: { id: true, name: true, position: true }
+          }
         }
-      }
-    });
+      });
 
-    if (!article) {
-      return reply.status(404).send({ message: 'Статья не найдена' });
+      return article;
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Статья не найдена' });
+      }
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка сервера' });
     }
-    return article;
   });
 
   // Create article (Admin/Technician)

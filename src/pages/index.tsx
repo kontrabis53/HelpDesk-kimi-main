@@ -43,13 +43,16 @@ export function AdminPage() {
   const roles = useRoleStore((state) => state.roles);
   const users = useRoleStore((state) => state.users);
   const logs = useRoleStore((state) => state.logs);
+  const isRoleLoading = useRoleStore((state) => state.isLoading);
   const createRole = useRoleStore((state) => state.createRole);
   const updateRole = useRoleStore((state) => state.updateRole);
   const deleteRole = useRoleStore((state) => state.deleteRole);
   const createUser = useRoleStore((state) => state.addUser);
   const updateUser = useRoleStore((state) => state.updateUser);
   const deleteUser = useRoleStore((state) => state.deleteUser);
+  
   const requests = useAuthStore((state) => state.requests);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
   const approveRequest = useAuthStore((state) => state.approveRequest);
   const rejectRequest = useAuthStore((state) => state.rejectRequest);
   const deleteRequest = useAuthStore((state) => state.deleteRequest);
@@ -69,6 +72,7 @@ export function AdminPage() {
       onApproveRequest={approveRequest}
       onRejectRequest={rejectRequest}
       onDeleteRequest={deleteRequest}
+      isLoading={isRoleLoading || isAuthLoading}
     />
   );
 }

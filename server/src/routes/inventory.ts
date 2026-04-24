@@ -89,7 +89,35 @@ export default async function inventoryRoutes(fastify: FastifyInstance, options:
       });
       return item;
     } catch (error: any) {
+      fastify.log.error(error);
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Товар не найден' });
+      }
       return reply.status(500).send({ message: 'Ошибка при обновлении товара' });
+    }
+  });
+
+  // Delete item
+  fastify.delete('/:id', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    const user = request.user as any;
+    if (user.role !== 'admin') {
+      return reply.status(403).send({ message: 'Только администратор может удалять позиции инвентаря' });
+    }
+
+    try {
+      const { id } = request.params as { id: string };
+      await prisma.inventoryItem.delete({
+        where: { id }
+      });
+      return { success: true };
+    } catch (error: any) {
+      fastify.log.error(error);
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Товар не найден' });
+      }
+      return reply.status(500).send({ message: 'Ошибка при удалении товара' });
     }
   });
 }

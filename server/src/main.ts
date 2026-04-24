@@ -104,8 +104,9 @@ fastify.addHook('onResponse', async (request, reply) => {
 
   // Filter sensitive data from body for logging
   let bodyInfo = '';
+  let filteredBody = null;
   if (request.body && typeof request.body === 'object') {
-    const filteredBody = { ...(request.body as any) };
+    filteredBody = { ...(request.body as any) };
     if (filteredBody.password) filteredBody.password = '********';
     bodyInfo = ` | BODY: ${JSON.stringify(filteredBody)}`;
   }
@@ -117,27 +118,60 @@ fastify.addHook('onResponse', async (request, reply) => {
   const message = `${request.method} ${request.url}${queryInfo}${bodyInfo} - ${reply.statusCode} (${Math.round(reply.elapsedTime)}ms)`;
   const type = reply.statusCode >= 400 ? 'error' : 'info';
   
-  io.emit('log', {
+  const logData = {
     timestamp: new Date().toISOString(),
     type,
     user,
     message,
-  });
+  };
+
+  io.emit('log', logData);
+
+  // Save to DB for persistence
+  try {
+    await prisma.systemLog.create({
+      data: {
+        type,
+        message,
+        user,
+        details: filteredBody || {},
+      }
+    });
+  } catch (err) {
+    fastify.log.error('Failed to save log to DB:', err);
+  }
 });
 
 // Global Error Handler (SECURITY: Don't leak internals)
-fastify.setErrorHandler((error: any, _request, reply) => {
+fastify.setErrorHandler(async (error: any, _request, reply) => {
   const statusCode = error.statusCode || 500;
   
   // Log the full error internally
   fastify.log.error(error);
 
-  // Emit to dashboard
-  io.emit('log', {
+  const logData = {
     timestamp: new Date().toISOString(),
     type: 'error',
     message: `ERROR: ${error.message}`,
-  });
+    user: 'System'
+  };
+
+  // Emit to dashboard
+  io.emit('log', logData);
+
+  // Save error to DB
+  try {
+    await prisma.systemLog.create({
+      data: {
+        type: 'error',
+        message: `ERROR: ${error.message}`,
+        user: 'System',
+        details: { stack: error.stack, statusCode }
+      }
+    });
+  } catch (err) {
+    fastify.log.error('Failed to save error log to DB:', err);
+  }
 
   // Send generic message to client in production
   if (process.env.NODE_ENV === 'production') {
@@ -172,6 +206,35 @@ fastify.register(knowledgeRoutes, { prefix: '/api/knowledge' });
 // Health check endpoint
 fastify.get('/health', async (_request, _reply) => {
   return { status: 'ok', uptime: process.uptime() };
+});
+
+// API for logs (Dashboard history)
+fastify.get('/api/system-logs', {
+  onRequest: [fastify.authenticate]
+}, async (request, reply) => {
+  const user = request.user as any;
+  if (user.role !== 'admin') {
+    return reply.status(403).send({ message: 'Доступ запрещен' });
+  }
+
+  const { type, user: filterUser, startDate, endDate } = request.query as any;
+
+  const where: any = {};
+  if (type) where.type = type;
+  if (filterUser) where.user = { contains: filterUser, mode: 'insensitive' };
+  if (startDate || endDate) {
+    where.timestamp = {};
+    if (startDate) where.timestamp.gte = new Date(startDate);
+    if (endDate) where.timestamp.lte = new Date(endDate);
+  }
+
+  const logs = await prisma.systemLog.findMany({
+    where,
+    orderBy: { timestamp: 'desc' },
+    take: 500
+  });
+
+  return logs;
 });
 
 // Basic Dashboard Route (Web UI for logs)
@@ -273,17 +336,39 @@ fastify.get('/dashboard', async (_request, reply) => {
 
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- Logs Panel -->
-            <div class="lg:col-span-2 bg-black rounded-3xl p-6 border border-slate-800 shadow-2xl h-[500px] flex flex-col relative overflow-hidden">
+            <div class="lg:col-span-2 bg-black rounded-3xl p-6 border border-slate-800 shadow-2xl h-[650px] flex flex-col relative overflow-hidden">
               <div class="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
-              <div class="flex items-center justify-between mb-4 pb-4 border-b border-slate-800 relative z-10">
-                <div class="flex items-center gap-3">
-                  <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                  <span class="text-xs text-slate-400 uppercase font-black tracking-[0.2em]">Live Stream Console</span>
+              
+              <!-- Logs Header & Filters -->
+              <div class="mb-4 pb-4 border-b border-slate-800 relative z-10 space-y-4">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                    <span class="text-xs text-slate-400 uppercase font-black tracking-[0.2em]">Live Stream Console</span>
+                  </div>
+                  <div class="flex gap-2">
+                     <button onclick="clearLogsUI()" class="px-3 py-1 text-[10px] font-bold text-slate-400 hover:text-white border border-slate-700 rounded-lg transition-colors">CLEAR UI</button>
+                     <button onclick="loadHistory()" class="px-3 py-1 text-[10px] font-bold text-blue-400 hover:text-blue-300 border border-blue-900/50 rounded-lg transition-colors bg-blue-500/5">LOAD 24H HISTORY</button>
+                  </div>
                 </div>
-                <div class="flex gap-2">
-                   <button onclick="clearLogs()" class="px-3 py-1 text-[10px] font-bold text-slate-400 hover:text-white border border-slate-700 rounded-lg transition-colors">CLEAR</button>
+
+                <!-- Filters -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <select id="filter-type" onchange="applyFilters()" class="bg-slate-900 border border-slate-800 text-[10px] rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500">
+                    <option value="">All Types</option>
+                    <option value="info">Info</option>
+                    <option value="error">Error</option>
+                    <option value="warn">Warning</option>
+                    <option value="request">Request</option>
+                  </select>
+                  <input id="filter-user" type="text" oninput="applyFilters()" placeholder="User..." class="bg-slate-900 border border-slate-800 text-[10px] rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500">
+                  <input id="filter-search" type="text" oninput="applyFilters()" placeholder="Search message..." class="bg-slate-900 border border-slate-800 text-[10px] rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500">
+                  <div class="flex items-center gap-1">
+                    <span id="log-count" class="text-[10px] text-slate-500 font-mono ml-auto">0 logs</span>
+                  </div>
                 </div>
               </div>
+
               <div id="logs" class="overflow-y-auto flex-grow text-xs space-y-1 relative z-10 scroll-smooth"></div>
             </div>
 
@@ -332,6 +417,7 @@ fastify.get('/dashboard', async (_request, reply) => {
 
           let ticketChart;
           let activeSessions = new Map();
+          let allLogs = []; // Buffer for logs to allow filtering
 
           function initChart(data) {
             const ctx = document.getElementById('ticketChart').getContext('2d');
@@ -360,27 +446,72 @@ fastify.get('/dashboard', async (_request, reply) => {
             });
           }
 
-          function addLog(log) {
-            const el = document.createElement('div');
-            el.className = 'log-entry py-1.5 border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors px-2 rounded';
-            const color = log.type === 'error' ? 'text-red-400' : (log.type === 'warn' ? 'text-yellow-400' : 'text-blue-400');
-            const time = log.timestamp.split('T')[1].split('.')[0];
-            const userBadge = log.user && log.user !== 'Anonymous' 
-              ? '<span class="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 uppercase tracking-tighter">' + log.user + '</span>'
-              : '<span class="bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 uppercase tracking-tighter">SYS</span>';
-            
-            el.innerHTML = '<div class="flex items-start gap-2">' +
-                '<span class="text-slate-600 font-medium min-w-[65px] flex-shrink-0">[' + time + ']</span>' +
-                userBadge +
-                '<span class="' + color + ' font-bold min-w-[50px] flex-shrink-0">[' + log.type.toUpperCase() + ']</span>' +
-                '<span class="text-slate-300 break-all">' + log.message + '</span>' +
-              '</div>';
-            logsContainer.appendChild(el);
-            if (logsContainer.childNodes.length > 100) logsContainer.removeChild(logsContainer.firstChild);
-            logsContainer.scrollTop = logsContainer.scrollHeight;
+          function addLog(log, isHistory = false) {
+            if (!isHistory) {
+              allLogs.unshift(log);
+              if (allLogs.length > 1000) allLogs.pop();
+            }
+            renderLogs();
           }
 
-          function clearLogs() { logsContainer.innerHTML = ''; }
+          function renderLogs() {
+            const typeFilter = document.getElementById('filter-type').value;
+            const userFilter = document.getElementById('filter-user').value.toLowerCase();
+            const searchFilter = document.getElementById('filter-search').value.toLowerCase();
+
+            const filtered = allLogs.filter(log => {
+              const matchesType = !typeFilter || log.type === typeFilter;
+              const matchesUser = !userFilter || log.user.toLowerCase().includes(userFilter);
+              const matchesSearch = !searchFilter || log.message.toLowerCase().includes(searchFilter);
+              return matchesType && matchesUser && matchesSearch;
+            });
+
+            document.getElementById('log-count').innerText = filtered.length + ' logs';
+
+            logsContainer.innerHTML = filtered.map(log => {
+              const color = log.type === 'error' ? 'text-red-400' : (log.type === 'warn' ? 'text-yellow-400' : 'text-blue-400');
+              const time = log.timestamp.includes('T') ? log.timestamp.split('T')[1].split('.')[0] : log.timestamp;
+              const userBadge = log.user && log.user !== 'Anonymous' 
+                ? '<span class="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 uppercase tracking-tighter">' + log.user + '</span>'
+                : '<span class="bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 uppercase tracking-tighter">SYS</span>';
+              
+              return \`
+                <div class="log-entry py-1.5 border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors px-2 rounded">
+                  <div class="flex items-start gap-2">
+                    <span class="text-slate-600 font-medium min-w-[65px] flex-shrink-0">[\${time}]</span>
+                    \${userBadge}
+                    <span class="\${color} font-bold min-w-[50px] flex-shrink-0">[\${log.type.toUpperCase()}]</span>
+                    <span class="text-slate-300 break-all">\${log.message}</span>
+                  </div>
+                </div>
+              \`;
+            }).join('');
+          }
+
+          function applyFilters() { renderLogs(); }
+          function clearLogsUI() { allLogs = []; renderLogs(); }
+
+          async function loadHistory() {
+            const token = localStorage.getItem('token'); // This dashboard doesn't have login, let's assume we can fetch if authorized or provide a prompt
+            // For simplicity in this dashboard, let's use a prompt for token if needed, 
+            // but usually this dashboard is for admins who have a token in their main app.
+            // If this is a standalone page, we might need a different auth strategy.
+            // Let's try to fetch it and see.
+            try {
+              const res = await fetch('/api/system-logs', {
+                headers: { 'Authorization': 'Bearer ' + token }
+              });
+              if (res.ok) {
+                const history = await res.json();
+                allLogs = history;
+                renderLogs();
+              } else {
+                alert('Authorization failed. Please login to the main app first or provide a token.');
+              }
+            } catch (err) {
+              console.error('History load failed:', err);
+            }
+          }
 
           socket.on('log', (log) => {
             addLog(log);

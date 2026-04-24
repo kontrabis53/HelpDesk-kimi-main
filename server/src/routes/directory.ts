@@ -68,7 +68,7 @@ export default async function directoryRoutes(fastify: FastifyInstance, options:
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
     const user = request.user as any;
-    if (user.role !== 'admin') {
+    if (user.role !== 'admin' && user.role !== 'technician') {
       return reply.status(403).send({ message: 'Недостаточно прав' });
     }
 
@@ -82,6 +82,10 @@ export default async function directoryRoutes(fastify: FastifyInstance, options:
       });
       return entry;
     } catch (error: any) {
+      fastify.log.error(error);
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Запись не найдена' });
+      }
       return reply.status(500).send({ message: 'Ошибка при обновлении записи' });
     }
   });
@@ -95,10 +99,18 @@ export default async function directoryRoutes(fastify: FastifyInstance, options:
       return reply.status(403).send({ message: 'Недостаточно прав' });
     }
 
-    const { id } = request.params as { id: string };
-    await prisma.directoryEntry.delete({
-      where: { id }
-    });
-    return reply.status(204).send();
+    try {
+      const { id } = request.params as { id: string };
+      await prisma.directoryEntry.delete({
+        where: { id }
+      });
+      return reply.status(204).send();
+    } catch (error: any) {
+      fastify.log.error(error);
+      if (error.code === 'P2025') {
+        return reply.status(404).send({ message: 'Запись не найдена' });
+      }
+      return reply.status(500).send({ message: 'Ошибка при удалении записи' });
+    }
   });
 }

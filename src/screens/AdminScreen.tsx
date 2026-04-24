@@ -21,7 +21,8 @@ import {
   Layers,
   Monitor,
   FileText,
-  Info
+  Info,
+  Loader2
 } from 'lucide-react';
 import { useLocationStore } from '@/stores/locationStore';
 import { useGuideStore } from '@/stores/guideStore';
@@ -58,12 +59,13 @@ interface AdminScreenProps {
   onCreateRole: (_role: Omit<Role, 'id'>) => void;
   onUpdateRole: (_roleId: string, _data: Partial<Role>) => void;
   onDeleteRole: (roleId: string) => void;
-  onCreateUser: (_user: Omit<UserWithRole, 'id' | 'createdAt'>) => void;
-  onUpdateUser: (_userId: string, _data: Partial<UserWithRole>) => void;
-  onDeleteUser: (userId: string) => void;
-  onApproveRequest: (id: string) => void;
-  onRejectRequest: (id: string) => void;
-  onDeleteRequest: (id: string) => void;
+  onCreateUser: (_user: Omit<UserWithRole, 'id' | 'createdAt'>) => Promise<void>;
+  onUpdateUser: (_userId: string, _data: Partial<UserWithRole>) => Promise<void>;
+  onDeleteUser: (userId: string) => Promise<void>;
+  onApproveRequest: (id: string) => Promise<void>;
+  onRejectRequest: (id: string) => Promise<void>;
+  onDeleteRequest: (id: string) => Promise<void>;
+  isLoading?: boolean;
 }
 
 export function AdminScreen({
@@ -80,6 +82,7 @@ export function AdminScreen({
   onApproveRequest,
   onRejectRequest,
   onDeleteRequest,
+  isLoading = false,
 }: AdminScreenProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,6 +91,7 @@ export function AdminScreen({
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [showUserForm, setShowUserForm] = useState(false);
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
   const versions = [
     {
@@ -241,14 +245,14 @@ export function AdminScreen({
   const filteredUsers = users.filter(u => 
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.department.toLowerCase().includes(searchQuery.toLowerCase())
+    (u.department || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Filter requests
   const filteredRequests = requests.filter(r => 
     r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.department.toLowerCase().includes(searchQuery.toLowerCase())
+    (r.department || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Filter logs
@@ -296,7 +300,7 @@ export function AdminScreen({
         email: user.email || '',
         roleId: user.roleId,
         position: user.position || '',
-        department: user.department,
+        department: user.department || '',
         isActive: user.isActive || false,
         username: user.username || '',
         password: user.password || '',
@@ -317,21 +321,29 @@ export function AdminScreen({
     setShowUserForm(true);
   };
 
-  const handleApproveAndCreateUser = (request: RegistrationRequest) => {
-    onApproveRequest(request.id);
-    setEditingUser(null);
-    setUserFormData({
-      name: request.name,
-      email: request.email,
-      roleId: roles[0]?.id || '',
-      position: '',
-      department: request.department,
-      isActive: true,
-      username: request.email.split('@')[0],
-      password: Math.random().toString(36).slice(-8),
-    });
-    setShowUserForm(true);
-    setActiveTab('users');
+  const handleApproveAndCreateUser = async (request: RegistrationRequest) => {
+    setProcessingRequestId(request.id);
+    try {
+      await onApproveRequest(request.id);
+      setEditingUser(null);
+      setUserFormData({
+        name: request.name,
+        email: request.email,
+        roleId: roles[0]?.id || '',
+        position: '',
+        department: request.department,
+        isActive: true,
+        username: request.email.split('@')[0],
+        password: Math.random().toString(36).slice(-8),
+      });
+      setShowUserForm(true);
+      setActiveTab('users');
+      toast.success('Заявка одобрена. Заполните данные пользователя.');
+    } catch (error) {
+      toast.error('Ошибка при одобрении заявки');
+    } finally {
+      setProcessingRequestId(null);
+    }
   };
 
   const handleOpenRoleForm = (role?: Role) => {
@@ -364,7 +376,7 @@ export function AdminScreen({
   };
 
   const handleSaveUser = async () => {
-    if (!userFormData.name.trim() || !userFormData.roleId || !userFormData.department.trim()) {
+    if (!userFormData.name.trim() || !userFormData.roleId || !(userFormData.department || '').trim()) {
       return;
     }
 
@@ -537,14 +549,29 @@ export function AdminScreen({
                       <button
                         onClick={() => handleOpenUserForm(user)}
                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                        disabled={isLoading}
                       >
                         <Edit2 className="w-4 h-4 text-slate-400" />
                       </button>
                       <button
-                        onClick={() => onDeleteUser(user.id)}
+                        onClick={async () => {
+                          if (confirm(`Вы уверены, что хотите удалить пользователя ${user.name}?`)) {
+                            try {
+                              await onDeleteUser(user.id);
+                              toast.success('Пользователь удален');
+                            } catch (error) {
+                              toast.error('Ошибка при удалении пользователя');
+                            }
+                          }
+                        }}
                         className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                        disabled={isLoading}
                       >
-                        <Trash2 className="w-4 h-4 text-red-400" />
+                        {isLoading ? (
+                          <Loader2 className="w-4 h-4 text-red-400 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4 text-red-400" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -868,16 +895,36 @@ export function AdminScreen({
                             size="sm" 
                             onClick={() => handleApproveAndCreateUser(request)}
                             className="bg-emerald-600 hover:bg-emerald-700"
+                            disabled={isLoading || processingRequestId === request.id}
                           >
-                            <Check className="w-4 h-4 mr-1" />
+                            {processingRequestId === request.id ? (
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            ) : (
+                              <Check className="w-4 h-4 mr-1" />
+                            )}
                             Одобрить
                           </Button>
                           <Button 
                             size="sm" 
                             variant="destructive"
-                            onClick={() => onRejectRequest(request.id)}
+                            onClick={async () => {
+                              setProcessingRequestId(request.id);
+                              try {
+                                await onRejectRequest(request.id);
+                                toast.success('Заявка отклонена');
+                              } catch (error) {
+                                toast.error('Ошибка при отклонении заявки');
+                              } finally {
+                                setProcessingRequestId(null);
+                              }
+                            }}
+                            disabled={isLoading || processingRequestId === request.id}
                           >
-                            <X className="w-4 h-4 mr-1" />
+                            {processingRequestId === request.id ? (
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            ) : (
+                              <X className="w-4 h-4 mr-1" />
+                            )}
                             Отклонить
                           </Button>
                         </>
@@ -886,10 +933,26 @@ export function AdminScreen({
                         <Button 
                           size="sm" 
                           variant="outline"
-                          onClick={() => onDeleteRequest(request.id)}
+                          onClick={async () => {
+                            if (!confirm('Вы уверены, что хотите удалить этот запрос?')) return;
+                            setProcessingRequestId(request.id);
+                            try {
+                              await onDeleteRequest(request.id);
+                              toast.success('Запрос удален');
+                            } catch (error) {
+                              toast.error('Ошибка при удалении запроса');
+                            } finally {
+                              setProcessingRequestId(null);
+                            }
+                          }}
                           className="text-slate-500 hover:text-red-600"
+                          disabled={isLoading || processingRequestId === request.id}
                         >
-                          <Trash2 className="w-4 h-4 mr-1" />
+                          {processingRequestId === request.id ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4 mr-1" />
+                          )}
                           Удалить
                         </Button>
                       )}
@@ -1084,8 +1147,9 @@ export function AdminScreen({
               <Button
                 onClick={handleSaveUser}
                 className="flex-1 bg-blue-600"
-                disabled={!userFormData.name.trim() || !userFormData.roleId || !userFormData.department.trim()}
+                disabled={isLoading || !userFormData.name.trim() || !userFormData.roleId || !userFormData.department.trim()}
               >
+                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {editingUser ? 'Сохранить' : 'Создать'}
               </Button>
               <Button

@@ -50,6 +50,13 @@ export default async function userRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
+      const currentUser = request.user as any;
+
+      // Check permissions: admin can update anyone, user can only update themselves
+      if (currentUser.role !== 'admin' && currentUser.id !== id) {
+        return reply.status(403).send({ message: 'Вы можете редактировать только свой профиль' });
+      }
+
       const validation = userUpdateSchema.safeParse(request.body);
       
       if (!validation.success) {
@@ -61,6 +68,14 @@ export default async function userRoutes(fastify: FastifyInstance) {
       }
 
       const body = validation.data;
+      
+      // Prevent non-admins from changing roles or status
+      if (currentUser.role !== 'admin') {
+        delete body.role;
+        delete body.roleId;
+        delete body.isActive;
+      }
+
       const updateData: any = {};
       
       // Only include fields that are not empty, null or undefined
@@ -144,6 +159,12 @@ export default async function userRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
+      const currentUser = request.user as any;
+
+      if (currentUser.role !== 'admin') {
+        return reply.status(403).send({ message: 'Только администратор может удалять пользователей' });
+      }
+
       await prisma.user.delete({
         where: { id }
       });

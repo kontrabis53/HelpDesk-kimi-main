@@ -4,6 +4,7 @@ import { BottomNav } from '@/components/BottomNav';
 import { Sidebar } from '@/components/Sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { useRoleStore } from '@/stores/roleStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { cn } from '@/lib/utils';
 
@@ -23,8 +24,14 @@ const ROUTES_WITHOUT_NAV_PATTERNS = [
 
 export function RootLayout() {
   const location = useLocation();
-  const currentUserRole = useRoleStore((state) => state.currentUserRole());
+  const roles = useRoleStore((state) => state.roles);
+  const user = useAuthStore((state) => state.user);
   const hasPermission = useRoleStore((state) => state.hasPermission);
+
+  const currentUserRole = useMemo(() => {
+    if (!user || !roles.length) return undefined;
+    return roles.find(r => r.id === (user.roleId || user.role));
+  }, [user, roles]);
 
   const availableModules = useMemo(() => {
     if (!currentUserRole) return [];

@@ -7,6 +7,7 @@ import { useTicketStore } from '@/stores/ticketStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useEffect } from 'react';
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -44,6 +45,8 @@ export function AdminPage() {
   const users = useRoleStore((state) => state.users);
   const logs = useRoleStore((state) => state.logs);
   const isRoleLoading = useRoleStore((state) => state.isLoading);
+  const fetchRoles = useRoleStore((state) => state.fetchRoles);
+  const fetchUsers = useRoleStore((state) => state.fetchUsers);
   const createRole = useRoleStore((state) => state.createRole);
   const updateRole = useRoleStore((state) => state.updateRole);
   const deleteRole = useRoleStore((state) => state.deleteRole);
@@ -56,6 +59,11 @@ export function AdminPage() {
   const approveRequest = useAuthStore((state) => state.approveRequest);
   const rejectRequest = useAuthStore((state) => state.rejectRequest);
   const deleteRequest = useAuthStore((state) => state.deleteRequest);
+
+  useEffect(() => {
+    fetchRoles();
+    fetchUsers();
+  }, [fetchRoles, fetchUsers]);
   
   return (
     <AdminScreen

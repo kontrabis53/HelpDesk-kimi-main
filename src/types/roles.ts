@@ -50,6 +50,25 @@ export interface SystemSettings {
 // Предустановленные роли
 export const defaultRoles: Role[] = [
   {
+    id: 'user',
+    name: 'Пользователь',
+    description: 'Базовый доступ - создание заявок и просмотр базы знаний',
+    color: '#10B981',
+    isSystem: true,
+    permissions: [
+      { moduleId: 'knowledge', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'tickets', canView: true, canCreate: true, canEdit: false, canDelete: false },
+      { moduleId: 'documents', canView: false, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'inventory', canView: false, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'directory', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
+      { moduleId: 'parser', canView: false, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
+      { moduleId: 'guides', canView: true, canCreate: false, canEdit: false, canDelete: false },
+    ],
+  },
+  {
     id: 'admin',
     name: 'Администратор',
     description: 'Полный доступ ко всем модулям и настройкам системы',
@@ -85,25 +104,6 @@ export const defaultRoles: Role[] = [
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
       { moduleId: 'guides', canView: true, canCreate: true, canEdit: true, canDelete: false },
-    ],
-  },
-  {
-    id: 'user',
-    name: 'Пользователь',
-    description: 'Базовый доступ - создание заявок и просмотр базы знаний',
-    color: '#10B981',
-    isSystem: true,
-    permissions: [
-      { moduleId: 'knowledge', canView: true, canCreate: false, canEdit: false, canDelete: false },
-      { moduleId: 'tickets', canView: true, canCreate: true, canEdit: false, canDelete: false },
-      { moduleId: 'documents', canView: false, canCreate: false, canEdit: false, canDelete: false },
-      { moduleId: 'inventory', canView: false, canCreate: false, canEdit: false, canDelete: false },
-      { moduleId: 'directory', canView: true, canCreate: false, canEdit: false, canDelete: false },
-      { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
-      { moduleId: 'parser', canView: false, canCreate: false, canEdit: false, canDelete: false },
-      { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
-      { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
-      { moduleId: 'guides', canView: true, canCreate: false, canEdit: false, canDelete: false },
     ],
   },
   {

@@ -12,7 +12,6 @@ import {
   Trash2, 
   ChevronDown,
   ChevronUp,
-  Eye,
   UserPlus,
   Check,
   X,
@@ -94,6 +93,16 @@ export function AdminScreen({
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
   const versions = [
+    {
+      version: '1.1.6',
+      date: '2026-04-24',
+      changes: [
+        'Модуль Склад: В редактирование товара добавлена кнопка удаления с подтверждением и кнопка «Отмена»',
+        'Модуль Склад: В шапку редактирования товара добавлена кнопка «Назад» с текстовой подписью и разделителем',
+        'Безопасность: Исправлена логика назначения ролей при создании пользователя (по умолчанию «Пользователь»)',
+        'Система: Исправлено дублирование ролей в справочнике и улучшена типизация'
+      ]
+    },
     {
       version: '1.1.5',
       date: '2026-04-24',
@@ -344,10 +353,12 @@ export function AdminScreen({
       });
     } else {
       setEditingUser(null);
+      // По умолчанию выбираем первую роль из списка (теперь это "Пользователь")
+      const userRole = roles[0];
       setUserFormData({
         name: '',
         email: '',
-        roleId: roles[0]?.id || '',
+        roleId: userRole?.id || 'user',
         position: '',
         department: '',
         isActive: true,
@@ -363,10 +374,12 @@ export function AdminScreen({
     try {
       await onApproveRequest(request.id);
       setEditingUser(null);
+      // По умолчанию выбираем первую роль из списка (теперь это "Пользователь")
+      const userRole = roles[0];
       setUserFormData({
         name: request.name,
         email: request.email,
-        roleId: roles[0]?.id || '',
+        roleId: userRole?.id || 'user',
         position: '',
         department: request.department,
         isActive: true,
@@ -470,6 +483,13 @@ export function AdminScreen({
     }));
   };
 
+  const handleTogglePermission = (role: Role, moduleId: ModuleId, field: keyof Omit<ModulePermission, 'moduleId'>) => {
+    const updatedPermissions = role.permissions.map(p => 
+      p.moduleId === moduleId ? { ...p, [field]: !p[field] } : p
+    );
+    onUpdateRole(role.id, { permissions: updatedPermissions });
+  };
+
   const tabs: { id: AdminTab; label: string; icon: any }[] = [
     { id: 'users', label: 'Пользователи', icon: Users },
     { id: 'roles', label: 'Роли', icon: Shield },
@@ -552,8 +572,17 @@ export function AdminScreen({
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                        <span className="text-white font-bold">{user.name.charAt(0)}</span>
+                      <div className="relative">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                          <span className="text-white font-bold">{user.name.charAt(0)}</span>
+                        </div>
+                        <div 
+                          className={cn(
+                            "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-800 shadow-sm",
+                            user.isActive ? "bg-emerald-500" : "bg-red-500"
+                          )}
+                          title={user.isActive ? "В сети" : "Не в сети"}
+                        />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -693,27 +722,49 @@ export function AdminScreen({
                       {role.permissions.map((perm) => (
                         <div 
                           key={perm.moduleId}
-                          className="p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg"
+                          className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600/50"
                         >
-                          <div className="font-medium text-sm text-slate-700 dark:text-slate-200 mb-1">
+                          <div className="font-bold text-xs text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                             {moduleLabels[perm.moduleId]}
                           </div>
-                          <div className="flex gap-1">
-                            {perm.canView && (
-                              <span className="text-xs px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded">
-                                <Eye className="w-3 h-3 inline" />
-                              </span>
-                            )}
-                            {perm.canCreate && (
-                              <span className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
-                                +Созд
-                              </span>
-                            )}
-                            {perm.canEdit && (
-                              <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded">
-                                <Edit2 className="w-3 h-3 inline" />
-                              </span>
-                            )}
+                          <div className="grid grid-cols-1 gap-2">
+                            <div className="flex items-center justify-between">
+                              <label htmlFor={`perm-${role.id}-${perm.moduleId}-view`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Просмотр</label>
+                              <Checkbox 
+                                id={`perm-${role.id}-${perm.moduleId}-view`}
+                                checked={perm.canView}
+                                onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canView')}
+                                className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <label htmlFor={`perm-${role.id}-${perm.moduleId}-create`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Создание</label>
+                              <Checkbox 
+                                id={`perm-${role.id}-${perm.moduleId}-create`}
+                                checked={perm.canCreate}
+                                onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canCreate')}
+                                className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-600 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <label htmlFor={`perm-${role.id}-${perm.moduleId}-edit`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Ред-ние</label>
+                              <Checkbox 
+                                id={`perm-${role.id}-${perm.moduleId}-edit`}
+                                checked={perm.canEdit}
+                                onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canEdit')}
+                                className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-600 data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <label htmlFor={`perm-${role.id}-${perm.moduleId}-delete`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer text-red-400/80">Удаление</label>
+                              <Checkbox 
+                                id={`perm-${role.id}-${perm.moduleId}-delete`}
+                                checked={perm.canDelete}
+                                onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canDelete')}
+                                className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-600 data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+                              />
+                            </div>
                           </div>
                         </div>
                       ))}

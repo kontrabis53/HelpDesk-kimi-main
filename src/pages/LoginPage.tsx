@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
@@ -11,8 +11,15 @@ import { Stethoscope, Moon, Sun, AlertCircle } from 'lucide-react';
 export function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { theme, toggleTheme } = useThemeStore();
   
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -67,8 +74,11 @@ export function LoginPage() {
           <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
             <Stethoscope className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">MEDIN</h1>
-          <p className="text-slate-500 dark:text-slate-400">Вход в систему</p>
+          <div className="flex flex-col items-center">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 leading-none">MEDIN</h1>
+            <span className="text-[10px] font-bold tracking-[0.3em] text-slate-400 dark:text-slate-500 uppercase mt-2">HelpDesk</span>
+          </div>
+          <p className="text-slate-500 dark:text-slate-400 mt-6">Вход в систему</p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">

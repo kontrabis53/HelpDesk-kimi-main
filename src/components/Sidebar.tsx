@@ -1,4 +1,4 @@
-import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare, Network, ChevronLeft, ChevronRight, Book } from 'lucide-react';
+import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare, Network, ChevronLeft, ChevronRight, Book, Stethoscope } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -71,19 +71,13 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
       <div className="flex-1 flex flex-col p-4">
         <div className="flex items-center justify-between mb-8 px-2">
           <NavLink to="/knowledge" className="flex items-center gap-3 hover:opacity-80 transition-opacity overflow-hidden group/logo">
-            <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center relative">
-              {/* Refined Exact Match Logo SVG based on provided image */}
-              <svg viewBox="0 0 100 100" className="w-full h-full text-[#005696] dark:text-blue-400" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="50" cy="50" r="46" stroke="currentColor" strokeWidth="7" />
-                <circle cx="50" cy="50" r="10" fill="currentColor" />
-                <path d="M50 82V65" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-                <path d="M25 45C25 30 36 18 50 18C64 18 75 30 75 45C75 55 65 65 50 65" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-              </svg>
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+              <Stethoscope className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             {!isSidebarCollapsed && (
               <div className="flex flex-col">
-                <span className="text-xl font-black leading-none tracking-tighter text-[#005696] dark:text-blue-400">MEDIN</span>
-                <span className="text-[10px] font-bold tracking-[0.3em] text-slate-400 dark:text-slate-500 uppercase mt-1">HelpDesk</span>
+                <span className="text-xl font-bold leading-none tracking-tight text-slate-800 dark:text-slate-100">MEDIN</span>
+                <span className="text-[10px] font-bold tracking-[0.2em] text-slate-400 dark:text-slate-500 uppercase mt-1">HelpDesk</span>
               </div>
             )}
           </NavLink>
@@ -130,26 +124,33 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
       <div className="mt-auto p-4 border-t border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className={cn(
           "flex items-center py-2",
-          isSidebarCollapsed ? "justify-center" : "gap-3 px-3"
+          isSidebarCollapsed ? "justify-center" : "gap-1.5 px-0.5"
         )}>
           <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
             <User className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </div>
           {!isSidebarCollapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate leading-none mb-1">
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate leading-normal mb-1">
                 {user?.name || 'Пользователь'}
               </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate mb-2">
-                {user?.position || user?.department || 'Сотрудник'}
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate mb-0.5">
+                {user?.position || 'Сотрудник'}
               </p>
+              {user?.department && (
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium truncate mb-1.5 italic">
+                  Отдел: {user.department}
+                </p>
+              )}
               {userRole && (
-                <span 
-                  className="inline-block text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider"
-                  style={{ backgroundColor: userRole.color }}
-                >
-                  {userRole.name}
-                </span>
+                <div className="-mt-1">
+                  <span 
+                    className="inline-block text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider"
+                    style={{ backgroundColor: userRole.color }}
+                  >
+                    {userRole.name}
+                  </span>
+                </div>
               )}
             </div>
           )}

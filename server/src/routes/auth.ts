@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
+// Re-triggering type check after prisma generate
 import bcrypt from 'bcryptjs';
-import prisma from '../lib/prisma.js';
+import prisma from '../lib/prisma';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -37,9 +38,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/login', async (request, reply) => {
     try {
       const { username, password } = loginSchema.parse(request.body);
-      
+
       const user = await prisma.user.findUnique({
         where: { username },
+        include: { roleRelation: true }
       });
 
       if (!user) {
@@ -109,9 +111,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       const hashedPassword = await bcrypt.hash(data.password, 10);
       
+      // Sync role and roleId
+      const userData = { ...data };
+      if (userData.role && !userData.roleId) {
+        userData.roleId = userData.role;
+      } else if (userData.roleId && !userData.role) {
+        userData.role = userData.roleId as any;
+      }
+
       const user = await prisma.user.create({
         data: {
-          ...data,
+          ...userData,
           password: hashedPassword,
         },
       });
@@ -225,19 +235,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get current user (Me)
+  // Get current user profile
   fastify.get('/me', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
+    const decodedUser = request.user as any;
     const user = await prisma.user.findUnique({
       where: { id: (request.user as any).id },
+      include: { roleRelation: true } 
     });
-
+    
     if (!user) {
       return reply.status(404).send({ message: 'Пользователь не найден' });
     }
 
     const { password: _, ...userWithoutPassword } = user;
+    
     return userWithoutPassword;
   });
 }

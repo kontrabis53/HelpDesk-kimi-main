@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, MapPin, DollarSign, Building, Save } from 'lucide-react';
+import { ArrowLeft, MapPin, DollarSign, Building, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,6 +14,16 @@ import { useRoleStore } from '@/stores/roleStore';
 import { toast } from 'sonner';
 import { inventoryCategoryLabels, inventoryUnitLabels } from '@/types';
 import type { InventoryCategory, InventoryUnit } from '@/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const categories: { id: InventoryCategory; label: string }[] = [
   { id: 'spare_parts', label: inventoryCategoryLabels.spare_parts },
@@ -36,9 +46,11 @@ export function EditInventoryPage() {
   const navigate = useNavigate();
   const items = useInventoryStore((state) => state.items);
   const updateItem = useInventoryStore((state) => state.updateItem);
+  const deleteItem = useInventoryStore((state) => state.deleteItem);
   const fetchItem = useInventoryStore((state) => state.fetchItem);
   const addLog = useRoleStore((state) => state.addLog);
   
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const item = items.find((i) => i.id === id);
 
   const {
@@ -100,21 +112,33 @@ export function EditInventoryPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!id || !item) return;
+    try {
+      await deleteItem(id);
+      addLog('inventory.deleted', 'inventory', id, item.name, `Удален товар: ${item.name}`);
+      toast.success('Товар удален');
+      navigate('/inventory');
+    } catch (error) {
+      toast.error('Ошибка при удалении товара');
+    }
+  };
+
   if (!item) return null;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-800 px-4 py-3 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => navigate('/inventory')}
-            className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-          </button>
-          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Редактирование товара</h1>
-        </div>
+      <div className="bg-white dark:bg-slate-800 px-4 py-3 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
+        <button 
+          onClick={() => navigate('/inventory')}
+          className="flex items-center gap-1.5 px-3 py-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-slate-600 dark:text-slate-300"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm font-medium">Назад</span>
+        </button>
+        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+        <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Редактирование товара</h1>
       </div>
 
       <form onSubmit={handleSubmit(onFormSubmit)} className="p-4 space-y-6 max-w-2xl mx-auto">
@@ -284,26 +308,69 @@ export function EditInventoryPage() {
         </div>
 
         {/* Submit Button */}
-        <div className="pt-4 pb-10">
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full h-12 text-base font-medium"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Сохранение...
-              </span>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Сохранить изменения
-              </>
-            )}
-          </Button>
+        <div className="pt-4 pb-10 space-y-4">
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/inventory')}
+              className="flex-1 h-12 text-base font-medium"
+            >
+              Отмена
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-[2] h-12 text-base font-medium"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Сохранение...
+                </span>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Сохранить изменения
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShowDeleteDialog(true)}
+              className="w-full h-12 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Удалить товар
+            </Button>
+          </div>
         </div>
       </form>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить товар?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите удалить {item.name}? Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

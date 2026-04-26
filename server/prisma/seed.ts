@@ -16,6 +16,97 @@ async function main() {
   await prisma.directoryEntry.deleteMany();
   await prisma.inventoryItem.deleteMany();
   await prisma.registrationRequest.deleteMany();
+  try {
+    // @ts-ignore
+    await prisma.role.deleteMany();
+  } catch (e) {}
+
+  const defaultRoles = [
+    {
+      id: 'user',
+      name: 'Пользователь',
+      description: 'Базовый доступ - создание заявок и просмотр базы знаний',
+      color: '#10B981',
+      isSystem: true,
+      permissions: [
+        { moduleId: 'knowledge', canView: true, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'tickets', canView: true, canCreate: true, canEdit: false, canDelete: false },
+        { moduleId: 'documents', canView: false, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'inventory', canView: false, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'directory', canView: true, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'parser', canView: false, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
+        { moduleId: 'guides', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      ],
+    },
+    {
+      id: 'admin',
+      name: 'Администратор',
+      description: 'Полный доступ ко всем модулям и настройкам системы',
+      color: '#8B5CF6',
+      isSystem: true,
+      permissions: [
+        { moduleId: 'knowledge', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'tickets', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'documents', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'inventory', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'directory', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'parser', canView: true, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'admin', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'guides', canView: true, canCreate: true, canEdit: true, canDelete: true },
+      ],
+    },
+    {
+      id: 'technician',
+      name: 'Технический специалист',
+      description: 'Доступ к заявкам, базе знаний и складу',
+      color: '#3B82F6',
+      isSystem: true,
+      permissions: [
+        { moduleId: 'knowledge', canView: true, canCreate: true, canEdit: true, canDelete: false },
+        { moduleId: 'tickets', canView: true, canCreate: true, canEdit: true, canDelete: false },
+        { moduleId: 'documents', canView: true, canCreate: true, canEdit: true, canDelete: false },
+        { moduleId: 'inventory', canView: true, canCreate: true, canEdit: true, canDelete: false },
+        { moduleId: 'directory', canView: true, canCreate: true, canEdit: true, canDelete: false },
+        { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'parser', canView: true, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'profile', canView: true, canCreate: true, canEdit: true, canDelete: false },
+        { moduleId: 'guides', canView: true, canCreate: true, canEdit: true, canDelete: false },
+      ],
+    },
+    {
+      id: 'viewer',
+      name: 'Наблюдатель',
+      description: 'Только просмотр заявок и базы знаний',
+      color: '#6B7280',
+      isSystem: true,
+      permissions: [
+        { moduleId: 'knowledge', canView: true, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'tickets', canView: true, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'documents', canView: false, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'inventory', canView: false, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'directory', canView: true, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'chat', canView: true, canCreate: true, canEdit: true, canDelete: true },
+        { moduleId: 'parser', canView: false, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
+        { moduleId: 'profile', canView: true, canCreate: false, canEdit: true, canDelete: false },
+        { moduleId: 'guides', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      ],
+    },
+  ];
+
+  for (const role of defaultRoles) {
+    try {
+      // @ts-ignore
+      await prisma.role.create({ data: role });
+    } catch (e) {}
+  }
+  console.log('Роли восстановлены');
 
   const hashedPassword = await bcrypt.hash('password', 10);
 
@@ -31,7 +122,7 @@ async function main() {
       roleId: 'admin',
       position: 'Системный администратор',
       department: 'Технический отдел',
-      isActive: true,
+      isActive: false,
     },
     {
       id: 'u2',
@@ -41,7 +132,7 @@ async function main() {
       roleId: 'technician',
       position: 'Инженер по медоборудованию',
       department: 'Технический отдел',
-      isActive: true,
+      isActive: false,
       username: 'petr',
       password: hashedPassword,
     },
@@ -53,7 +144,7 @@ async function main() {
       roleId: 'technician',
       position: 'Техник',
       department: 'Технический отдел',
-      isActive: true,
+      isActive: false,
       username: 'alexey',
       password: hashedPassword,
     }

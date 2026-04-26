@@ -22,6 +22,7 @@ interface AuthState {
   approveRequest: (id: string) => Promise<void>;
   rejectRequest: (id: string) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
+  initAutoLogout: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -32,6 +33,54 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       requests: [],
       isLoading: false,
+
+      initAutoLogout: () => {
+        const checkInactivity = () => {
+          if (!get().isAuthenticated) return;
+          
+          const lastSeen = localStorage.getItem('last_seen');
+          if (lastSeen) {
+            const lastSeenTime = parseInt(lastSeen, 10);
+            const now = Date.now();
+            const diffMinutes = (now - lastSeenTime) / (1000 * 60);
+            
+            if (diffMinutes >= 5) {
+              console.log('Logging out due to 5 minutes of inactivity/tab closure');
+              get().logout();
+              localStorage.removeItem('last_seen');
+              return true;
+            }
+          }
+          return false;
+        };
+
+        // Check on init
+        if (checkInactivity()) return;
+        localStorage.removeItem('last_seen');
+
+        // Listen for visibility changes
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'hidden') {
+            localStorage.setItem('last_seen', Date.now().toString());
+          } else if (document.visibilityState === 'visible') {
+            checkInactivity();
+            localStorage.removeItem('last_seen');
+          }
+        };
+
+        // Listen for tab close/refresh
+        const handleBeforeUnload = () => {
+          localStorage.setItem('last_seen', Date.now().toString());
+        };
+
+        window.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+          window.removeEventListener('visibilitychange', handleVisibilityChange);
+          window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+      },
 
       login: async (username, password) => {
         set({ isLoading: true });

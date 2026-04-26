@@ -143,35 +143,50 @@ export function DayTimelineView({
         </div>
 
         {/* Day Picker (Horizontal) */}
-        <div className="grid grid-cols-7 px-2 pb-3 select-none touch-pan-x">
-          {weekDays.map((day) => {
-            const isActive = isSameDay(day, currentDate);
-            const isToday = isSameDay(day, new Date());
-            return (
-              <button 
-                key={day.toString()}
-                onClick={() => onDateChange(day)}
-                className="flex flex-col items-center gap-1 py-1"
-              >
-                <span className={cn(
-                  "text-[10px] font-bold uppercase tracking-tight",
-                  isToday ? "text-blue-600 dark:text-blue-400" : "text-slate-400 dark:text-slate-500"
-                )}>
-                  {format(day, 'eeeeee', { locale: ru })}
-                </span>
-                <span className={cn(
-                  "w-8 h-8 flex items-center justify-center rounded-full text-lg font-bold transition-all",
-                  isActive 
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30" 
-                    : isToday 
-                      ? "text-blue-600 dark:text-blue-400" 
-                      : "text-slate-900 dark:text-slate-100"
-                )}>
-                  {format(day, 'd')}
-                </span>
-              </button>
-            );
-          })}
+        <div className={cn(
+          "grid select-none touch-pan-x pb-3",
+          isDesktop ? "grid-cols-[60px_1fr]" : "grid-cols-[50px_1fr]"
+        )}>
+          {/* Empty space to align with time scale */}
+          <div />
+          
+          <div className="grid grid-cols-7">
+            {weekDays.map((day) => {
+              const isActive = isSameDay(day, currentDate);
+              const isToday = isSameDay(day, new Date());
+              
+              return (
+                <button 
+                  key={day.toString()}
+                  onClick={() => onDateChange(day)}
+                  className="flex flex-col items-center gap-1 py-1 relative"
+                >
+                  {/* Background pill for iOS style selection/today area */}
+                  {(isActive || isToday) && (
+                    <div className={cn(
+                      "absolute inset-x-0.5 top-0 bottom-0 bg-slate-100/80 dark:bg-slate-800/50 rounded-lg -z-10",
+                      isActive && isToday ? "bg-red-50 dark:bg-red-900/10" : ""
+                    )} />
+                  )}
+                  
+                  <span className={cn(
+                    "text-[10px] font-bold tracking-tight capitalize",
+                    isToday ? "text-[#ff3b30]" : "text-slate-400 dark:text-slate-500"
+                  )}>
+                    {format(day, 'eeeeee', { locale: ru })}
+                  </span>
+                  <span className={cn(
+                    "w-8 h-8 flex items-center justify-center rounded-full text-lg font-bold transition-all",
+                    isActive 
+                      ? (isToday ? "bg-[#ff3b30] text-white shadow-lg shadow-red-500/30" : "bg-black dark:bg-white text-white dark:text-black") 
+                      : (isToday ? "text-[#ff3b30]" : "text-slate-900 dark:text-slate-100")
+                  )}>
+                    {format(day, 'd')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -184,13 +199,20 @@ export function DayTimelineView({
         )}>
           <div className="border-r border-slate-100 dark:border-slate-800" />
           <div className={cn("grid", isDesktop ? "grid-cols-7" : "grid-cols-2")}>
-            {displayedDays.map((day, idx) => (
-              <div key={idx} className="py-2 text-center border-r border-slate-100 dark:border-slate-800 last:border-r-0">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">
-                  {format(day, 'ee, d MMM', { locale: ru })}
-                </span>
-              </div>
-            ))}
+            {displayedDays.map((day, idx) => {
+              const isToday = isSameDay(day, new Date());
+              return (
+                <div key={idx} className="py-2 text-center border-r border-slate-100 dark:border-slate-800 last:border-r-0">
+                  <span className={cn(
+                    "text-[11px] font-bold",
+                    isToday ? "text-[#ff3b30]" : "text-slate-500 dark:text-slate-400"
+                  )}>
+                    <span className="capitalize">{format(day, 'eeeeee', { locale: ru })}</span>
+                    <span>{format(day, ' — d MMM', { locale: ru })}</span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -204,7 +226,7 @@ export function DayTimelineView({
             isDesktop ? "grid-cols-[60px_1fr]" : "grid-cols-[50px_1fr]"
           )}>
             {/* Time Scale */}
-            <div className="border-r border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+            <div className="border-r border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 relative">
               {hours.map(hour => (
                 <div key={hour} className="h-16 flex justify-center pt-1 pr-2">
                   <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
@@ -212,6 +234,16 @@ export function DayTimelineView({
                   </span>
                 </div>
               ))}
+              
+              {/* Current Time Label (Fixed at left) */}
+              <div 
+                className="absolute left-0 right-0 z-30 pointer-events-none flex items-center justify-center will-change-transform"
+                style={{ top: `${currentTimePosition}px` }}
+              >
+                <span className="bg-[#ff3b30] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm -translate-y-1/2">
+                  {format(now, 'HH:mm')}
+                </span>
+              </div>
             </div>
 
             {/* Content Grid */}
@@ -223,25 +255,24 @@ export function DayTimelineView({
                 ))}
               </div>
 
-              {/* Current Time Indicator Line (iOS Style) */}
-              <div 
-                className="absolute left-0 right-0 z-20 pointer-events-none flex items-center will-change-transform"
-                style={{ top: `${currentTimePosition}px` }}
-              >
-                <div className="absolute -left-[50px] md:-left-[60px] flex items-center justify-center w-[44px] md:w-[50px]">
-                  <span className="bg-[#ff3b30] text-white text-[10px] font-bold px-1 py-0.5 rounded-full shadow-sm">
-                    {format(now, 'HH:mm')}
-                  </span>
-                </div>
-                <div className="w-2.5 h-2.5 rounded-full bg-[#ff3b30] -ml-1.5 shadow-sm border-2 border-white dark:border-slate-950" />
-                <div className="flex-1 h-[2px] bg-[#ff3b30]" />
-              </div>
-
               {/* Day Columns */}
               {displayedDays.map((day, dayIdx) => {
                 const dayDocs = getDayDocuments(day);
+                const isToday = isSameDay(day, now);
+                
                 return (
                   <div key={dayIdx} className="relative border-r border-slate-100 dark:border-slate-800 last:border-r-0 min-h-full group">
+                    {/* Current Time Line (Only for today's column) */}
+                    {isToday && (
+                      <div 
+                        className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+                        style={{ top: `${currentTimePosition}px` }}
+                      >
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#ff3b30] -ml-1.25 shadow-sm border-2 border-white dark:border-slate-950 z-30" />
+                        <div className="flex-1 h-[2px] bg-[#ff3b30]" />
+                      </div>
+                    )}
+                    
                     {/* Events for this day */}
                     {dayDocs.map((doc) => {
                       // Mock positioning logic - in real app we'd use doc.createdAt time

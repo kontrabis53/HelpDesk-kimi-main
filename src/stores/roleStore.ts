@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { Role, ActivityLog, ModuleId, SystemSettings } from '@/types/roles';
 import type { User } from '@/types';
-import { defaultRoles } from '@/types/roles';
 import { useAuthStore } from './authStore';
 import apiClient from '@/api/client/apiClient';
 
@@ -28,7 +27,9 @@ interface RoleStore {
   availableModules: () => ModuleId[];
   
   // Actions
-  fetchUsers: () => Promise<void>;
+  fetchRoles: () => Promise<void>;
+  fetchUsers: () => Promise<void>,
+  initStatusListener: () => void;
   setRoles: (roles: Role[]) => void;
   setUsers: (users: User[]) => void;
   setSettings: (settings: SystemSettings) => void;
@@ -39,14 +40,14 @@ interface RoleStore {
   updateUser: (userId: string, data: Partial<User>) => Promise<void>;
   addUser: (user: User) => Promise<void>;
   deleteUser: (userId: string) => Promise<void>;
-  createRole: (role: Omit<Role, 'id'>) => void;
-  updateRole: (id: string, role: Partial<Role>) => void;
-  deleteRole: (id: string) => void;
+  createRole: (role: Omit<Role, 'id'>) => Promise<void>;
+  updateRole: (id: string, role: Partial<Role>) => Promise<void>;
+  deleteRole: (id: string) => Promise<void>;
 }
 
 export const useRoleStore = create<RoleStore>((set, get) => ({
   // Initial state
-  roles: defaultRoles,
+  roles: [],
   users: [],
   isLoading: false,
   logs: [
@@ -62,6 +63,17 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
   ],
   settings: defaultSettings,
 
+  fetchRoles: async () => {
+    set({ isLoading: true });
+    try {
+      const response = await apiClient.get('/roles');
+      set({ roles: response.data || [], isLoading: false });
+    } catch (error: any) {
+      console.error('Fetch roles error:', error);
+      set({ isLoading: false });
+    }
+  },
+
   fetchUsers: async () => {
     set({ isLoading: true });
     try {
@@ -72,6 +84,18 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
       console.error('Fetch users error:', error);
       set({ isLoading: false });
     }
+  },
+
+  initStatusListener: () => {
+    const handler = (e: any) => {
+      const { userId, isActive } = e.detail;
+      set(state => ({
+        users: state.users.map(u => u.id === userId ? { ...u, isActive } : u)
+      }));
+    };
+    
+    window.addEventListener('user_status_updated', handler);
+    return () => window.removeEventListener('user_status_updated', handler);
   },
   
   // Computed selectors
@@ -187,21 +211,51 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
     }
   },
 
-  createRole: (roleData) => {
-    set((state) => ({
-      roles: [...state.roles, { ...roleData, id: Date.now().toString() }],
-    }));
+  createRole: async (roleData) => {
+    set({ isLoading: true });
+    try {
+      const response = await apiClient.post('/roles', {
+        ...roleData,
+        id: roleData.name.toLowerCase().replace(/\s+/g, '-') // Temporary ID generation if backend expects it
+      });
+      set(state => ({
+        roles: [...state.roles, response.data],
+        isLoading: false
+      }));
+    } catch (error: any) {
+      console.error('Create role error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
 
-  updateRole: (id, roleData) => {
-    set((state) => ({
-      roles: state.roles.map((r) => (r.id === id ? { ...r, ...roleData } : r)),
-    }));
+  updateRole: async (id, roleData) => {
+    set({ isLoading: true });
+    try {
+      const response = await apiClient.patch(`/roles/${id}`, roleData);
+      set(state => ({
+        roles: state.roles.map(r => r.id === id ? { ...r, ...response.data } : r),
+        isLoading: false
+      }));
+    } catch (error: any) {
+      console.error('Update role error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
 
-  deleteRole: (id) => {
-    set((state) => ({
-      roles: state.roles.filter((r) => r.id !== id),
-    }));
+  deleteRole: async (id) => {
+    set({ isLoading: true });
+    try {
+      await apiClient.delete(`/roles/${id}`);
+      set(state => ({
+        roles: state.roles.filter(r => r.id !== id),
+        isLoading: false
+      }));
+    } catch (error: any) {
+      console.error('Delete role error:', error);
+      set({ isLoading: false });
+      throw error;
+    }
   },
 }));

@@ -203,8 +203,8 @@ export const CalendarView = memo(function CalendarView({
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden">
       {/* Week days */}
       <div className="grid grid-cols-7 border-b border-slate-100/50 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-30">
-        {['п', 'в', 'с', 'ч', 'п', 'с', 'в'].map((day, index) => (
-          <div key={index} className="py-2.5 text-center text-[10px] md:text-sm uppercase font-black text-slate-400 dark:text-slate-500 tracking-wider">
+        {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day, index) => (
+          <div key={index} className="py-2.5 text-center text-[10px] md:text-sm font-black text-slate-400 dark:text-slate-500 tracking-wider">
             {day}
           </div>
         ))}

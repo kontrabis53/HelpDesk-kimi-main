@@ -1,33 +1,92 @@
 import { RouterProvider } from 'react-router-dom';
 import { router } from './router';
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useRoleStore } from '@/stores/roleStore';
+import { WelcomeSplash } from '@/components/ui/WelcomeSplash';
 import './App.css';
 
 function App() {
   const checkAuth = useAuthStore(state => state.checkAuth);
+  const initAutoLogout = useAuthStore(state => state.initAutoLogout);
   const initSocket = useChatStore(state => state.initSocket);
+  const fetchRoles = useRoleStore(state => state.fetchRoles);
   const fetchUsers = useRoleStore(state => state.fetchUsers);
+  const initStatusListener = useRoleStore(state => state.initStatusListener);
 
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const user = useAuthStore(state => state.user);
+
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [hasShownWelcome, setHasShownWelcome] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  const handleWelcomeComplete = useCallback(() => {
+    setShowWelcome(false);
+  }, []);
 
   useEffect(() => {
-    // Check if user is already logged in
-    checkAuth();
-  }, [checkAuth]);
+    const init = async () => {
+      // Check if user is already logged in
+      await checkAuth();
+      
+      // If authenticated, also fetch roles before finishing initialization
+      // This prevents ProtectedRoute from redirecting while roles are loading
+      if (useAuthStore.getState().isAuthenticated) {
+        await fetchRoles();
+      }
+      
+      setIsInitializing(false);
+    };
+    
+    init();
+    
+    // Initialize auto-logout logic
+    const cleanup = initAutoLogout();
+    return cleanup;
+  }, [checkAuth, initAutoLogout]);
 
   useEffect(() => {
     if (isAuthenticated) {
-      // Fetch users for role management
+      // Show welcome splash if not shown yet in this session
+      if (!hasShownWelcome) {
+        setShowWelcome(true);
+        setHasShownWelcome(true);
+      }
+      
+      // Fetch roles and users for role management
+      fetchRoles();
       fetchUsers();
       // Initialize real-time chat
       initSocket();
+      // Listen for status updates
+      initStatusListener();
+    } else {
+      setHasShownWelcome(false);
     }
-  }, [isAuthenticated, initSocket, fetchUsers]);
+  }, [isAuthenticated, initSocket, fetchRoles, fetchUsers, initStatusListener, hasShownWelcome]);
 
-  return <RouterProvider router={router} />;
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-slate-500 dark:text-slate-400 font-medium">Загрузка...</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {showWelcome && user && (
+        <WelcomeSplash 
+          userName={user.name} 
+          onComplete={handleWelcomeComplete} 
+        />
+      )}
+      <RouterProvider router={router} />
+    </>
+  );
 }
 
 export default App;

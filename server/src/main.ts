@@ -10,6 +10,7 @@ import os from 'os';
 import prisma from './lib/prisma.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
+import roleRoutes from './routes/roles.js';
 import ticketRoutes from './routes/tickets.js';
 import inventoryRoutes from './routes/inventory.js';
 import directoryRoutes from './routes/directory.js';
@@ -70,6 +71,67 @@ const io = new Server(fastify.server, {
   cors: {
     origin: '*',
   },
+});
+
+// Map to track active users (userId -> socketId)
+const activeUsers = new Map<string, string>();
+
+// Reset all users to offline on server startup
+async function resetUserStatus() {
+  try {
+    await prisma.user.updateMany({
+      data: { isActive: false }
+    });
+    fastify.log.info('All users reset to offline status on startup');
+  } catch (err) {
+    fastify.log.error(err, 'Failed to reset user statuses');
+  }
+}
+
+resetUserStatus();
+
+io.on('connection', (socket) => {
+  socket.on('authenticate', async (token) => {
+    try {
+      const decoded: any = fastify.jwt.decode(token);
+      if (decoded && decoded.id) {
+        activeUsers.set(decoded.id, socket.id);
+        
+        // Update user status in DB to true
+        await prisma.user.update({
+        where: { id: decoded.id },
+        data: { isActive: true }
+      }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to online'));
+
+        // Broadcast update to all clients
+        io.emit('user_status_change', { userId: decoded.id, isActive: true });
+      }
+    } catch (err) {
+      fastify.log.error(err, 'Socket authentication error');
+    }
+  });
+
+  socket.on('disconnect', async () => {
+    let disconnectedUserId: string | null = null;
+    for (const [userId, socketId] of activeUsers.entries()) {
+      if (socketId === socket.id) {
+        disconnectedUserId = userId;
+        activeUsers.delete(userId);
+        break;
+      }
+    }
+
+    if (disconnectedUserId) {
+      // Update user status in DB to false
+      await prisma.user.update({
+        where: { id: disconnectedUserId },
+        data: { isActive: false }
+      }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to offline'));
+
+      // Broadcast update
+      io.emit('user_status_change', { userId: disconnectedUserId, isActive: false });
+    }
+  });
 });
 
 // Authenticate decorator
@@ -223,7 +285,8 @@ fastify.get('/api', async () => {
 });
 
 fastify.register(authRoutes, { prefix: '/api/auth' });
-fastify.register(userRoutes, { prefix: '/api/users' });
+  fastify.register(userRoutes, { prefix: '/api/users' });
+  fastify.register(roleRoutes, { prefix: '/api/roles' });
 fastify.register(ticketRoutes, { prefix: '/api/tickets' });
 fastify.register(inventoryRoutes, { prefix: '/api/inventory' });
 fastify.register(directoryRoutes, { prefix: '/api/directory' });
@@ -289,11 +352,16 @@ fastify.get('/dashboard', async (_request, reply) => {
       <body class="bg-slate-950 text-slate-100 p-4 md:p-8 min-h-screen">
         <div class="max-w-7xl mx-auto">
           <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-            <div>
-              <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 tracking-tight">
-                HelpDesk CRM
-              </h1>
-              <p class="text-slate-500 text-sm font-medium uppercase tracking-widest mt-1">Admin Control Center</p>
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1a.3.3 0 1 0 .2-.3Z"/><path d="M10 22v-6.5"/><path d="M16 18a9.9 9.9 0 0 0 .5-2.8c0-4.5-3.6-8.2-8-8.2s-8 3.7-8 8.2c0 1 1.3 2.8 3.5 3.5L5 22"/><path d="M14.5 7h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5"/><path d="M8 10h.01"/></svg>
+              </div>
+              <div>
+                <h1 class="text-3xl font-black text-slate-100 tracking-tight leading-none">
+                  MEDIN
+                </h1>
+                <p class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-2">HelpDesk CRM</p>
+              </div>
             </div>
             <div class="flex items-center gap-4">
               <div id="status" class="flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/30 text-sm font-bold">
@@ -727,8 +795,8 @@ const start = async () => {
     const port = parseInt(process.env.PORT || '3000');
     await fastify.listen({ port, host: '0.0.0.0' });
     fastify.log.info(`Server started`);
-  } catch (err) {
-    fastify.log.error(err);
+  } catch (err: any) {
+  fastify.log.error(err);
     process.exit(1);
   }
 };

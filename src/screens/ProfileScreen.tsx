@@ -99,13 +99,13 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
                 )}>
                   <span className="text-white font-bold text-sm">{item.value}</span>
                 </div>
-                <span className="text-xs text-slate-500 dark:text-slate-400">{item.label}</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">{item.label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Settings */}
+        {/* App Settings */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 dark:border-slate-700">
             <h3 className="font-semibold text-slate-800 dark:text-slate-100">Настройки</h3>

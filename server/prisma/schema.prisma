@@ -30,6 +30,19 @@ model User {
   kbArticles      KBArticle[]
   sentMessages    ChatMessage[] @relation("SentMessages")
   receivedMessages ChatMessage[] @relation("ReceivedMessages")
+  
+  // Role Relation
+  roleRelation    Role?    @relation(fields: [roleId], references: [id])
+}
+
+model Role {
+  id          String   @id
+  name        String
+  description String
+  color       String
+  isSystem    Boolean  @default(false)
+  permissions Json     // Store ModulePermission[] as JSON
+  users       User[]
 }
 
 model RegistrationRequest {

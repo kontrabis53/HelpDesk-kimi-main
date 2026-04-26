@@ -20,6 +20,7 @@ model User {
   avatar        String?
   isActive      Boolean  @default(true)
   isOnline      Boolean  @default(false)
+  notificationsEnabled Boolean @default(false)
   showGreeting  Boolean  @default(false)
   greetingText  String   @default("Шо ты маленький, привет")
   createdAt     DateTime @default(now())

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, RegistrationRequest } from '@/types';
 import apiClient from '@/api/client/apiClient';
+import { useChatStore } from './chatStore';
 
 interface AuthState {
   user: User | null;
@@ -25,6 +26,8 @@ interface AuthState {
   rejectRequest: (id: string) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
   initAutoLogout: () => void;
+  updateUser: (data: Partial<User>) => void;
+  updateUserSettings: (settings: { notificationsEnabled?: boolean; showGreeting?: boolean; greetingText?: string }) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -94,6 +97,9 @@ export const useAuthStore = create<AuthState>()(
           localStorage.setItem('auth_token', token);
           set({ user, token, isAuthenticated: true, isLoading: false, isNewLogin: true });
           
+          // Authenticate socket
+          useChatStore.getState().authenticateSocket(token);
+
           // Fetch requests if admin
           if (user.role === 'admin') {
             get().fetchRequests();
@@ -108,6 +114,9 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // Disconnect socket first to send logout event
+        useChatStore.getState().disconnectSocket();
+        
         localStorage.removeItem('auth_token');
         set({ user: null, token: null, isAuthenticated: false, requests: [], isLoading: false });
       },
@@ -216,6 +225,27 @@ export const useAuthStore = create<AuthState>()(
           }));
         } catch (error: any) {
           console.error('Delete request error:', error);
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      updateUser: (data) => {
+        set(state => ({
+          user: state.user ? { ...state.user, ...data } : null
+        }));
+      },
+
+      updateUserSettings: async (settings) => {
+        const { user } = get();
+        if (!user) return;
+
+        set({ isLoading: true });
+        try {
+          const response = await apiClient.patch(`/users/${user.id}`, settings);
+          set({ user: response.data, isLoading: false });
+        } catch (error: any) {
+          console.error('Update user settings error:', error);
           set({ isLoading: false });
           throw error;
         }

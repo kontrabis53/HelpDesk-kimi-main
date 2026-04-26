@@ -1,8 +1,9 @@
 import { Outlet, useLocation } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { BottomNav } from '@/components/BottomNav';
 import { Sidebar } from '@/components/Sidebar';
 import { Toaster } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 import { useRoleStore } from '@/stores/roleStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -27,6 +28,55 @@ export function RootLayout() {
   const roles = useRoleStore((state) => state.roles);
   const user = useAuthStore((state) => state.user);
   const hasPermission = useRoleStore((state) => state.hasPermission);
+  
+  // Track last notified status to prevent duplicates
+  const lastStatusMap = useRef<Map<string, boolean>>(new Map());
+
+  // Status update listener for notifications
+  useEffect(() => {
+    const handler = (e: any) => {
+      const { userId, isOnline } = e.detail;
+      const currentUser = useAuthStore.getState().user;
+      
+      // Prevent duplicate notifications for the same status
+      if (lastStatusMap.current.get(userId) === isOnline) {
+        return;
+      }
+      
+      // Update last seen status
+      lastStatusMap.current.set(userId, isOnline);
+      
+      console.log('User status update received:', { userId, isOnline, currentUserEnabled: currentUser?.notificationsEnabled });
+      
+      // Only show notification if:
+      // 1. Current user has notifications enabled
+      // 2. It's not the current user's own status change
+      if (currentUser?.notificationsEnabled && currentUser.id !== userId) {
+        // Use functional state update to ensure we have the latest users list
+        const latestUsers = useRoleStore.getState().users;
+        const changedUser = latestUsers.find(u => u.id === userId);
+        
+        if (changedUser) {
+          console.log('Showing notification for:', changedUser?.name, 'status:', isOnline);
+          
+          if (isOnline) {
+            toast.success(`${changedUser.name} в сети`, {
+              description: 'Пользователь зашел в систему',
+              duration: 3000,
+            });
+          } else {
+            toast.info(`${changedUser.name} вышел из сети`, {
+              description: 'Пользователь покинул систему',
+              duration: 3000,
+            });
+          }
+        }
+      }
+    };
+    
+    window.addEventListener('user_status_updated', handler);
+    return () => window.removeEventListener('user_status_updated', handler);
+  }, []); // Remove users dependency, we'll get it from store inside handler
 
   const currentUserRole = useMemo(() => {
     if (!user || !roles.length) return undefined;
@@ -90,7 +140,7 @@ export function RootLayout() {
         />
       )}
       
-      <Toaster position="top-center" richColors />
+      <Toaster position="bottom-right" richColors />
     </div>
   );
 }

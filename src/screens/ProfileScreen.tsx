@@ -1,6 +1,7 @@
-import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight, Info } from 'lucide-react';
+import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight, Info, Loader2, Stethoscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import { useState } from 'react';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -33,11 +34,25 @@ interface ProfileScreenProps {
 export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, userRole }: ProfileScreenProps) {
   const isDark = theme === 'dark';
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateUserSettings } = useAuthStore();
+  const [isUpdatingNotifications, setIsUpdatingNotifications] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleToggleNotifications = async (enabled: boolean) => {
+    if (!user || isUpdatingNotifications) return;
+    
+    setIsUpdatingNotifications(true);
+    try {
+      await updateUserSettings({ notificationsEnabled: enabled });
+    } catch (error) {
+      console.error('Failed to toggle notifications:', error);
+    } finally {
+      setIsUpdatingNotifications(false);
+    }
   };
 
   const statItems = [
@@ -155,14 +170,24 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
             <div className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                  <Bell className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  {isUpdatingNotifications ? (
+                    <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin" />
+                  ) : (
+                    <Bell className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  )}
                 </div>
                 <div>
                   <p className="font-medium text-slate-700 dark:text-slate-200">Уведомления</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500">Push-уведомления о новых заявках</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    {isUpdatingNotifications ? 'Обновление...' : 'Оповещения о статусе сотрудников'}
+                  </p>
                 </div>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={user.notificationsEnabled || false} 
+                onCheckedChange={handleToggleNotifications}
+                disabled={isUpdatingNotifications}
+              />
             </div>
 
             <div className="p-4 flex items-center justify-between">
@@ -183,8 +208,8 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
               className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                  <Info className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                  <Stethoscope className="w-4 h-4 text-white" />
                 </div>
                 <div className="text-left">
                   <p className="font-medium text-slate-700 dark:text-slate-200">О программе</p>
@@ -226,7 +251,7 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
 
         <div className="pt-8 text-center pb-8">
           <p className="text-xs font-bold text-slate-300 dark:text-slate-700 uppercase tracking-widest">
-            Медин v1.1.1
+            Медин v1.1.9 Current
           </p>
         </div>
       </div>

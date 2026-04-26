@@ -35,6 +35,8 @@ interface ChatStore {
   showHiddenChats: boolean;
   
   initSocket: () => void;
+  disconnectSocket: () => void;
+  authenticateSocket: (token: string) => void;
   fetchMessages: () => Promise<void>;
   setActiveChat: (chatId: string | null) => void;
   sendMessage: (chatId: string, text: string, senderId: string, senderName: string, recipientName: string) => Promise<void>;
@@ -59,7 +61,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   showHiddenChats: false,
 
   initSocket: () => {
-    if (get().socket) return;
+    if (get().socket) {
+      return;
+    }
 
     console.log('Connecting to socket at:', SOCKET_URL);
     const socket = io(SOCKET_URL, {
@@ -90,6 +94,27 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     });
 
     set({ socket });
+  },
+
+  disconnectSocket: () => {
+    const { socket } = get();
+    if (socket) {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        socket.emit('logout', token);
+      }
+      socket.disconnect();
+      set({ socket: null });
+    }
+  },
+
+  authenticateSocket: (token: string) => {
+    const { socket } = get();
+    if (socket) {
+      socket.emit('authenticate', token);
+    } else {
+      get().initSocket();
+    }
   },
 
   fetchMessages: async () => {

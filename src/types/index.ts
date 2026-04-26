@@ -16,6 +16,7 @@ export interface User {
   department: string;
   isActive?: boolean;
   isOnline?: boolean;
+  notificationsEnabled?: boolean;
   showGreeting?: boolean;
   greetingText?: string;
   createdAt?: string;

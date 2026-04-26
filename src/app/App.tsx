@@ -62,7 +62,7 @@ function App() {
       // Initialize real-time chat
       initSocket();
       // Listen for status updates
-      initStatusListener();
+      return initStatusListener();
     }
   }, [isAuthenticated, user, initSocket, fetchRoles, fetchUsers, initStatusListener]);
 

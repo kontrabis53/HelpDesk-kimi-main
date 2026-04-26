@@ -71,12 +71,12 @@ export function LoginPage() {
 
       <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-8">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
-            <Stethoscope className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-4 shadow-xl shadow-blue-500/20">
+            <Stethoscope className="w-8 h-8 text-white" />
           </div>
           <div className="flex flex-col items-center">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 leading-none">MEDIN</h1>
-            <span className="text-[10px] font-bold tracking-[0.3em] text-slate-400 dark:text-slate-500 uppercase mt-2">HelpDesk</span>
+            <h1 className="text-3xl font-black tracking-tight text-slate-800 dark:text-slate-100 leading-none">MEDIN</h1>
+            <span className="text-[10px] font-bold tracking-[0.3em] text-blue-600 dark:text-blue-400 uppercase mt-2">HelpDesk</span>
           </div>
           <p className="text-slate-500 dark:text-slate-400 mt-6">Вход в систему</p>
         </div>

@@ -91,19 +91,30 @@ export function ChatScreen() {
   const activeChat = (chats || []).find(c => c.id === activeChatId);
   const chatMessages = (messages || []).filter(m => m.chatId === activeChatId);
 
-  // Find directory info for active chat participant if it's a direct chat
-  const activeChatDirectoryInfo = useMemo(() => {
-    if (!activeChat || activeChat.type !== 'direct') return null;
+  // Find directory info and online status for active chat participant if it's a direct chat
+  const activeChatInfo = useMemo(() => {
+    if (!activeChat || activeChat.type !== 'direct') return { directory: null, isOnline: false };
     
     // 1. Find ID of other person
     const otherId = activeChat.participants.find(p => p !== currentUser?.id && p !== 'current-user');
     
-    // 2. Search by ID or Name (since IDs may differ between stores)
-    return directoryEntries.find(e => 
+    // 2. Find user in RoleStore for online status
+    const registeredUser = users.find(u => u.id === otherId || u.name === activeChat.name);
+    
+    // 3. Search directory by ID or Name
+    const directory = directoryEntries.find(e => 
       e.id === otherId || 
       e.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase()
     );
-  }, [activeChat, directoryEntries, currentUser]);
+
+    return {
+      directory,
+      isOnline: registeredUser?.isOnline || false
+    };
+  }, [activeChat, directoryEntries, currentUser, users]);
+
+  const activeChatDirectoryInfo = activeChatInfo.directory;
+  const isOtherUserOnline = activeChatInfo.isOnline;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -316,7 +327,7 @@ export function ChatScreen() {
                    >
                      <div className="relative flex-shrink-0">
                        <div className={cn(
-                         "w-12 h-12 rounded-full flex items-center justify-center border transition-colors",
+                         "w-12 h-12 rounded-full flex items-center justify-center border transition-colors relative",
                          activeChatId === chat.id
                            ? "bg-white/20 border-white/30"
                            : chat.type === 'group' 
@@ -327,6 +338,15 @@ export function ChatScreen() {
                            ? <Users className={cn("w-6 h-6", activeChatId === chat.id ? "text-white" : "text-amber-600")} /> 
                            : <UserIcon className={cn("w-6 h-6", activeChatId === chat.id ? "text-white" : "text-blue-600")} />
                          }
+                         
+                         {chat.type === 'direct' && (
+                           <div className={cn(
+                             "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800",
+                             users.find(u => u.id === chat.participants.find(p => p !== currentUser?.id && p !== 'current-user') || u.name === chat.name)?.isOnline 
+                               ? "bg-emerald-500" 
+                               : "bg-red-500"
+                           )} />
+                         )}
                        </div>
                        {chat.unreadCount > 0 && (
                          <span className={cn(
@@ -441,9 +461,24 @@ export function ChatScreen() {
                 </div>
                 <div>
                   <h2 className="font-bold text-slate-800 dark:text-slate-100 leading-none">{activeChat.name}</h2>
-                  <p className="text-[10px] text-green-500 font-medium mt-1">
-                    {activeChat.type === 'group' ? `${activeChat.participants?.length || 0} участников` : 'В сети'}
-                  </p>
+                  {activeChat.type === 'group' ? (
+                    <p className="text-[10px] text-slate-500 font-medium mt-1">
+                      {activeChat.participants?.length || 0} участников
+                    </p>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div className={cn(
+                        "w-2 h-2 rounded-full",
+                        isOtherUserOnline ? "bg-emerald-500" : "bg-red-500"
+                      )} />
+                      <p className={cn(
+                        "text-[10px] font-medium",
+                        isOtherUserOnline ? "text-emerald-500" : "text-red-500"
+                      )}>
+                        {isOtherUserOnline ? 'В сети' : 'Не в сети'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-1">

@@ -13,6 +13,7 @@ const userUpdateSchema = z.object({
   position: z.string().optional().nullable().or(z.literal('')),
   department: z.string().optional().nullable().or(z.literal('')),
   isActive: z.boolean().optional().nullable(),
+  notificationsEnabled: z.boolean().optional().nullable(),
   showGreeting: z.boolean().optional().nullable(),
   greetingText: z.string().optional().nullable().or(z.literal('')),
 });
@@ -36,6 +37,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
           avatar: true,
             isActive: true,
             isOnline: true,
+            notificationsEnabled: true,
             showGreeting: true,
             greetingText: true,
             createdAt: true,
@@ -91,6 +93,11 @@ export default async function userRoutes(fastify: FastifyInstance) {
           if (typeof value === 'string' && value.length >= 6) {
             updateData[key] = value;
           }
+        } else if (key === 'notificationsEnabled' || key === 'showGreeting' || key === 'isActive') {
+          // Boolean values should be included even if false
+          if (value !== undefined && value !== null) {
+            updateData[key] = value;
+          }
         } else if (value !== '' && value !== undefined && value !== null) {
           updateData[key] = value;
         }
@@ -111,42 +118,44 @@ export default async function userRoutes(fastify: FastifyInstance) {
             position: true,
             department: true,
             avatar: true,
-            isActive: true,
-            isOnline: true,
-            showGreeting: true,
-            greetingText: true,
-            createdAt: true,
-            lastLogin: true
-          }
-        });
-        return user;
-      }
-      
-      if (updateData.password) {
-        updateData.password = await bcrypt.hash(updateData.password, 10);
-      }
-      
-      const user = await (prisma.user as any).update({
-        where: { id },
-        data: updateData,
-        select: {
-          id: true,
-          username: true,
-          name: true,
-          email: true,
-          role: true,
-          roleId: true,
-          position: true,
-          department: true,
-          avatar: true,
           isActive: true,
           isOnline: true,
+          notificationsEnabled: true,
           showGreeting: true,
           greetingText: true,
           createdAt: true,
           lastLogin: true
         }
       });
+      return user;
+    }
+    
+    if (updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    }
+    
+    const user = await prisma.user.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        email: true,
+        role: true,
+        roleId: true,
+        position: true,
+        department: true,
+        avatar: true,
+        isActive: true,
+        isOnline: true,
+        notificationsEnabled: true,
+        showGreeting: true,
+        greetingText: true,
+        createdAt: true,
+        lastLogin: true
+      }
+    });
       return user;
     } catch (error: any) {
       fastify.log.error(error);

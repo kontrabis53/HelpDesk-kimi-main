@@ -1,15 +1,31 @@
-import { ArrowLeft, Info, History, ShieldCheck, Database, Zap } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ArrowLeft, Info, History, ShieldCheck, Database, Zap, Stethoscope, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Input } from '@/components/ui/input';
 
 export function AboutPage() {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const versions = [
+    {
+      version: '1.1.9',
+      date: '27 апреля 2026',
+      title: 'Устранение дубликатов и стабильность',
+      isCurrent: true,
+      changes: [
+        'Исправлена критическая ошибка дублирования уведомлений о входе пользователей',
+        'Реализована фильтрация повторных событий статуса через useRef и Map в RootLayout',
+        'Оптимизирована инициализация сокетов: предотвращена повторная авторизация при обновлении компонентов',
+        'Исправлен сброс переключателя уведомлений в профиле пользователя',
+        'Синхронизирована серверная и клиентская версии системы',
+        'Обновлен скрипт инициализации данных (seed): теперь он корректно обновляет существующих пользователей без ошибок уникальности'
+      ]
+    },
     {
       version: '1.1.7',
       date: '27 апреля 2026',
       title: 'Статус онлайн и персонализация',
-      isCurrent: true,
       changes: [
         'Добавлены поля isOnline, showGreeting и greetingText в модель пользователя',
         'Реализован экран приветствия, который появляется только при новом входе в систему (если включено)',
@@ -36,6 +52,10 @@ export function AboutPage() {
       date: '24 апреля 2026',
       title: 'Техническое обслуживание и исправление API',
       changes: [
+        'Модуль Склад: В редактирование товара добавлена кнопка удаления с подтверждением и кнопка «Отмена»',
+        'Модуль Склад: В шапку редактирования товара добавлена кнопка «Назад» с текстовой подписью и разделителем',
+        'Безопасность: Исправлена логика назначения ролей при создании пользователя (по умолчанию «Пользователь»)',
+        'Система: Исправлено дублирование ролей в справочнике и улучшена типизация',
         'Исправлена критическая ошибка дублирования маршрута чата, приводившая к падению сервера',
         'Включена поддержка ignoreTrailingSlash для стабильной работы API (исправлены 404 при обращении к базе знаний)',
         'Исправлены ошибки типизации TypeScript в диагностических и тестовых скриптах',
@@ -75,13 +95,9 @@ export function AboutPage() {
     {
       version: '1.1.1',
       date: '23 апреля 2026',
-      title: 'Стабилизация и исправление ошибок',
+      title: 'Стабильная версия 1.1.1',
       changes: [
-        'Исправлены критические ошибки в модулях «Чат» и «База знаний»',
-        'Оптимизирована работа Socket.io для стабильного соединения по локальной сети',
-        'Разделена логика Справочника сотрудников и Управления пользователями CRM',
-        'Удалены лишние пользователи из модуля управления, оставлены только администраторы и техники',
-        'Исправлены ошибки типизации TypeScript в компонентах интерфейса'
+        'Начальная стабильная версия с базовым функционалом CRM и авторизацией'
       ]
     },
     {
@@ -97,6 +113,112 @@ export function AboutPage() {
       ]
     },
     {
+      version: '1.0.9.1',
+      date: '22 апреля 2026',
+      title: 'Оптимизация Android и Документов',
+      changes: [
+        'Модуль Документы (Android Optimization): Улучшены жесты свайпа и стабильность скролла (overscroll-contain).',
+        'Модуль Документы: Включено GPU-ускорение (will-change) для плавной отрисовки индикатора времени.',
+        'Модуль Документы: Улучшена видимость индикатора текущего времени на мобильных экранах (контрастная обводка).',
+        'Модуль Документы: Заблокировано случайное выделение текста при быстрой навигации по дням.'
+      ]
+    },
+    {
+      version: '1.0.9',
+      date: '22 апреля 2026',
+      title: 'Timeline Pro и навигация',
+      changes: [
+        'Модуль Документы (Timeline Pro): Реализован детальный режим временной шкалы (Day Timeline) в стиле iOS.',
+        'Модуль Документы: Полная 24-часовая шкала времени (00:00 - 23:00) с ровным шагом в 1 час.',
+        'Модуль Документы: Реализована красная линия текущего времени с живым индикатором минут.',
+        'Модуль Документы: Автоматическая фокусировка на 07:00 при входе в детальный вид.',
+        'Модуль Документы: Адаптивная верстка — недельный вид для Desktop и 2-дневный вид со свайпами для Android/Mobile.',
+        'Модуль Справочник: Исправлен ввод тегов — поддержка запятых и пробелов без потери фокуса.',
+        'Система: Полная диагностика кода, исправление ошибок типизации и чистка неиспользуемых компонентов.'
+      ]
+    },
+    {
+      version: '1.0.8.1',
+      date: '22 апреля 2026',
+      title: 'Исправление скролла',
+      changes: [
+        'Модуль Документы: Восстановлена видимость полосы прокрутки в десктопной версии.',
+        'Модуль Документы: Добавлены кастомные стили скроллбара для темной и светлой темы (тонкий, скругленный).',
+        'Интерфейс: Улучшена навигация в режимах списка и плитки.'
+      ]
+    },
+    {
+      version: '1.0.8',
+      date: '22 апреля 2026',
+      title: 'Оптимизация календаря',
+      changes: [
+        'Модуль Документы: Название месяца перенесено в основную шапку рядом с кнопкой выбора года.',
+        'Модуль Документы: Оптимизирована высота строк календаря — текущий месяц занимает основной экран, видна только первая неделя следующего.',
+        'Модуль Документы: Исправлен scroll-offset для корректного отображения заголовка месяца при переходе.',
+        'Модуль Документы: Восстановлено отображение названий месяцев внутри сетки календаря.',
+        'Производительность: Глубокая оптимизация анимаций селектора даты (GPU-ускорение через transform/opacity).',
+        'Производительность: Динамическая подгрузка месяцев (±2 года от текущей даты) для мгновенных переходов.'
+      ]
+    },
+    {
+      version: '1.0.7',
+      date: '25 марта 2026',
+      title: 'Дизайн в стиле iOS 26',
+      changes: [
+        'Модуль Документы: Полное обновление дизайна календаря в стиле iOS 26.',
+        'Модуль Документы: Названия месяцев вынесены в отдельную строку и центрированы над первым числом.',
+        'Модуль Документы: Название месяца выделяется красным только для ТЕКУЩЕГО месяца (Март), для остальных — стандартный цвет.',
+        'Модуль Документы: Увеличен шрифт дней недели в десктопной версии.',
+        'Модуль Документы: Настройка высоты ячеек во всех версиях (Desktop, Mobile, Android) — теперь в рабочую область помещается ровно один месяц.',
+        'Модуль Документы: Исправлена точность переключения заголовка месяца при скролле (теперь срабатывает быстрее при появлении месяца).',
+        'Модуль Документы: Устранены "полеты" календаря при открытии и переходе по датам — теперь переключение происходит мгновенно.',
+        'Модуль Документы: Реализовано адаптивное сокращение названий месяцев (Февр., Апр. и т.д.), если заголовок находится близко к краю экрана.',
+        'Модуль Документы: Улучшен дизайн сетки календаря — скрыты вертикальные линии, добавлены линии подчеркивания для названий месяцев.',
+        'Модуль Документы: Исправлено начальное позиционирование календаря строго на текущем месяце.',
+        'Исправление багов: Устранены ошибки с "откатом" скролла и восстановлено выделение текущего числа.'
+      ]
+    },
+    {
+      version: '1.0.6',
+      date: '24 марта 2026',
+      title: 'Lazy Loading и поиск',
+      changes: [
+        'Оптимизация производительности: внедрена ленивая загрузка (Lazy Loading) в Справочнике — теперь модуль открывается мгновенно.',
+        'Поиск в Справочнике: добавлена задержка (Debounce) 1 секунда для плавности ввода и снижения нагрузки на устройство.',
+        'Поиск в Справочнике: при вводе текста теперь отображаются сразу все найденные результаты.',
+        'Улучшение UI: во все поисковые строки приложения добавлен крестик для быстрой очистки поля.',
+        'Оптимизация Календаря: исправлен "пролет" месяцев при открытии, теперь календарь сразу фокусируется на текущем дне.',
+        'Исправление багов: устранена ошибка TypeScript (scrollToMonth) и обновлена версия в профиле пользователя.'
+      ]
+    },
+    {
+      version: '1.0.5',
+      date: '24 марта 2026',
+      title: 'Динамический справочник',
+      changes: [
+        'Модуль Справочник: Блок "Часто ищут" теперь работает динамически и сохраняет историю поиска.',
+        'Модуль Справочник: Увеличено количество позиций в "Часто ищут" до 4-х.',
+        'Модуль Справочник: Оптимизирована сетка (3 в ряд) и перенесено меню поиска для экономии места.',
+        'Модуль Справочник: Улучшен дизайн кнопок связи — более мягкий зеленый цвет и крупные цифры.',
+        'Обновлен список сотрудников: удалены тестовые записи, добавлено 174 актуальных контакта.',
+        'Страница входа: обновлен год копирайта на 2026.'
+      ]
+    },
+    {
+      version: '1.0.4',
+      date: '24 марта 2026',
+      title: 'Адаптивность и iOS стиль',
+      changes: [
+        'Модуль Документы: Календарь теперь занимает всю рабочую область на мобильных устройствах.',
+        'Модуль Документы: Кнопка "Сегодня" сделана прозрачной в стиле iOS (стекло) с эффектом размытия.',
+        'Модуль Документы: Исправлена кнопка "Сегодня" — теперь она корректно возвращает к текущему месяцу.',
+        'Модуль Документы: Удалена лишняя плавающая кнопка "+" снизу справа.',
+        'Модуль Документы: Верхняя кнопка "+" перекрашена в синий цвет.',
+        'Исправлены ошибки типизации TypeScript в компоненте календаря.',
+        'Добавлен раздел "О программе" в панели управления.'
+      ]
+    },
+    {
       version: '1.0.0',
       date: 'Март 2026',
       title: 'Релиз первой версии',
@@ -107,6 +229,16 @@ export function AboutPage() {
       ]
     }
   ];
+
+  const filteredVersions = useMemo(() => {
+    if (!searchQuery.trim()) return versions;
+    const query = searchQuery.toLowerCase();
+    return versions.filter(v => 
+      v.version.toLowerCase().includes(query) ||
+      v.title.toLowerCase().includes(query) ||
+      v.changes.some(c => c.toLowerCase().includes(query))
+    );
+  }, [searchQuery]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
@@ -121,22 +253,42 @@ export function AboutPage() {
         <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">О программе</h1>
       </div>
 
-      <div className="p-4 max-w-3xl mx-auto space-y-6">
+      <div className="p-4 max-w-7xl mx-auto space-y-6">
         {/* App Info */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center">
-          <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-xl shadow-blue-500/20">
-            <svg viewBox="0 0 100 100" className="w-12 h-12 text-white" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="50" cy="50" r="46" stroke="currentColor" strokeWidth="7" />
-              <circle cx="50" cy="50" r="10" fill="currentColor" />
-              <path d="M50 82V65" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-              <path d="M25 45C25 30 36 18 50 18C64 18 75 30 75 45C75 55 65 65 50 65" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-            </svg>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center relative overflow-hidden">
+          <div className="absolute top-4 right-4 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-xs font-black border border-blue-100 dark:border-blue-800">
+            v1.1.9 Current
           </div>
-          <h2 className="text-2xl font-black text-slate-900 dark:text-white">MEDIN HelpDesk</h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Система управления технической поддержкой</p>
-          <div className="mt-4 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-sm font-bold border border-blue-100 dark:border-blue-800">
-            Версия 1.1.5 Current
+          
+          <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-blue-500/20">
+            <Stethoscope className="w-6 h-6 text-white" />
           </div>
+          
+          <div className="flex flex-col items-center mb-3">
+            <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 leading-none">MEDIN</h1>
+            <span className="text-[9px] font-bold tracking-[0.3em] text-blue-600 dark:text-blue-400 uppercase mt-1">HelpDesk</span>
+          </div>
+          
+          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Система управления технической поддержкой</p>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Input
+            placeholder="Поиск по обновлениям..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 pr-10"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+            >
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
+          )}
         </div>
 
         {/* Tech Stack */}
@@ -161,41 +313,48 @@ export function AboutPage() {
             <h3 className="font-bold text-slate-800 dark:text-slate-200">История обновлений</h3>
           </div>
 
-          {versions.map((v) => (
-            <div 
-              key={v.version} 
-              className={`bg-white dark:bg-slate-800 rounded-xl p-5 border shadow-sm transition-all ${
-                v.isCurrent 
-                  ? 'border-blue-200 dark:border-blue-800 ring-4 ring-blue-50 dark:ring-blue-900/10' 
-                  : 'border-slate-100 dark:border-slate-700'
-              }`}
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-lg font-black ${v.isCurrent ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                      v{v.version}
-                    </span>
-                    {v.isCurrent && (
-                      <span className="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider border border-green-200 dark:border-green-800">
-                        Текущая
+          {filteredVersions.length > 0 ? (
+            filteredVersions.map((v) => (
+              <div 
+                key={v.version} 
+                className={`bg-white dark:bg-slate-800 rounded-xl p-5 border shadow-sm transition-all ${
+                  v.isCurrent 
+                    ? 'border-blue-200 dark:border-blue-800 ring-4 ring-blue-50 dark:ring-blue-900/10' 
+                    : 'border-slate-100 dark:border-slate-700'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-lg font-black ${v.isCurrent ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                        v{v.version}
                       </span>
-                    )}
+                      {v.isCurrent && (
+                        <span className="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider border border-green-200 dark:border-green-800">
+                          Текущая
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 font-medium">{v.date}</p>
                   </div>
-                  <p className="text-xs text-slate-400 font-medium">{v.date}</p>
                 </div>
+                <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-2">{v.title}</h4>
+                <ul className="space-y-2">
+                  {v.changes.map((change, idx) => (
+                    <li key={idx} className="flex gap-2 text-sm text-slate-600 dark:text-slate-400">
+                      <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mt-1.5 flex-shrink-0" />
+                      {change}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-2">{v.title}</h4>
-              <ul className="space-y-2">
-                {v.changes.map((change, idx) => (
-                  <li key={idx} className="flex gap-2 text-sm text-slate-600 dark:text-slate-400">
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mt-1.5 flex-shrink-0" />
-                    {change}
-                  </li>
-                ))}
-              </ul>
+            ))
+          ) : (
+            <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+              <Search className="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
+              <p className="text-slate-500 dark:text-slate-400">Ничего не найдено по запросу "{searchQuery}"</p>
             </div>
-          ))}
+          )}
         </div>
 
         <div className="pt-8 text-center">

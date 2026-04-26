@@ -107,7 +107,6 @@ async function main() {
   // 2. Восстановление только АДМИНОВ и ТЕХНИКОВ как пользователей CRM
   const usersData = [
     {
-      id: 'u1',
       username: 'admin',
       password: hashedPassword,
       name: 'Иванов Иван Иванович',
@@ -122,7 +121,6 @@ async function main() {
       greetingText: 'Шо ты маленький, привет',
     },
     {
-      id: 'u2',
       name: 'Петров Петр Петрович',
       email: 'petr@medin.ru',
       role: 'technician',
@@ -137,7 +135,6 @@ async function main() {
       password: hashedPassword,
     },
     {
-      id: 'u3',
       name: 'Сидоров Алексей',
       email: 'alexey@medin.ru',
       role: 'technician',
@@ -154,13 +151,29 @@ async function main() {
   ];
 
   for (const user of usersData) {
-    const existing = await prisma.user.findUnique({ where: { username: user.username } });
-    if (!existing) {
-      await prisma.user.create({ data: user });
-      console.log(`Пользователь ${user.username} создан`);
-    } else {
-      // Не затираем существующих пользователей, чтобы не терять их пароли и настройки
-      console.log(`Пользователь ${user.username} уже существует, пропускаем`);
+    try {
+      const notificationsEnabled = (user.roleId === 'admin' || user.roleId === 'technician');
+
+      await prisma.user.upsert({
+        where: { username: user.username },
+        update: {
+            role: user.role,
+            roleId: user.roleId,
+            notificationsEnabled: notificationsEnabled
+          },
+          create: {
+            ...user,
+            notificationsEnabled: notificationsEnabled
+          },
+      });
+      console.log(`Пользователь ${user.username} проверен/обновлен`);
+    } catch (e: any) {
+      if (e.code === 'P2002') {
+        // Just log the conflict, don't try to force updates by email to avoid data loss/accidental merges
+        console.warn(`Пропуск пользователя ${user.username}: конфликт уникальности (${e.meta?.target})`);
+      } else {
+        console.error(`Ошибка при обновлении пользователя ${user.username}:`, e);
+      }
     }
   }
   console.log('Базовые пользователи проверены');
@@ -288,74 +301,52 @@ async function main() {
   }
   console.log('Справочник сотрудников проверен');
 
-  // 4. Восстановление инвентаря
+  // 4. Инвентарь (если нужно восстановить базу)
   const inventoryData = [
-    { sku: 'CRT-HP-85A', name: 'Картридж HP 85A (CE285A)', category: 'consumables', description: 'Оригинальный картридж для HP LaserJet Pro P1102, M1132, M1212', quantity: 12, minQuantity: 5, unit: 'pcs', location: 'Склад А, стеллаж 3', supplier: 'Техносила', price: 3200 },
-    { sku: 'PAPER-A4-80', name: 'Бумага A4 80г/м2', category: 'consumables', description: 'Офисная бумага для принтеров и МФУ', quantity: 45, minQuantity: 10, unit: 'box', location: 'Склад А, стеллаж 1', supplier: 'Xerox', price: 280 },
-    { sku: 'CABLE-UTP-5E', name: 'Кабель UTP Cat.5e', category: 'spare_parts', description: 'Витая пара для сетевых подключений, бухта 305м', quantity: 3, minQuantity: 2, unit: 'box', location: 'Склад Б, стеллаж 2', supplier: 'Legrand', price: 8500 },
-    { sku: 'SSD-SAM-500', name: 'SSD Samsung 870 EVO 500GB', category: 'spare_parts', description: 'Твердотельный накопитель 2.5" SATA III', quantity: 8, minQuantity: 3, unit: 'pcs', location: 'Склад Б, стеллаж 4', supplier: 'Samsung', price: 5800 },
-    { sku: 'TOOL-SET-01', name: 'Набор инструментов для IT', category: 'tools', description: 'Отвертки, пинцеты, кабельный тестер, кримпер', quantity: 5, minQuantity: 2, unit: 'pcs', location: 'Склад А, шкаф инструментов', supplier: 'Kraftool', price: 4500 },
+    { sku: 'MON-HP-24-001', name: 'Монитор HP 24"', category: 'monitors', description: '24 inch IPS display', quantity: 15, minQuantity: 5, unit: 'pcs', location: 'Склад А', supplier: 'HP Store', price: 12000 },
+    { sku: 'PC-DELL-OPT-005', name: 'Системный блок Dell Optiplex', category: 'computers', description: 'Intel i5, 16GB RAM, 512GB SSD', quantity: 8, minQuantity: 2, unit: 'pcs', location: 'Склад А', supplier: 'Dell Russia', price: 45000 },
+    { sku: 'PRN-KYOCERA-2040', name: 'МФУ Kyocera M2040dn', category: 'printers', description: 'Laser monochrome MFP', quantity: 3, minQuantity: 1, unit: 'pcs', location: 'Склад Б', supplier: 'Kyocera Center', price: 32000 },
+    { sku: 'KBD-LOGI-K120', name: 'Клавиатура Logitech K120', category: 'peripherals', description: 'Wired USB keyboard', quantity: 25, minQuantity: 10, unit: 'pcs', location: 'Склад А', supplier: 'Logitech', price: 850 },
+    { sku: 'MSE-LOGI-B100', name: 'Мышь Logitech B100', category: 'peripherals', description: 'Wired optical mouse', quantity: 30, minQuantity: 10, unit: 'pcs', location: 'Склад А', supplier: 'Logitech', price: 450 },
+    { sku: 'TONER-KYOCERA-1170', name: 'Тонер Kyocera TK-1170', category: 'consumables', description: 'Black toner cartridge', quantity: 12, minQuantity: 5, unit: 'pcs', location: 'Склад Б', supplier: 'Kyocera Center', price: 2800 },
+    { sku: 'TOOL-SET-01', name: 'Набор инструментов для IT', category: 'tools', description: 'Отвертки, пинцеты, кабельный тестер, кримпер', quantity: 5, minQuantity: 2, unit: 'pcs', location: 'Склад А', supplier: 'Kraftool', price: 4500 },
   ];
 
-  await prisma.inventoryItem.createMany({ data: inventoryData });
-  console.log('Инвентарь восстановлен');
+  for (const item of inventoryData) {
+    try {
+      await (prisma as any).inventoryItem.upsert({
+        where: { sku: item.sku },
+        update: item,
+        create: item
+      });
+    } catch (e) {
+      console.warn(`Пропуск предмета инвентаря ${item.sku}`);
+    }
+  }
+  console.log('База инвентаря проверена');
 
   // 5. Восстановление базы знаний (KBArticle)
   const kbData = [
-    { 
-      title: 'Принтер не печатает - диагностика', 
-      category: 'printer', 
-      description: 'Пошаговая инструкция по диагностике проблем с печатью',
-      content: 'Пошаговая инструкция по диагностике проблем с печатью. 1. Проверьте подключение. 2. Очистите очередь печати.', 
-      tags: ['принтер', 'печать', 'диагностика'], 
-      authorId: 'u1',
-      steps: [
-        { id: '1', order: 1, title: 'Проверьте подключение', description: 'Убедитесь, что принтер включен в розетку.' },
-        { id: '2', order: 2, title: 'Очередь печати', description: 'Удалите зависшие задания в очереди.' }
-      ]
-    },
-    { 
-      title: 'Нет интернета - что проверить', 
-      category: 'network', 
-      description: 'Быстрая диагностика проблем с интернет-соединением',
-      content: 'Быстрая диагностика проблем с интернет-соединением. 1. Индикаторы роутера. 2. Перезагрузка.', 
-      tags: ['интернет', 'сеть', 'диагностика'], 
-      authorId: 'u1',
-      steps: [
-        { id: '1', order: 1, title: 'Индикаторы роутера', description: 'Проверьте WAN индикатор.' },
-        { id: '2', order: 2, title: 'Перезагрузка', description: 'Выключите и включите роутер.' }
-      ]
-    },
-    { 
-      title: 'Компьютер не включается', 
-      category: 'common', 
-      description: 'Что делать, если компьютер не реагирует на кнопку включения',
-      content: 'Что делать, если компьютер не реагирует на кнопку включения. 1. Кабель питания. 2. Кнопка БП.', 
-      tags: ['компьютер', 'питание', 'железо'], 
-      authorId: 'u1',
-      steps: [
-        { id: '1', order: 1, title: 'Кабель питания', description: 'Проверьте плотность подключения кабеля.' },
-        { id: '2', order: 2, title: 'Кнопка БП', description: 'Убедитесь, что переключатель на блоке питания в положении I.' }
-      ]
-    },
-    { 
-      title: 'Настройка почты Outlook', 
-      category: 'software', 
-      description: 'Инструкция по настройке корпоративной почты в Outlook',
-      content: 'Инструкция по настройке корпоративной почты в Outlook. 1. Откройте Outlook. 2. Добавление записи.', 
-      tags: ['почта', 'outlook', 'email', 'настройка'], 
-      authorId: 'u1',
-      steps: [
-        { id: '1', order: 1, title: 'Запуск мастера', description: 'Запустите Outlook и перейдите в Файл -> Добавить учетную запись.' },
-        { id: '2', order: 2, title: 'Данные сервера', description: 'Введите ваш email и пароль.' }
-      ]
-    },
+    { title: 'Настройка почты Outlook', content: 'Инструкция по настройке корпоративной почты...', category: 'software', authorId: 'admin' },
+    { title: 'Замена картриджа в принтере', content: 'Пошаговое руководство по замене тонера...', category: 'hardware', authorId: 'admin' },
   ];
 
   for (const article of kbData) {
-    await prisma.kBArticle.create({ data: article });
+    try {
+      // Find admin to link as author
+      const admin = await prisma.user.findFirst({ where: { roleId: 'admin' } });
+      if (admin) {
+        await (prisma as any).kBArticle.upsert({
+          where: { title: article.title },
+          update: { ...article, authorId: admin.id },
+          create: { ...article, authorId: admin.id }
+        });
+      }
+    } catch (e) {
+      console.warn(`Пропуск статьи базы знаний ${article.title}`);
+    }
   }
-  console.log('База знаний восстановлена');
+  console.log('База знаний проверена');
 
   // 6. Восстановление документов (актов) с разными датами
   const documentsData = [
@@ -365,7 +356,15 @@ async function main() {
   ];
 
   for (const doc of documentsData) {
-    await prisma.document.create({ data: doc });
+    try {
+      await prisma.document.upsert({
+        where: { number: doc.number },
+        update: doc,
+        create: doc
+      });
+    } catch (e) {
+      console.warn(`Пропуск документа ${doc.number}`);
+    }
   }
   console.log('Документы восстановлены');
 
@@ -376,7 +375,15 @@ async function main() {
   ];
 
   for (const ticket of ticketsData) {
-    await prisma.ticket.create({ data: ticket });
+    try {
+      await prisma.ticket.upsert({
+        where: { number: ticket.number },
+        update: ticket,
+        create: ticket
+      });
+    } catch (e) {
+      console.warn(`Пропуск заявки ${ticket.number}`);
+    }
   }
   console.log('Заявки восстановлены');
 

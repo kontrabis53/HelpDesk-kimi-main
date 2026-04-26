@@ -40,7 +40,7 @@ fastify.register(fastifyHelmet, {
 
 // 2. SECURITY: CORS (Restrict access to the API)
 fastify.register(fastifyCors, {
-  origin: true,
+  origin: '*', // Temporarily allow all for network access debugging
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true
 });
@@ -101,6 +101,25 @@ io.on('connection', (socket) => {
       }
     } catch (err: any) {
       fastify.log.error(err, 'Socket authentication error');
+    }
+  });
+
+  socket.on('logout', async (token) => {
+    try {
+      const decoded: any = fastify.jwt.decode(token);
+      if (decoded && decoded.id) {
+        activeUsers.delete(decoded.id);
+        
+        await prisma.user.update({
+          where: { id: decoded.id },
+          data: { isOnline: false }
+        }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to offline on logout'));
+
+        io.emit('user_status_change', { userId: decoded.id, isOnline: false });
+        console.log(`[Socket] User ${decoded.id} logged out explicitly`);
+      }
+    } catch (err: any) {
+      fastify.log.error(err, 'Socket logout error');
     }
   });
 
@@ -265,14 +284,15 @@ fastify.setErrorHandler(async (error: any, _request, reply) => {
 fastify.get('/api', async () => {
   return { 
     message: 'HelpDesk CRM API Server', 
-    version: '1.1.5',
+    version: '1.1.9',
     status: 'running',
     changelog: {
+      "1.1.9": "Исправлена ошибка дублирования уведомлений, оптимизирована работа сокетов, исправлен баг с бегунком в профиле и обновлен механизм seed.",
       "1.1.5": "Исправлена ошибка дублирования маршрута чата, улучшена обработка завершающих слешей в URL (ignoreTrailingSlash), исправлена типизация тестовых скриптов.",
       "1.1.4": "Оптимизация работы с Prisma Client, исправление проблем с отображением SystemLog в IDE, очистка неиспользуемых импортов и иконок.",
       "1.1.3": "Стандартизация сигнатур маршрутов Fastify (удаление FastifyPluginOptions), исправление логики валидации в базе знаний.",
       "1.1.2": "Добавлена поддержка Socket.io для чата, исправлен порядок аргументов в логгере ошибок, обновлены схемы валидации Zod.",
-      "1.1.1": "Начальная стабильная версия с базовым функционалом CRM и авторизацией."
+      "1.1.1": "Стабильная версия 1.1.1."
     }
   };
 });

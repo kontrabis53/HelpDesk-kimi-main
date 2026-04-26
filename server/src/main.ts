@@ -159,8 +159,8 @@ fastify.decorate("authenticate", async function(request: FastifyRequest, reply: 
 
 // Extend FastifyInstance type for the decorator
 declare module 'fastify' {
-  export interface FastifyInstance {
-    authenticate: any;
+  interface FastifyInstance {
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 

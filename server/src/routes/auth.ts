@@ -1,7 +1,6 @@
-import { FastifyInstance } from 'fastify';
-// Re-triggering type check after prisma generate
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
-import prisma from '../lib/prisma';
+import prisma from '../lib/prisma.js';
 import { z } from 'zod';
 
 const loginSchema = z.object({

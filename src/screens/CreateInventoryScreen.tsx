@@ -151,19 +151,19 @@ export function CreateInventoryScreen({ onBack, onSubmit }: CreateInventoryScree
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Единица</Label>
             <div className="grid grid-cols-3 gap-1">
-              {units.map((u) => (
+              {units.map((u_unit) => (
                 <button
-                  key={u.id}
+                  key={u_unit.id}
                   type="button"
-                  onClick={() => setValue('unit', u.id)}
+                  onClick={() => setValue('unit', u_unit.id)}
                   className={cn(
                     'px-2 py-3 rounded-lg text-sm font-medium transition-all',
-                    selectedUnit === u.id
+                    selectedUnit === u_unit.id
                       ? 'bg-blue-600 text-white'
                       : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                   )}
                 >
-                  {u.label}
+                  {u_unit.label}
                 </button>
               ))}
             </div>

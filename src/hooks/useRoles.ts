@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import type { User } from '@/types';
 import type { Role, UserWithRole, ActivityLog, SystemSettings } from '@/types/roles';
 import { defaultRoles } from '@/types/roles';
 
@@ -114,7 +115,7 @@ export function useRoles() {
 
   // Получить текущего пользователя с ролью
   const currentUserWithRole = useMemo(() => {
-    const user = users.find(u => u.id === currentUserId);
+    const user = users.find((u: User) => u.id === currentUserId);
     const role = roles.find(r => r.id === user?.roleId);
     return { user, role };
   }, [users, roles, currentUserId]);
@@ -188,7 +189,7 @@ export function useRoles() {
   }, []);
 
   const updateUser = useCallback((userId: string, data: Partial<UserWithRole>) => {
-    setUsers(prev => prev.map(u => {
+    setUsers(prev => prev.map((u: User) => {
       if (u.id === userId) {
         const updated = { ...u, ...data };
         addLog('user.updated', 'user', u.id, u.name, `Обновлен пользователь: ${u.name}`);
@@ -199,8 +200,8 @@ export function useRoles() {
   }, []);
 
   const deleteUser = useCallback((userId: string) => {
-    const user = users.find(u => u.id === userId);
-    setUsers(prev => prev.filter(u => u.id !== userId));
+    const user = users.find((u: User) => u.id === userId);
+    setUsers(prev => prev.filter((u: User) => u.id !== userId));
     addLog('user.deleted', 'user', userId, user?.name, `Удален пользователь: ${user?.name}`);
   }, [users]);
 

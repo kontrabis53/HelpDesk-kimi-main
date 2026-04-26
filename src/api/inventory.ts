@@ -1,5 +1,5 @@
 import apiClient from './client/apiClient';
-import type { InventoryItem, InventoryMovement } from '@/types';
+import type { InventoryItem } from '@/types';
 
 export const inventoryService = {
   getAll: async (): Promise<InventoryItem[]> => {

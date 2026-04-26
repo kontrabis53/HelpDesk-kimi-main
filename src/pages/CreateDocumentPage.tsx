@@ -13,8 +13,8 @@ export function CreateDocumentPage() {
     navigate('/documents');
   };
   
-  const handleSubmit = (data: any) => {
-    const newDoc = createDocument(data);
+  const handleSubmit = async (data: any) => {
+    const newDoc = await createDocument(data);
     addLog('document.created', 'document', newDoc.id, newDoc.number, `Создан документ: ${newDoc.title}`);
     toast.success('Документ создан', {
       description: `Документ ${newDoc.number} успешно создан`,

@@ -77,15 +77,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       get().addMessage(message);
     });
 
-    socket.on('user_status_change', ({ userId, isActive }: { userId: string, isActive: boolean }) => {
+    socket.on('user_status_change', ({ userId, isOnline }: { userId: string, isOnline: boolean }) => {
       // We need to update the user status in roleStore or wherever users are managed
       // Since stores are separate, we can use a global event or direct store update if possible
       // For now, let's just log it and assume roleStore will handle the update if we can access it
-      console.log(`User ${userId} is now ${isActive ? 'online' : 'offline'}`);
+      console.log(`User ${userId} is now ${isOnline ? 'online' : 'offline'}`);
       
       // Try to update roleStore users if it's available in the same context
       // Alternatively, we can use a callback or window event
-      const event = new CustomEvent('user_status_updated', { detail: { userId, isActive } });
+      const event = new CustomEvent('user_status_updated', { detail: { userId, isOnline } });
       window.dispatchEvent(event);
     });
 

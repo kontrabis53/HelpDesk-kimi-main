@@ -13,6 +13,8 @@ const userUpdateSchema = z.object({
   position: z.string().optional().nullable().or(z.literal('')),
   department: z.string().optional().nullable().or(z.literal('')),
   isActive: z.boolean().optional().nullable(),
+  showGreeting: z.boolean().optional().nullable(),
+  greetingText: z.string().optional().nullable().or(z.literal('')),
 });
 
 export default async function userRoutes(fastify: FastifyInstance) {
@@ -32,8 +34,11 @@ export default async function userRoutes(fastify: FastifyInstance) {
           position: true,
           department: true,
           avatar: true,
-          isActive: true,
-          createdAt: true,
+            isActive: true,
+            isOnline: true,
+            showGreeting: true,
+            greetingText: true,
+            createdAt: true,
           lastLogin: true
         }
       });
@@ -107,6 +112,9 @@ export default async function userRoutes(fastify: FastifyInstance) {
             department: true,
             avatar: true,
             isActive: true,
+            isOnline: true,
+            showGreeting: true,
+            greetingText: true,
             createdAt: true,
             lastLogin: true
           }
@@ -118,7 +126,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
         updateData.password = await bcrypt.hash(updateData.password, 10);
       }
       
-      const user = await prisma.user.update({
+      const user = await (prisma.user as any).update({
         where: { id },
         data: updateData,
         select: {
@@ -132,6 +140,9 @@ export default async function userRoutes(fastify: FastifyInstance) {
           department: true,
           avatar: true,
           isActive: true,
+          isOnline: true,
+          showGreeting: true,
+          greetingText: true,
           createdAt: true,
           lastLogin: true
         }

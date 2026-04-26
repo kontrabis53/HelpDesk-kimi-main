@@ -40,16 +40,9 @@ fastify.register(fastifyHelmet, {
 
 // 2. SECURITY: CORS (Restrict access to the API)
 fastify.register(fastifyCors, {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [
-        process.env.FRONTEND_URL || 'http://localhost:5173',
-        'capacitor://localhost',      // iOS
-        'http://localhost',            // Android
-        'ms-appx-web://localhost',     // Windows (WebView2)
-        'app://localhost'              // Electron
-      ] 
-    : true,
+  origin: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  credentials: true
 });
 
 // 3. SECURITY: Rate Limiting (Prevent Brute-force/DDoS)
@@ -68,29 +61,29 @@ fastify.register(fastifyJwt, {
 
 // Initialize Socket.io immediately
 const io = new Server(fastify.server, {
+  path: '/socket.io/',
   cors: {
     origin: '*',
+    methods: ['GET', 'POST'],
   },
+  transports: ['websocket', 'polling']
 });
 
 // Map to track active users (userId -> socketId)
 const activeUsers = new Map<string, string>();
 
-// Reset all users to offline on server startup
-async function resetUserStatus() {
-  try {
-    await prisma.user.updateMany({
-      data: { isActive: false }
-    });
-    fastify.log.info('All users reset to offline status on startup');
-  } catch (err) {
-    fastify.log.error(err, 'Failed to reset user statuses');
-  }
-}
-
-resetUserStatus();
-
+// Log socket connections
 io.on('connection', (socket) => {
+  console.log(`[Socket] New connection: ${socket.id}`);
+  
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket] Disconnected: ${socket.id}, reason: ${reason}`);
+  });
+  
+  socket.on('error', (error) => {
+    console.error(`[Socket] Error for ${socket.id}:`, error);
+  });
+
   socket.on('authenticate', async (token) => {
     try {
       const decoded: any = fastify.jwt.decode(token);
@@ -98,15 +91,15 @@ io.on('connection', (socket) => {
         activeUsers.set(decoded.id, socket.id);
         
         // Update user status in DB to true
-        await prisma.user.update({
-        where: { id: decoded.id },
-        data: { isActive: true }
-      }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to online'));
+          await prisma.user.update({
+          where: { id: decoded.id },
+          data: { isOnline: true }
+        }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to online'));
 
         // Broadcast update to all clients
-        io.emit('user_status_change', { userId: decoded.id, isActive: true });
+        io.emit('user_status_change', { userId: decoded.id, isOnline: true });
       }
-    } catch (err) {
+    } catch (err: any) {
       fastify.log.error(err, 'Socket authentication error');
     }
   });
@@ -122,14 +115,14 @@ io.on('connection', (socket) => {
     }
 
     if (disconnectedUserId) {
-      // Update user status in DB to false
-      await prisma.user.update({
-        where: { id: disconnectedUserId },
-        data: { isActive: false }
-      }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to offline'));
+        // Update user status in DB to false
+        await prisma.user.update({
+          where: { id: disconnectedUserId },
+          data: { isOnline: false }
+        }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to offline'));
 
       // Broadcast update
-      io.emit('user_status_change', { userId: disconnectedUserId, isActive: false });
+      io.emit('user_status_change', { userId: disconnectedUserId, isOnline: false });
     }
   });
 });
@@ -138,7 +131,7 @@ io.on('connection', (socket) => {
 fastify.decorate("authenticate", async function(request: FastifyRequest, reply: FastifyReply) {
   try {
     await request.jwtVerify();
-  } catch (err) {
+  } catch (err: any) {
     reply.status(401).send({ message: 'Ошибка авторизации: токен недействителен или отсутствует' });
   }
 });
@@ -175,7 +168,7 @@ fastify.addHook('onResponse', async (request, reply) => {
         user = decoded.username;
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     // Ignore JWT decode errors for logs
   }
 
@@ -206,7 +199,7 @@ fastify.addHook('onResponse', async (request, reply) => {
 
   // Save to DB for persistence
   try {
-    await (prisma as any).systemLog.create({
+    await prisma.systemLog.create({
       data: {
         type,
         message,
@@ -214,7 +207,7 @@ fastify.addHook('onResponse', async (request, reply) => {
         details: filteredBody || {},
       }
     });
-  } catch (err) {
+  } catch (err: any) {
     fastify.log.error(err, 'Failed to save log to DB:');
   }
 });
@@ -243,7 +236,7 @@ fastify.setErrorHandler(async (error: any, _request, reply) => {
 
   // Save error to DB
   try {
-    await (prisma as any).systemLog.create({
+    await prisma.systemLog.create({
       data: {
         type: 'error',
         message: `ERROR: ${error.message}`,
@@ -251,7 +244,7 @@ fastify.setErrorHandler(async (error: any, _request, reply) => {
         details: { stack: error.stack, statusCode }
       }
     });
-  } catch (err) {
+  } catch (err: any) {
     fastify.log.error(err, 'Failed to save error log to DB:');
   }
 
@@ -319,7 +312,7 @@ fastify.get('/api/system-logs', {
     if (endDate) where.timestamp.lte = new Date(endDate);
   }
 
-  const logs = await (prisma as any).systemLog.findMany({
+  const logs = await prisma.systemLog.findMany({
     where,
     orderBy: { timestamp: 'desc' },
     take: 500
@@ -337,7 +330,7 @@ fastify.get('/dashboard', async (_request, reply) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>HelpDesk Admin Dashboard</title>
-        <script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
+        <script src="/socket.io/socket.io.js"></script>
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
@@ -354,13 +347,11 @@ fastify.get('/dashboard', async (_request, reply) => {
           <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div class="flex items-center gap-4">
               <div class="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1a.3.3 0 1 0 .2-.3Z"/><path d="M10 22v-6.5"/><path d="M16 18a9.9 9.9 0 0 0 .5-2.8c0-4.5-3.6-8.2-8-8.2s-8 3.7-8 8.2c0 1 1.3 2.8 3.5 3.5L5 22"/><path d="M14.5 7h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5"/><path d="M8 10h.01"/></svg>
+                <div id="status-dot" class="w-3 h-3 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
               </div>
               <div>
-                <h1 class="text-3xl font-black text-slate-100 tracking-tight leading-none">
-                  MEDIN
-                </h1>
-                <p class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-2">HelpDesk CRM</p>
+                <h1 class="text-2xl font-black tracking-tight text-white">HelpDesk <span class="text-blue-500">Live</span></h1>
+                <p class="text-slate-500 text-xs font-bold uppercase tracking-widest">Autonomous CRM Dashboard</p>
               </div>
             </div>
             <div class="flex items-center gap-4">
@@ -493,17 +484,67 @@ fastify.get('/dashboard', async (_request, reply) => {
         </div>
 
         <script>
-          const socket = io();
-          const logsContainer = document.getElementById('logs');
-          const clientsCount = document.getElementById('clients');
-          const uptimeDisplay = document.getElementById('uptime');
-          const memoryDisplay = document.getElementById('memory');
-          const cpuDisplay = document.getElementById('cpu');
-          const osDisplay = document.getElementById('os-info');
-          const nodeDisplay = document.getElementById('node-version');
-          const requestsContainer = document.getElementById('requests');
-          const requestCount = document.getElementById('request-count');
-          const activeUsersContainer = document.getElementById('active-users');
+          // Check if socket.io is loaded
+          if (typeof io === 'undefined') {
+            console.error('Socket.io library not loaded');
+          } else {
+            console.log('Socket.io library detected, type:', typeof io);
+          }
+
+          const socket = io({
+            path: '/socket.io/',
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 1000
+          });
+          
+          socket.on('connect', () => {
+            console.log('Connected to server, ID:', socket.id);
+            const statusDot = document.getElementById('status-dot');
+            if (statusDot) {
+              statusDot.classList.remove('bg-red-500');
+              statusDot.classList.add('bg-emerald-500');
+            }
+            
+            addLog({ 
+              timestamp: new Date().toISOString(), 
+              type: 'info', 
+              user: 'System', 
+              message: 'Dashboard connected (ID: ' + socket.id + ')' 
+            });
+          });
+
+          socket.on('disconnect', (reason) => {
+            console.log('Disconnected from server, reason:', reason);
+            const statusDot = document.getElementById('status-dot');
+            if (statusDot) {
+              statusDot.classList.remove('bg-emerald-500');
+              statusDot.classList.add('bg-red-500');
+            }
+          });
+
+          socket.on('connect_error', (err) => {
+            console.error('Socket connection error:', err.message);
+            console.error('Error object:', err);
+            addLog({ 
+              timestamp: new Date().toISOString(), 
+              type: 'error', 
+              user: 'System', 
+              message: 'Connection error: ' + err.message 
+            });
+          });
+ 
+           const logsContainer = document.getElementById('logs');
+           const clientsCount = document.getElementById('clients');
+           const uptimeDisplay = document.getElementById('uptime');
+           const memoryDisplay = document.getElementById('memory');
+           const cpuDisplay = document.getElementById('cpu');
+           const osDisplay = document.getElementById('os-info');
+           const nodeDisplay = document.getElementById('node-version');
+           const requestsContainer = document.getElementById('requests');
+           const requestCount = document.getElementById('request-count');
+           const activeUsersContainer = document.getElementById('active-users');
 
           // Business stats
           const ticketsStat = document.getElementById('stat-tickets');
@@ -571,18 +612,30 @@ fastify.get('/dashboard', async (_request, reply) => {
                 ? '<span class="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 uppercase tracking-tighter">' + log.user + '</span>'
                 : '<span class="bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 uppercase tracking-tighter">SYS</span>';
               
-              return \`
-                <div class="log-entry py-1.5 border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors px-2 rounded">
-                  <div class="flex items-start gap-2">
-                    <span class="text-slate-600 font-medium min-w-[65px] flex-shrink-0">[\${time}]</span>
-                    \${userBadge}
-                    <span class="\${color} font-bold min-w-[50px] flex-shrink-0">[\${log.type.toUpperCase()}]</span>
-                    <span class="text-slate-300 break-all">\${log.message}</span>
-                  </div>
-                </div>
-              \`;
+              return '<div class="log-entry py-1.5 border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors px-2 rounded">' +
+                     '<div class="flex items-start gap-2">' +
+                     '<span class="text-slate-600 font-medium min-w-[65px] flex-shrink-0">[' + time + ']</span>' +
+                     userBadge +
+                     '<span class="' + color + ' font-bold min-w-[50px] flex-shrink-0">[' + log.type.toUpperCase() + ']</span>' +
+                     '<span class="text-slate-300 break-all">' + log.message + '</span>' +
+                     '</div>' +
+                     '</div>';
             }).join('');
           }
+
+          // Добавим принудительный рендер при загрузке
+          window.onload = () => {
+            renderLogs();
+            // Попробуем отправить тестовый лог через секунду после загрузки
+            setTimeout(() => {
+              addLog({ 
+                timestamp: new Date().toISOString(), 
+                type: 'info', 
+                user: 'System', 
+                message: 'Dashboard UI initialized' 
+              });
+            }, 1000);
+          };
 
           function applyFilters() { renderLogs(); }
           function clearLogsUI() { allLogs = []; renderLogs(); }
@@ -628,18 +681,19 @@ fastify.get('/dashboard', async (_request, reply) => {
               .sort((a, b) => b[1].timestamp - a[1].timestamp)
               .slice(0, 5);
 
-            activeUsersContainer.innerHTML = sortedUsers.map(([username, data]) => \`
-              <div class="flex items-center justify-between bg-slate-800/30 p-2 rounded-lg border border-slate-700/30">
-                <div class="flex items-center gap-2 overflow-hidden">
-                  <div class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
-                  <div class="truncate">
-                    <p class="text-[11px] font-bold text-slate-200 truncate">\${username}</p>
-                    <p class="text-[9px] text-slate-500 truncate">\${data.lastAction}</p>
-                  </div>
-                </div>
-                <span class="text-[9px] text-slate-600 font-mono flex-shrink-0">\${data.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-              </div>
-            \`).join('');
+            activeUsersContainer.innerHTML = sortedUsers.map(([username, data]) => {
+              const timeStr = data.timestamp instanceof Date ? data.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+              return '<div class="flex items-center justify-between bg-slate-800/30 p-2 rounded-lg border border-slate-700/30">' +
+                '<div class="flex items-center gap-2 overflow-hidden">' +
+                  '<div class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>' +
+                  '<div class="truncate">' +
+                    '<p class="text-[11px] font-bold text-slate-200 truncate">' + username + '</p>' +
+                    '<p class="text-[9px] text-slate-500 truncate">' + data.lastAction + '</p>' +
+                  '</div>' +
+                '</div>' +
+                '<span class="text-[9px] text-slate-600 font-mono flex-shrink-0">' + timeStr + '</span>' +
+              '</div>';
+            }).join('');
           }
 
           socket.on('stats', (stats) => {
@@ -668,23 +722,22 @@ fastify.get('/dashboard', async (_request, reply) => {
             // Update requests
             if (stats.db.pendingRequests && stats.db.pendingRequests.length > 0) {
               requestCount.innerText = stats.db.pendingRequests.length;
-              requestsContainer.innerHTML = stats.db.pendingRequests.map(r => \`
-                <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
-                  <div class="flex justify-between items-start mb-1">
-                    <p class="text-sm font-bold text-white">\${r.name}</p>
-                    <span class="text-[10px] text-blue-400 font-mono">\${new Date(r.createdAt).toLocaleDateString()}</span>
-                  </div>
-                  <p class="text-xs text-slate-400 mb-1">\${r.email} • \${r.department}</p>
-                  <p class="text-[10px] text-slate-500 italic">\${r.reason}</p>
-                </div>
-              \`).join('');
+              requestsContainer.innerHTML = stats.db.pendingRequests.map(r => {
+                return '<div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">' +
+                  '<div class="flex justify-between items-start mb-1">' +
+                    '<p class="text-sm font-bold text-white">' + r.name + '</p>' +
+                    '<span class="text-[10px] text-blue-400 font-mono">' + new Date(r.createdAt).toLocaleDateString() + '</span>' +
+                  '</div>' +
+                  '<p class="text-xs text-slate-400 mb-1">' + r.email + ' • ' + r.department + '</p>' +
+                  '<p class="text-[10px] text-slate-500 italic">' + r.reason + '</p>' +
+                '</div>';
+              }).join('');
             } else {
               requestsContainer.innerHTML = '<p class="text-slate-600 text-sm italic text-center py-4">No pending requests</p>';
             }
           });
 
-          // Initial log
-          addLog({ timestamp: new Date().toISOString(), type: 'info', message: 'Dashboard connected to live stream' });
+          // Initial log - REMOVED redundant log call to avoid duplication
         </script>
       </body>
     </html>
@@ -739,7 +792,7 @@ async function getDbStats(): Promise<DashboardStats> {
       ticketStatus: statusMap,
       pendingRequests,
     };
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error fetching DB stats:', err);
     return {
       tickets: 0,
@@ -790,10 +843,25 @@ setInterval(() => {
   });
 }, 1000);
 
+// Reset all users to offline on server startup
+async function resetUserStatus() {
+  try {
+    await prisma.user.updateMany({
+      data: { isOnline: false }
+    });
+    console.log('[System] All users reset to offline status on startup');
+  } catch (err: any) {
+    console.error('[System] Failed to reset user statuses:', err);
+  }
+}
+
+resetUserStatus();
+
 const start = async () => {
   try {
     const port = parseInt(process.env.PORT || '3000');
     await fastify.listen({ port, host: '0.0.0.0' });
+    console.log(`[Server] Fastify listening on 0.0.0.0:${port}`);
     fastify.log.info(`Server started`);
   } catch (err: any) {
   fastify.log.error(err);

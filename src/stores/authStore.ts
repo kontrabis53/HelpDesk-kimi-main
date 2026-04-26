@@ -9,6 +9,7 @@ interface AuthState {
   token: string | null;
   requests: RegistrationRequest[];
   isLoading: boolean;
+  isNewLogin: boolean;
   
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
@@ -16,6 +17,7 @@ interface AuthState {
   checkAuth: () => Promise<void>;
   fetchRequests: () => Promise<void>;
   setLoading: (loading: boolean) => void;
+  setNewLogin: (value: boolean) => void;
   
   // Registration requests
   addRequest: (data: Omit<RegistrationRequest, 'id' | 'status' | 'createdAt'>) => Promise<void>;
@@ -33,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       requests: [],
       isLoading: false,
+      isNewLogin: false,
 
       initAutoLogout: () => {
         const checkInactivity = () => {
@@ -89,7 +92,7 @@ export const useAuthStore = create<AuthState>()(
           const { token, user } = response.data;
           
           localStorage.setItem('auth_token', token);
-          set({ user, token, isAuthenticated: true, isLoading: false });
+          set({ user, token, isAuthenticated: true, isLoading: false, isNewLogin: true });
           
           // Fetch requests if admin
           if (user.role === 'admin') {
@@ -150,6 +153,8 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setLoading: (loading) => set({ isLoading: loading }),
+
+      setNewLogin: (value) => set({ isNewLogin: value }),
 
       addRequest: async (data) => {
         set({ isLoading: true });

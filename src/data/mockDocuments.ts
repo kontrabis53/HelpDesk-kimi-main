@@ -367,6 +367,7 @@ export const mockKBArticles: KBArticle[] = [
     title: 'Принтер не печатает - диагностика',
     category: 'printer',
     description: 'Пошаговая инструкция по диагностике проблем с печатью',
+    content: 'Пошаговая инструкция по диагностике проблем с печатью',
     tags: ['принтер', 'печать', 'диагностика'],
     steps: [
       { id: '1', order: 1, title: 'Проверьте подключение', description: 'Убедитесь, что принтер включен в розетку.' },
@@ -383,6 +384,7 @@ export const mockKBArticles: KBArticle[] = [
     title: 'Нет интернета - что проверить',
     category: 'network',
     description: 'Быстрая диагностика проблем с интернет-соединением',
+    content: 'Быстрая диагностика проблем с интернет-соединением',
     tags: ['интернет', 'сеть', 'диагностика'],
     steps: [
       { id: '1', order: 1, title: 'Индикаторы роутера', description: 'Проверьте WAN индикатор.' },
@@ -399,6 +401,7 @@ export const mockKBArticles: KBArticle[] = [
     title: 'Компьютер не включается',
     category: 'common',
     description: 'Что делать, если компьютер не реагирует на кнопку включения',
+    content: 'Что делать, если компьютер не реагирует на кнопку включения',
     tags: ['компьютер', 'питание', 'железо'],
     steps: [
       { id: '1', order: 1, title: 'Кабель питания', description: 'Проверьте плотность подключения.' },
@@ -415,6 +418,7 @@ export const mockKBArticles: KBArticle[] = [
     title: 'Настройка почты Outlook',
     category: 'software',
     description: 'Инструкция по настройке корпоративной почты в Outlook',
+    content: 'Инструкция по настройке корпоративной почты в Outlook',
     tags: ['почта', 'outlook', 'email', 'настройка'],
     steps: [
       { id: '1', order: 1, title: 'Откройте Outlook', description: 'Запустите программу Outlook.' },
@@ -431,6 +435,7 @@ export const mockKBArticles: KBArticle[] = [
     title: 'Замятие бумаги в МФУ Kyocera',
     category: 'printer',
     description: 'Как безопасно извлечь застрявшую бумагу',
+    content: 'Как безопасно извлечь застрявшую бумагу',
     tags: ['принтер', 'kyocera', 'замятие', 'бумага'],
     steps: [
       { id: '1', order: 1, title: 'Определите место', description: 'Посмотрите на дисплей МФУ.' },
@@ -447,6 +452,7 @@ export const mockKBArticles: KBArticle[] = [
     title: 'Подключение к VPN из дома',
     category: 'network',
     description: 'Инструкция для удаленной работы',
+    content: 'Инструкция для удаленной работы',
     tags: ['vpn', 'удаленка', 'сеть', 'доступ'],
     steps: [
       { id: '1', order: 1, title: 'Скачайте клиент', description: 'Скачайте OpenVPN Connect.' },

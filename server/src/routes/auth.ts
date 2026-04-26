@@ -18,6 +18,8 @@ const registerSchema = z.object({
   position: z.string().optional(),
   department: z.string().optional(),
   isActive: z.boolean().optional(),
+  showGreeting: z.boolean().optional(),
+  greetingText: z.string().optional(),
 });
 
 const registrationRequestSchema = z.object({
@@ -37,9 +39,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/login', async (request, reply) => {
     try {
       const { username, password } = loginSchema.parse(request.body);
+      const normalizedUsername = username.toLowerCase().trim();
 
       const user = await prisma.user.findUnique({
-        where: { username },
+        where: { username: normalizedUsername },
         include: { roleRelation: true }
       });
 
@@ -116,6 +119,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
         userData.roleId = userData.role;
       } else if (userData.roleId && !userData.role) {
         userData.role = userData.roleId as any;
+      }
+
+      // Set default showGreeting based on role if not provided
+      if (userData.showGreeting === undefined) {
+        userData.showGreeting = (userData.role === 'admin' || userData.role === 'technician');
       }
 
       const user = await prisma.user.create({

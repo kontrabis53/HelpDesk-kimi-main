@@ -15,7 +15,7 @@ interface DocumentStore {
   deleteDocument: (id: string) => Promise<void>;
 }
 
-export const useDocumentStore = create<DocumentStore>((set, get) => ({
+export const useDocumentStore = create<DocumentStore>((set) => ({
   documents: [],
   filter: {},
   isLoading: false,

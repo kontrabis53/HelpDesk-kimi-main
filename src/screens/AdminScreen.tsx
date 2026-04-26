@@ -94,6 +94,18 @@ export function AdminScreen({
 
   const versions = [
     {
+      version: '1.1.7',
+      date: '2026-04-27',
+      changes: [
+        'Добавлены поля isOnline, showGreeting и greetingText в модель пользователя',
+        'Реализован экран приветствия, который появляется только при новом входе в систему (если включено)',
+        'Обновлено отслеживание статуса пользователя через Socket.io: теперь используется поле isOnline вместо isActive',
+        'Добавлена настройка приветственного сообщения в меню управления пользователями',
+        'Исправлены ошибки TypeScript и улучшена типизация проекта',
+        'Обновлена конфигурация CORS и Socket.io для лучшей совместимости и стабильности соединения',
+      ]
+    },
+    {
       version: '1.1.6',
       date: '2026-04-26',
       changes: [
@@ -290,21 +302,21 @@ export function AdminScreen({
   } = useGuideStore();
 
   // Filter users
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = users.filter((u: UserWithRole) => 
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (u.department || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Filter requests
-  const filteredRequests = requests.filter(r => 
+  const filteredRequests = requests.filter((r: RegistrationRequest) => 
     r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (r.department || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Filter logs
-  const filteredLogs = logs.filter(l =>
+  const filteredLogs = logs.filter((l: ActivityLog) =>
     l.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     l.details?.toLowerCase().includes(searchQuery.toLowerCase())
   ).slice(0, 50);
@@ -328,6 +340,8 @@ export function AdminScreen({
     position: '',
     department: '',
     isActive: true,
+    showGreeting: false,
+    greetingText: 'Шо ты маленький, привет',
     username: '',
     password: '',
   });
@@ -350,6 +364,8 @@ export function AdminScreen({
         position: user.position || '',
         department: user.department || '',
         isActive: user.isActive || false,
+        showGreeting: user.showGreeting ?? false,
+        greetingText: user.greetingText || 'Шо ты маленький, привет',
         username: user.username || '',
         password: user.password || '',
       });
@@ -364,6 +380,8 @@ export function AdminScreen({
         position: '',
         department: '',
         isActive: true,
+        showGreeting: userRole?.id === 'admin' || userRole?.id === 'technician',
+        greetingText: 'Шо ты маленький, привет',
         username: '',
         password: '',
       });
@@ -385,13 +403,15 @@ export function AdminScreen({
         position: '',
         department: request.department,
         isActive: true,
+        showGreeting: userRole?.id === 'admin' || userRole?.id === 'technician',
+        greetingText: 'Шо ты маленький, привет',
         username: request.email.split('@')[0],
         password: Math.random().toString(36).slice(-8),
       });
       setShowUserForm(true);
       setActiveTab('users');
       toast.success('Заявка одобрена. Заполните данные пользователя.');
-    } catch (error) {
+    } catch (error: any) {
       toast.error('Ошибка при одобрении заявки');
     } finally {
       setProcessingRequestId(null);
@@ -448,7 +468,7 @@ export function AdminScreen({
       }
       setShowUserForm(false);
       setEditingUser(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Save user error:', error);
       toast.error('Ошибка при сохранении пользователя');
     }
@@ -581,17 +601,17 @@ export function AdminScreen({
                         <div 
                           className={cn(
                             "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-800 shadow-sm",
-                            user.isActive ? "bg-emerald-500" : "bg-red-500"
+                            user.isOnline ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"
                           )}
-                          title={user.isActive ? "В сети" : "Не в сети"}
+                          title={user.isOnline ? "В сети" : "Не в сети"}
                         />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-slate-800 dark:text-slate-100">{user.name}</span>
                           {!user.isActive && (
-                            <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 rounded">
-                              Неактивен
+                            <span className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded">
+                              Заблокирован
                             </span>
                           )}
                         </div>
@@ -627,7 +647,7 @@ export function AdminScreen({
                             try {
                               await onDeleteUser(user.id);
                               toast.success('Пользователь удален');
-                            } catch (error) {
+                            } catch (error: any) {
                               toast.error('Ошибка при удалении пользователя');
                             }
                           }
@@ -1002,7 +1022,7 @@ export function AdminScreen({
                               try {
                                 await onRejectRequest(request.id);
                                 toast.success('Заявка отклонена');
-                              } catch (error) {
+                              } catch (error: any) {
                                 toast.error('Ошибка при отклонении заявки');
                               } finally {
                                 setProcessingRequestId(null);
@@ -1029,7 +1049,7 @@ export function AdminScreen({
                             try {
                               await onDeleteRequest(request.id);
                               toast.success('Запрос удален');
-                            } catch (error) {
+                            } catch (error: any) {
                               toast.error('Ошибка при удалении запроса');
                             } finally {
                               setProcessingRequestId(null);
@@ -1191,7 +1211,14 @@ export function AdminScreen({
               <Label htmlFor="user-role">Роль *</Label>
               <Select
                 value={userFormData.roleId}
-                onValueChange={(value) => setUserFormData(prev => ({ ...prev, roleId: value }))}
+                onValueChange={(value) => {
+                  setUserFormData(prev => ({ 
+                    ...prev, 
+                    roleId: value,
+                    // По умолчанию включаем приветствие для админов и техников при создании нового пользователя
+                    showGreeting: !editingUser ? (value === 'admin' || value === 'technician') : prev.showGreeting
+                  }));
+                }}
               >
                 <SelectTrigger className="dark:bg-slate-800">
                   <SelectValue placeholder="Выберите роль" />
@@ -1225,8 +1252,38 @@ export function AdminScreen({
                 className="dark:bg-slate-800"
               />
             </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="user-active">Активен</Label>
+            <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="user-show-greeting">Показывать приветствие</Label>
+                  <p className="text-[10px] text-slate-500">Показывать экран приветствия при входе</p>
+                </div>
+                <Switch
+                  id="user-show-greeting"
+                  checked={userFormData.showGreeting}
+                  onCheckedChange={(checked) => setUserFormData(prev => ({ ...prev, showGreeting: checked }))}
+                />
+              </div>
+
+              {userFormData.showGreeting && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <Label htmlFor="user-greeting-text">Текст приветствия</Label>
+                  <Input
+                    id="user-greeting-text"
+                    value={userFormData.greetingText}
+                    onChange={(e) => setUserFormData(prev => ({ ...prev, greetingText: e.target.value }))}
+                    placeholder="Введите текст приветствия"
+                    className="dark:bg-slate-800"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
+              <div className="space-y-0.5">
+                <Label htmlFor="user-active">Доступ разрешен</Label>
+                <p className="text-[10px] text-slate-500">Позволяет пользователю входить в систему</p>
+              </div>
               <Switch
                 id="user-active"
                 checked={userFormData.isActive}

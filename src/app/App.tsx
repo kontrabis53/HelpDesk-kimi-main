@@ -17,14 +17,16 @@ function App() {
 
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const user = useAuthStore(state => state.user);
+  const isNewLogin = useAuthStore(state => state.isNewLogin);
+  const setNewLogin = useAuthStore(state => state.setNewLogin);
 
   const [showWelcome, setShowWelcome] = useState(false);
-  const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
   const handleWelcomeComplete = useCallback(() => {
     setShowWelcome(false);
-  }, []);
+    setNewLogin(false);
+  }, [setNewLogin]);
 
   useEffect(() => {
     const init = async () => {
@@ -48,11 +50,10 @@ function App() {
   }, [checkAuth, initAutoLogout]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      // Show welcome splash if not shown yet in this session
-      if (!hasShownWelcome) {
+    if (isAuthenticated && user) {
+      // Show welcome splash only on fresh login and if enabled for user
+      if (isNewLogin && user.showGreeting) {
         setShowWelcome(true);
-        setHasShownWelcome(true);
       }
       
       // Fetch roles and users for role management
@@ -62,10 +63,8 @@ function App() {
       initSocket();
       // Listen for status updates
       initStatusListener();
-    } else {
-      setHasShownWelcome(false);
     }
-  }, [isAuthenticated, initSocket, fetchRoles, fetchUsers, initStatusListener, hasShownWelcome]);
+  }, [isAuthenticated, user, initSocket, fetchRoles, fetchUsers, initStatusListener]);
 
   if (isInitializing) {
     return (
@@ -81,6 +80,7 @@ function App() {
       {showWelcome && user && (
         <WelcomeSplash 
           userName={user.name} 
+          greetingText={user.greetingText}
           onComplete={handleWelcomeComplete} 
         />
       )}

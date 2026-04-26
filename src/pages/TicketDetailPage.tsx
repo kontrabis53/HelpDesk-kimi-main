@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import type { User } from '@/types';
 import { TicketDetailScreen } from '@/screens/TicketDetailScreen';
 import { useTicketStore } from '@/stores/ticketStore';
 import { useRoleStore } from '@/stores/roleStore';
@@ -86,7 +87,7 @@ export function TicketDetailPage() {
       toast.success('Исполнитель снят');
     } else {
       await updateTicket(ticketId, { assigneeId });
-      const assignee = users.find(u => u.id === assigneeId);
+      const assignee = users.find((u: User) => u.id === assigneeId);
       addLog('ticket.assigned', 'ticket', ticketId, undefined, `Назначен исполнитель: ${assignee?.name}`);
       toast.success('Исполнитель назначен', {
         description: assignee ? `${assignee.name} назначен исполнителем` : undefined,
@@ -102,7 +103,7 @@ export function TicketDetailPage() {
       onAddComment={handleAddComment}
       onEdit={handleEdit}
       onAssign={handleAssign}
-      availableAssignees={(users || []).filter(u => u.role === 'technician' || u.role === 'admin')}
+      availableAssignees={(users || []).filter((u: User) => u.role === 'technician' || u.role === 'admin')}
     />
   );
 }

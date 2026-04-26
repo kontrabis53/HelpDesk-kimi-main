@@ -88,9 +88,9 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
 
   initStatusListener: () => {
     const handler = (e: any) => {
-      const { userId, isActive } = e.detail;
+      const { userId, isOnline } = e.detail;
       set(state => ({
-        users: state.users.map(u => u.id === userId ? { ...u, isActive } : u)
+        users: state.users.map((u: User) => u.id === userId ? { ...u, isOnline } : u)
       }));
     };
     
@@ -131,7 +131,7 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
   },
   
   getUserById: (userId) => {
-    return get().users.find(u => u.id === userId);
+    return get().users.find((u: User) => u.id === userId);
   },
   
   hasPermission: (moduleId, action) => {
@@ -171,7 +171,7 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
     try {
       const response = await apiClient.patch(`/users/${userId}`, data);
       set(state => ({
-        users: state.users.map(u => u.id === userId ? { ...u, ...response.data } : u),
+        users: state.users.map((u: User) => u.id === userId ? { ...u, ...response.data } : u),
         isLoading: false
       }));
     } catch (error: any) {
@@ -201,7 +201,7 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
     try {
       await apiClient.delete(`/users/${userId}`);
       set(state => ({
-        users: state.users.filter(u => u.id !== userId),
+        users: state.users.filter((u: User) => u.id !== userId),
         isLoading: false
       }));
     } catch (error: any) {

@@ -15,6 +15,9 @@ export interface User {
   roleId: string; // Added for compatibility with RoleStore
   department: string;
   isActive?: boolean;
+  isOnline?: boolean;
+  showGreeting?: boolean;
+  greetingText?: string;
   createdAt?: string;
   lastLogin?: string;
   username?: string;

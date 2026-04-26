@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 
 interface WelcomeSplashProps {
   userName: string;
+  greetingText?: string;
   onComplete: () => void;
 }
 
-export function WelcomeSplash({ userName, onComplete }: WelcomeSplashProps) {
+export function WelcomeSplash({ userName, greetingText, onComplete }: WelcomeSplashProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export function WelcomeSplash({ userName, onComplete }: WelcomeSplashProps) {
         </div>
         <div className="text-center">
           <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Шо ты маленький, привет
+            {greetingText || "Шо ты маленький, привет"}
           </h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">
             {userName}

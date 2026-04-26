@@ -16,7 +16,7 @@ interface InventoryStore {
   deleteItem: (id: string) => Promise<void>;
 }
 
-export const useInventoryStore = create<InventoryStore>((set, get) => ({
+export const useInventoryStore = create<InventoryStore>((set) => ({
   items: [],
   filter: {},
   isLoading: false,
@@ -43,7 +43,7 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
         isLoading: false
       }));
       return item;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fetch item error:', error);
       set({ isLoading: false });
       throw error;
@@ -63,7 +63,7 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
         isLoading: false
       }));
       return newItem;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Create item error:', error);
       set({ isLoading: false });
       throw error;
@@ -78,7 +78,7 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
         items: state.items.map((i) => i.id === id ? updated : i),
         isLoading: false
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update quantity error:', error);
       set({ isLoading: false });
       throw error;
@@ -93,13 +93,13 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
         items: state.items.map((i) => i.id === id ? updated : i),
         isLoading: false
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update item error:', error);
       set({ isLoading: false });
       throw error;
     }
   },
-  
+
   deleteItem: async (id) => {
     set({ isLoading: true });
     try {
@@ -108,7 +108,7 @@ export const useInventoryStore = create<InventoryStore>((set, get) => ({
         items: state.items.filter((i) => i.id !== id),
         isLoading: false
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Delete item error:', error);
       set({ isLoading: false });
       throw error;

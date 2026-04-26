@@ -7,7 +7,7 @@ import {
   Plus, 
   MoreVertical, 
   Phone, 
-  User, 
+  User as UserIcon, 
   ArrowLeft,
   Pin,
   PinOff,
@@ -33,6 +33,7 @@ import { useChatStore } from '@/stores/chatStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useDirectoryStore } from '@/stores/directoryStore';
+import type { User } from '@/types';
 import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
@@ -140,20 +141,20 @@ export function ChatScreen() {
     }
   };
 
-      const handleCreateDirectChat = async (entry: any) => {
-      let participantId = entry.id;
-      
-      // Find actual user ID if this is a directory entry
-      if (entry.source === 'directory') {
-        const registeredUser = users.find(u => u.name.toLowerCase().trim() === entry.name.toLowerCase().trim());
-        if (!registeredUser) {
-          toast.error('Пользователь еще не зарегистрирован в системе', {
-            description: `Свяжитесь по телефону: ${entry.internalPhone}`,
-          });
-          return;
-        }
-        participantId = registeredUser.id;
+  const handleCreateDirectChat = async (entry: any) => {
+    let participantId = entry.id;
+
+    // Find actual user ID if this is a directory entry
+    if (entry.source === 'directory') {
+      const registeredUser = users.find((u: User) => u.name.toLowerCase().trim() === entry.name.toLowerCase().trim());
+      if (!registeredUser) {
+        toast.error('Пользователь еще не зарегистрирован в системе', {
+          description: `Свяжитесь по телефону: ${entry.internalPhone}`,
+        });
+        return;
       }
+      participantId = registeredUser.id;
+    }
  
       const id = await createDirectChat(participantId, entry.name);
       
@@ -223,7 +224,7 @@ export function ChatScreen() {
       directoryPeople.forEach(person => {
         mergedMap.set(person.name.toLowerCase().trim(), {
           ...person,
-          isRegistered: users.some(u => u.name.toLowerCase().trim() === person.name.toLowerCase().trim())
+          isRegistered: users.some((u: any) => u.name.toLowerCase().trim() === person.name.toLowerCase().trim())
         });
       });
   
@@ -324,7 +325,7 @@ export function ChatScreen() {
                        )}>
                          {chat.type === 'group' 
                            ? <Users className={cn("w-6 h-6", activeChatId === chat.id ? "text-white" : "text-amber-600")} /> 
-                           : <User className={cn("w-6 h-6", activeChatId === chat.id ? "text-white" : "text-blue-600")} />
+                           : <UserIcon className={cn("w-6 h-6", activeChatId === chat.id ? "text-white" : "text-blue-600")} />
                          }
                        </div>
                        {chat.unreadCount > 0 && (
@@ -436,7 +437,7 @@ export function ChatScreen() {
                   "w-10 h-10 rounded-full flex items-center justify-center",
                   activeChat.type === 'group' ? "bg-amber-100 dark:bg-amber-900/20" : "bg-blue-100 dark:bg-blue-900/20"
                 )}>
-                  {activeChat.type === 'group' ? <Users className="w-5 h-5 text-amber-600" /> : <User className="w-5 h-5 text-blue-600" />}
+                  {activeChat.type === 'group' ? <Users className="w-5 h-5 text-amber-600" /> : <UserIcon className="w-5 h-5 text-blue-600" />}
                 </div>
                 <div>
                   <h2 className="font-bold text-slate-800 dark:text-slate-100 leading-none">{activeChat.name}</h2>
@@ -513,7 +514,7 @@ export function ChatScreen() {
                         <div className="p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 border-b border-slate-100 dark:border-slate-700/50">
                           <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-inner shrink-0">
-                              <User className="w-6 h-6" />
+                              <UserIcon className="w-6 h-6" />
                             </div>
                             <div className="min-w-0">
                               <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate">
@@ -711,7 +712,7 @@ export function ChatScreen() {
                               ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600" 
                               : "bg-slate-200 dark:bg-slate-700 text-slate-400"
                           )}>
-                            <User className="w-5 h-5" />
+                            <UserIcon className="w-5 h-5" />
                           </div>
                           
                           <div className="flex-1 min-w-0">

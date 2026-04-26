@@ -1,5 +1,5 @@
 import apiClient from './client/apiClient';
-import type { Ticket, User, TicketStatus, TicketPriority } from '@/types';
+import type { Ticket } from '@/types';
 
 export const ticketService = {
   getAll: async (): Promise<Ticket[]> => {

@@ -9,7 +9,9 @@
     "dev": "tsx watch src/main.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:backup": "tsx prisma/backup.ts",
+    "prisma:reset-hard": "tsx prisma/reset_to_default.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

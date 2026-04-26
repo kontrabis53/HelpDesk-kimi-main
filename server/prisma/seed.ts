@@ -4,22 +4,10 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Начало восстановления данных...');
+  console.log('Проверка и восстановление базовых данных...');
 
-  // 1. Очистка существующих данных
-  await prisma.chatMessage.deleteMany();
-  await prisma.comment.deleteMany();
-  await prisma.ticket.deleteMany();
-  await prisma.document.deleteMany();
-  await prisma.kBArticle.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.directoryEntry.deleteMany();
-  await prisma.inventoryItem.deleteMany();
-  await prisma.registrationRequest.deleteMany();
-  try {
-    // @ts-ignore
-    await prisma.role.deleteMany();
-  } catch (e) {}
+  // 1. Очистка данных УДАЛЕНА. Теперь мы только добавляем недостающее или обновляем системное.
+  // Если вы хотите полностью сбросить базу, используйте npm run prisma:reset-hard
 
   const defaultRoles = [
     {
@@ -103,10 +91,16 @@ async function main() {
   for (const role of defaultRoles) {
     try {
       // @ts-ignore
-      await prisma.role.create({ data: role });
-    } catch (e) {}
+      await prisma.role.upsert({
+        where: { id: role.id },
+        update: { permissions: role.permissions, name: role.name, description: role.description },
+        create: role
+      });
+    } catch (e) {
+      console.error(`Ошибка при восстановлении роли ${role.id}:`, e);
+    }
   }
-  console.log('Роли восстановлены');
+  console.log('Роли проверены/обновлены');
 
   const hashedPassword = await bcrypt.hash('password', 10);
 
@@ -160,11 +154,19 @@ async function main() {
   ];
 
   for (const user of usersData) {
-    await prisma.user.create({ data: user });
+    const existing = await prisma.user.findUnique({ where: { username: user.username } });
+    if (!existing) {
+      await prisma.user.create({ data: user });
+      console.log(`Пользователь ${user.username} создан`);
+    } else {
+      // Не затираем существующих пользователей, чтобы не терять их пароли и настройки
+      console.log(`Пользователь ${user.username} уже существует, пропускаем`);
+    }
   }
-  console.log('Пользователи (Админы и Техники) восстановлены');
+  console.log('Базовые пользователи проверены');
 
   // 3. Восстановление справочника сотрудников (БЕЗ создания их как пользователей CRM)
+  // Для справочника используем логику "добавить если нет по имени"
   const directoryData = [
     { name: 'Абабий Галина Романовна', position: 'М/с ЛКО', department: 'Средний медицинский персонал', mobilePhone: '778-59683' },
     { name: 'Борцой Алла Ивановна', position: 'процедур.-первязоч.мед.сестра', department: 'Средний медицинский персонал', cabinet: '№404', internalPhone: '254', mobilePhone: '777-83593' },
@@ -278,8 +280,13 @@ async function main() {
     { name: 'Бабаджанян Юлиана Арташевна', position: 'Врач-офтальмолог', department: 'ЛКО врачи', cabinet: '№212', internalPhone: '221', mobilePhone: '777-29792' },
   ];
 
-  await prisma.directoryEntry.createMany({ data: directoryData });
-  console.log('Справочник сотрудников восстановлен');
+  for (const entry of directoryData) {
+    const existing = await prisma.directoryEntry.findFirst({ where: { name: entry.name } });
+    if (!existing) {
+      await prisma.directoryEntry.create({ data: entry });
+    }
+  }
+  console.log('Справочник сотрудников проверен');
 
   // 4. Восстановление инвентаря
   const inventoryData = [

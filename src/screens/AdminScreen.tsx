@@ -20,7 +20,6 @@ import {
   Layers,
   Monitor,
   FileText,
-  Info,
   Loader2
 } from 'lucide-react';
 import { useLocationStore } from '@/stores/locationStore';

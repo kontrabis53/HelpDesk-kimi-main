@@ -73,11 +73,9 @@ export const useInventoryStore = create<InventoryStore>((set) => ({
   updateItemQuantity: async (id, quantity) => {
     set({ isLoading: true });
     try {
-      const updated = await inventoryService.update(id, { quantity });
-      set((state) => ({
-        items: state.items.map((i) => i.id === id ? updated : i),
-        isLoading: false
-      }));
+      await inventoryService.update(id, { quantity });
+      const items = await inventoryService.getAll();
+      set({ items, isLoading: false });
     } catch (error: any) {
       console.error('Update quantity error:', error);
       set({ isLoading: false });
@@ -88,11 +86,9 @@ export const useInventoryStore = create<InventoryStore>((set) => ({
   updateItem: async (id, data) => {
     set({ isLoading: true });
     try {
-      const updated = await inventoryService.update(id, data);
-      set((state) => ({
-        items: state.items.map((i) => i.id === id ? updated : i),
-        isLoading: false
-      }));
+      await inventoryService.update(id, data);
+      const items = await inventoryService.getAll();
+      set({ items, isLoading: false });
     } catch (error: any) {
       console.error('Update item error:', error);
       set({ isLoading: false });

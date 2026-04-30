@@ -27,11 +27,15 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login if session expired
+    const isDeactivated = error.response?.status === 403 && error.response?.data?.code === 'USER_DEACTIVATED';
+    
+    if (error.response?.status === 401 || isDeactivated) {
+      // Clear token and redirect to login if session expired or user deactivated
       localStorage.removeItem('auth_token');
+      
+      const searchParams = isDeactivated ? '?error=deactivated' : '';
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+        window.location.href = `/login${searchParams}`;
       }
     }
     return Promise.reject(error);

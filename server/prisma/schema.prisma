@@ -102,6 +102,7 @@ model Document {
   repairDate        DateTime?
   repairCost        Float    @default(0)
   partsUsed         Json?    // Array of strings or complex objects
+  files             Json?    // Array of { name, url, size }
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   

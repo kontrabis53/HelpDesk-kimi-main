@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { GuideDetailScreen } from '@/screens/GuideDetailScreen';
 import { useKnowledgeStore } from '@/stores/knowledgeStore';
+import { useTicketStore } from '@/stores/ticketStore';
 import { toast } from 'sonner';
 
 export function GuideDetailPage() {
@@ -11,7 +12,9 @@ export function GuideDetailPage() {
   
   const selectedArticle = useKnowledgeStore((state) => state.selectedArticle);
   const getArticleById = useKnowledgeStore((state) => state.getArticleById);
+  const incrementViews = useKnowledgeStore((state) => state.incrementViews);
   const setSelectedArticle = useKnowledgeStore((state) => state.setSelectedArticle);
+  const createArticle = useTicketStore((state) => state.createTicket);
   
   useEffect(() => {
     async function loadArticle() {
@@ -20,6 +23,8 @@ export function GuideDetailPage() {
         const article = await getArticleById(id);
         if (article) {
           setSelectedArticle(article);
+          // Only update UI count, server was updated by getArticleById
+          incrementViews(id);
         } else {
           toast.error('Статья не найдена');
           navigate('/knowledge');
@@ -28,7 +33,26 @@ export function GuideDetailPage() {
       }
     }
     loadArticle();
-  }, [id, getArticleById, setSelectedArticle, navigate]);
+  }, [id, getArticleById, setSelectedArticle, incrementViews, navigate]);
+
+  const handleCreateTicket = async () => {
+    if (!selectedArticle) return;
+    try {
+      const ticketData = {
+        title: `Проблема по инструкции: ${selectedArticle.title}`,
+        description: `Пользователь не смог решить проблему с помощью инструкции "${selectedArticle.title}".\n\nОписание инструкции: ${selectedArticle.description}`,
+        category: selectedArticle.category as any,
+        priority: 'medium' as const,
+      };
+      const newTicket = await createArticle(ticketData);
+      toast.success('Заявка создана', {
+        description: `Заявка ${newTicket.number} успешно создана`,
+      });
+      navigate('/tickets');
+    } catch (error) {
+      toast.error('Ошибка при создании заявки');
+    }
+  };
   
   if (loading || !selectedArticle) {
     return (
@@ -51,6 +75,7 @@ export function GuideDetailPage() {
       article={selectedArticle}
       onBack={handleBack}
       onEdit={handleEdit}
+      onCreateTicket={handleCreateTicket}
     />
   );
 }

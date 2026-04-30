@@ -21,7 +21,7 @@ export function CreateTicketScreen({ onBack, onSubmit }: CreateTicketScreenProps
   const currentUser = useRoleStore((state) => state.currentUser());
   const users = useRoleStore((state) => state.users);
   
-  const canAssign = currentUser?.roleId === 'admin';
+  const canAssign = currentUser?.role === 'admin' || currentUser?.role === 'technician';
 
   const assignableUsers = useMemo(() => {
     return users.filter(user => 

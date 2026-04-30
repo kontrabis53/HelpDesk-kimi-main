@@ -7,6 +7,7 @@ const ticketSchema = z.object({
   description: z.string(),
   category: z.string(),
   priority: z.enum(['low', 'medium', 'high', 'critical']),
+  assigneeId: z.string().optional().nullable(),
 });
 
 const updateTicketSchema = z.object({
@@ -180,6 +181,39 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       return reply.status(201).send(comment);
     } catch (error: any) {
       return reply.status(500).send({ message: 'Ошибка при добавлении комментария' });
+    }
+  });
+
+  // Delete ticket
+  fastify.delete('/:id', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const user = request.user as any;
+
+      const existingTicket = await prisma.ticket.findUnique({ where: { id } });
+      if (!existingTicket) {
+        return reply.status(404).send({ message: 'Заявка не найдена' });
+      }
+
+      // Only admin can delete tickets, or author if status is 'new'
+      const canDelete = user.role === 'admin' || (user.id === existingTicket.authorId && existingTicket.status === 'new');
+      
+      if (!canDelete) {
+        return reply.status(403).send({ message: 'Нет прав на удаление этой заявки' });
+      }
+
+      // Delete comments first
+      await prisma.comment.deleteMany({ where: { ticketId: id } });
+      
+      // Delete the ticket
+      await prisma.ticket.delete({ where: { id } });
+
+      return { success: true };
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка при удалении заявки' });
     }
   });
 }

@@ -84,8 +84,7 @@ export interface Document {
   repairDate?: string;
   repairCost?: number;
   partsUsed?: string[];
-  fileUrl?: string;
-  fileName?: string;
+  files?: { name: string; url: string; size?: number }[];
   createdAt: string;
   updatedAt: string;
   author: User;

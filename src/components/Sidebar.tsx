@@ -1,4 +1,4 @@
-import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare, Network, ChevronLeft, ChevronRight, Book, Stethoscope } from 'lucide-react';
+import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare, Network, ChevronLeft, ChevronRight, Book, Stethoscope, Bell } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -82,10 +82,11 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
             )}
           </NavLink>
           <button 
-            onClick={toggleSidebar}
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors relative group/bell"
+            title="Уведомления"
           >
-            {isSidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            <Bell className="w-5 h-5" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-800" />
           </button>
         </div>
         
@@ -121,7 +122,14 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
         </nav>
       </div>
 
-      <div className="mt-auto p-4 border-t border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="mt-auto p-4 border-t border-slate-200 dark:border-slate-700 overflow-hidden relative">
+        <button 
+          onClick={toggleSidebar}
+          className="absolute right-2 bottom-2 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors z-10"
+          title={isSidebarCollapsed ? "Развернуть" : "Свернуть"}
+        >
+          {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
         <div className={cn(
           "flex items-center py-2",
           isSidebarCollapsed ? "justify-center" : "gap-1.5 px-0.5"

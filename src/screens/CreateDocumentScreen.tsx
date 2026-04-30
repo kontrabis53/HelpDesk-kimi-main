@@ -29,8 +29,7 @@ interface CreateDocumentScreenProps {
     repairDate?: string;
     repairCost?: number;
     partsUsed?: string[];
-    fileUrl?: string;
-    fileName?: string;
+    files?: { url: string; name: string; size?: number }[];
   };
   onSubmit: (data: {
     number?: string;
@@ -43,8 +42,7 @@ interface CreateDocumentScreenProps {
     repairDate?: string;
     repairCost?: number;
     partsUsed?: string[];
-    fileUrl?: string;
-    fileName?: string;
+    files?: { url: string; name: string; size?: number }[];
   }) => void;
   isEditing?: boolean;
 }
@@ -115,51 +113,87 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
   
   const [repairCost, setRepairCost] = useState(initialData?.repairCost?.toString() || '');
   const [partsUsed, setPartsUsed] = useState(initialData?.partsUsed?.join(', ') || '');
-  const [file, setFile] = useState<File | null>(null);
-  const [existingFile, setExistingFile] = useState<{ url: string; name: string } | null>(
-    initialData?.fileUrl ? { url: initialData.fileUrl, name: initialData.fileName || 'Документ' } : null
+  const [files, setFiles] = useState<{ file?: File; url: string; name: string; size?: number }[]>(
+    initialData?.files || []
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-
-    // Validate file size (max 10MB)
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      toast.error('Файл слишком большой', { description: 'Максимальный размер файла 10 МБ' });
+  const handleFiles = (newFiles: FileList | File[]) => {
+    const fileList = Array.from(newFiles);
+    
+    if (files.length + fileList.length > 10) {
+      toast.error('Слишком много файлов', { description: 'Максимальное количество файлов: 10' });
       return;
     }
 
-    // Validate file type
     const allowedTypes = [
       'application/pdf', 
       'image/jpeg', 
       'image/jpg', 
       'text/plain',
-      'application/msword', // .doc
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-      'application/vnd.ms-excel', // .xls
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     ];
-    
-    if (!allowedTypes.includes(selectedFile.type)) {
-      toast.error('Неверный формат файла', { description: 'Разрешены PDF, JPG, TXT, Word и Excel' });
-      return;
-    }
 
-    setFile(selectedFile);
-    setExistingFile(null); // Clear existing file if new one is selected
+    const validFiles = fileList.filter(file => {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`Файл ${file.name} слишком большой`, { description: 'Максимальный размер 10 МБ' });
+        return false;
+      }
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`Неверный формат файла ${file.name}`, { description: 'Разрешены PDF, JPG, TXT, Word и Excel' });
+        return false;
+      }
+      return true;
+    });
+
+    const newFileEntries = validFiles.map(file => ({
+      file,
+      url: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size
+    }));
+
+    setFiles(prev => [...prev, ...newFileEntries]);
   };
 
-  const removeFile = () => {
-    setFile(null);
-    setExistingFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => {
+      const newFiles = [...prev];
+      const removed = newFiles.splice(index, 1)[0];
+      if (removed.file) {
+        URL.revokeObjectURL(removed.url);
+      }
+      return newFiles;
+    });
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files) {
+      handleFiles(e.dataTransfer.files);
     }
   };
 
@@ -177,8 +211,8 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
     (repairDate ? format(repairDate, 'yyyy-MM-dd') : '') !== (initialData?.repairDate || '') ||
     repairCost !== (initialData?.repairCost?.toString() || '') ||
     partsUsed !== (initialData?.partsUsed?.join(', ') || '') ||
-    file !== null ||
-    (existingFile === null && initialData?.fileUrl) // File was removed
+    files.length !== (initialData?.files?.length || 0) ||
+    files.some((f, i) => f.url !== initialData?.files?.[i]?.url)
   ) : true;
 
   const handleSubmit = () => {
@@ -186,15 +220,11 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
     
     setIsSubmitting(true);
     
-    // In a real app, we would upload the file to a server here and get a URL back.
-    // For this mock, we'll create a fake URL or object URL.
-    let fileUrl = existingFile?.url;
-    let fileName = existingFile?.name;
-
-    if (file) {
-      fileUrl = URL.createObjectURL(file);
-      fileName = file.name;
-    }
+    const finalFiles = files.map(f => ({
+      url: f.url,
+      name: f.name,
+      size: f.size
+    }));
     
     onSubmit({
       number: number.trim() || undefined,
@@ -207,8 +237,7 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
       repairDate: repairDate ? format(repairDate, 'yyyy-MM-dd') : undefined,
       repairCost: repairCost ? parseFloat(repairCost) : undefined,
       partsUsed: partsUsed.trim() ? partsUsed.split(',').map(p => p.trim()) : undefined,
-      fileUrl,
-      fileName,
+      files: finalFiles,
     });
   };
 
@@ -328,54 +357,78 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
 
         {/* File Upload */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Файл документа</Label>
-          <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+          <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Файлы документа (до 10 файлов)</Label>
+          <div 
+            className={cn(
+              "border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center transition-all",
+              isDragging 
+                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" 
+                : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            )}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
             <input
               ref={fileInputRef}
               type="file"
               className="hidden"
+              multiple
               accept=".pdf,.jpg,.jpeg,.txt,.doc,.docx,.xls,.xlsx"
               onChange={handleFileChange}
             />
             
-            {file || existingFile ? (
-              <div className="flex items-center gap-3 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 rounded-lg w-full max-w-sm">
-                <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                    {file ? file.name : existingFile?.name}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {file ? (file.size / 1024 / 1024).toFixed(2) + ' MB' : 'Существующий файл'}
-                  </p>
-                </div>
-                <button
-                  onClick={removeFile}
-                  className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded-full transition-colors text-slate-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400"
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center">
+                <Upload className="w-6 h-6 text-slate-400" />
+              </div>
+              <div>
+                <Button 
+                  variant="outline" 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mt-2"
+                  disabled={files.length >= 10}
                 >
-                  <X className="w-5 h-5" />
-                </button>
+                  Выберите файлы
+                </Button>
               </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center">
-                  <Upload className="w-6 h-6 text-slate-400" />
-                </div>
-                <div>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mt-2"
-                  >
-                    Выберите файл
-                  </Button>
-                </div>
-                <p className="text-xs text-slate-400 mt-2">
-                  PDF, JPG, TXT, Word или Excel (макс. 10 MB)
-                </p>
-              </div>
-            )}
+              <p className="text-xs text-slate-400 mt-2">
+                Перетащите файлы сюда или выберите на компьютере
+              </p>
+              <p className="text-[10px] text-slate-400">
+                PDF, JPG, TXT, Word или Excel (макс. 10 MB за файл)
+              </p>
+            </div>
           </div>
+
+          {files.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              {files.map((file, index) => (
+                <div 
+                  key={`${file.name}-${index}`}
+                  className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-lg shadow-sm"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                      {file.name}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {file.size ? (file.size / 1024 / 1024).toFixed(2) + ' MB' : 'Файл'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => removeFile(index)}
+                    className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 rounded-md transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Equipment Info */}

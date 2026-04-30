@@ -32,13 +32,19 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
-      user: null,
-      isAuthenticated: false,
-      token: null,
-      requests: [],
-      isLoading: false,
-      isNewLogin: false,
+    (set, get) => {
+      // Expose store for global access (needed for socket events)
+      if (typeof window !== 'undefined') {
+        (window as any).useAuthStore = { getState: () => get() };
+      }
+
+      return {
+        user: null,
+        isAuthenticated: false,
+        token: null,
+        requests: [],
+        isLoading: false,
+        isNewLogin: false,
 
       initAutoLogout: () => {
         const checkInactivity = () => {
@@ -250,10 +256,10 @@ export const useAuthStore = create<AuthState>()(
           throw error;
         }
       }
-    }),
+    }},
     {
       name: 'auth-storage',
-      partialize: (state) => ({ 
+      partialize: (state: AuthState) => ({ 
         user: state.user, 
         isAuthenticated: state.isAuthenticated,
         token: state.token,

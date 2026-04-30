@@ -135,27 +135,36 @@ export default async function userRoutes(fastify: FastifyInstance) {
     }
     
     const user = await prisma.user.update({
-      where: { id },
-      data: updateData,
-      select: {
-        id: true,
-        username: true,
-        name: true,
-        email: true,
-        role: true,
-        roleId: true,
-        position: true,
-        department: true,
-        avatar: true,
-        isActive: true,
-        isOnline: true,
-        notificationsEnabled: true,
-        showGreeting: true,
-        greetingText: true,
-        createdAt: true,
-        lastLogin: true
+        where: { id },
+        data: updateData,
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          email: true,
+          role: true,
+          roleId: true,
+          position: true,
+          department: true,
+          avatar: true,
+          isActive: true,
+          isOnline: true,
+          notificationsEnabled: true,
+          showGreeting: true,
+          greetingText: true,
+          createdAt: true,
+          lastLogin: true
+        }
+      });
+
+      // Если пользователя деактивировали, уведомляем его через сокет
+      if (updateData.isActive === false) {
+        const io = (fastify as any).io;
+        if (io) {
+          io.emit('user_deactivated', { userId: id });
+        }
       }
-    });
+
       return user;
     } catch (error: any) {
       fastify.log.error(error);

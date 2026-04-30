@@ -26,7 +26,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
   
   incrementViews: async (id) => {
     try {
-      await knowledgeService.incrementViews(id);
+      // No need to call explicitly as getById increments it on server
       set(state => ({
         articles: state.articles.map(a => 
           a.id === id ? { ...a, views: a.views + 1 } : a

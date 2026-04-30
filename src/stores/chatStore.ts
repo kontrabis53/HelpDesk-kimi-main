@@ -81,6 +81,30 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       get().addMessage(message);
     });
 
+    socket.on('user_deactivated', ({ userId }: { userId: string }) => {
+      // Proactively log out if we know the ID.
+      try {
+        const authState = (window as any).useAuthStore?.getState();
+        if (authState?.user?.id === userId) {
+          // Показываем уведомление перед разлогином
+          import('sonner').then(({ toast }) => {
+            toast.error('Доступ к системе ограничен', {
+              description: 'Ваша учетная запись деактивирована администратором.',
+              duration: 5000,
+            });
+          });
+
+          // Небольшая задержка, чтобы пользователь успел прочитать
+          setTimeout(() => {
+            localStorage.removeItem('auth_token');
+            window.location.href = '/login?error=deactivated';
+          }, 1500);
+        }
+      } catch (e) {
+        // Fallback or ignore
+      }
+    });
+
     socket.on('user_status_change', ({ userId, isOnline }: { userId: string, isOnline: boolean }) => {
       // We need to update the user status in roleStore or wherever users are managed
       // Since stores are separate, we can use a global event or direct store update if possible

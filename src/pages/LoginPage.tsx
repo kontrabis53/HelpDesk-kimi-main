@@ -1,29 +1,37 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Stethoscope, Moon, Sun, AlertCircle } from 'lucide-react';
+import { Stethoscope, Moon, Sun, AlertCircle, ShieldAlert } from 'lucide-react';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const login = useAuthStore((state) => state.login);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { theme, toggleTheme } = useThemeStore();
   
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deactivatedError, setDeactivatedError] = useState(false);
+
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (searchParams.get('error') === 'deactivated') {
+      setDeactivatedError(true);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +90,18 @@ export function LoginPage() {
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {deactivatedError && (
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800/50 flex flex-col items-center text-center gap-2 animate-in fade-in zoom-in duration-300">
+              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-800/30 rounded-full flex items-center justify-center text-amber-600 dark:text-amber-400 mb-1">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-amber-800 dark:text-amber-300">Доступ ограничен</h3>
+              <p className="text-amber-700 dark:text-amber-400 text-xs leading-relaxed">
+                Доступ к системе Вам ограничен, обратитесь к администратору систем доступов
+              </p>
+            </div>
+          )}
+
           {error && (
             <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 flex items-center gap-3 text-red-600 dark:text-red-400 text-sm">
               <AlertCircle className="w-4 h-4 shrink-0" />

@@ -11,6 +11,11 @@ const documentSchema = z.object({
   repairDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
   repairCost: z.number().nonnegative().optional(),
   partsUsed: z.array(z.string()).optional(),
+  files: z.array(z.object({
+    name: z.string(),
+    url: z.string(),
+    size: z.number().optional(),
+  })).optional(),
 });
 
 export default async function documentRoutes(fastify: FastifyInstance) {

@@ -69,6 +69,9 @@ const io = new Server(fastify.server, {
   transports: ['websocket', 'polling']
 });
 
+// Decorate fastify with io instance to make it accessible in routes
+fastify.decorate('io', io);
+
 // Map to track active users (userId -> socketId)
 const activeUsers = new Map<string, string>();
 
@@ -150,6 +153,22 @@ io.on('connection', (socket) => {
 fastify.decorate("authenticate", async function(request: FastifyRequest, reply: FastifyReply) {
   try {
     await request.jwtVerify();
+    
+    // Проверка активности пользователя
+    const user = request.user as any;
+    if (user && user.id) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { isActive: true }
+      });
+      
+      if (dbUser && !dbUser.isActive) {
+        return reply.status(403).send({ 
+          message: 'Доступ к системе Вам ограничен, обратитесь к администратору систем доступов',
+          code: 'USER_DEACTIVATED'
+        });
+      }
+    }
   } catch (err: any) {
     reply.status(401).send({ message: 'Ошибка авторизации: токен недействителен или отсутствует' });
   }

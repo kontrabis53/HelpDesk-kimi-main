@@ -17,19 +17,46 @@ export function RequestAccountPage() {
   const [department, setDepartment] = useState('');
   const [reason, setReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [errors, setErrors] = useState<{
+    name?: boolean;
+    email?: boolean;
+    department?: boolean;
+  }>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name || !email || !department || !reason) {
-      toast.error('Ошибка', { description: 'Заполните все поля' });
+    const newErrors: { name?: boolean; email?: boolean; department?: boolean } = {};
+    const missingFields: string[] = [];
+
+    if (!name) {
+      newErrors.name = true;
+      missingFields.push('ФИО');
+    }
+    if (!email) {
+      newErrors.email = true;
+      missingFields.push('Email');
+    }
+    if (!department) {
+      newErrors.department = true;
+      missingFields.push('Отдел / Кабинет');
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      const msg = `Заполните обязательные поля: ${missingFields.join(', ')}`;
+      setErrorMsg(msg);
+      toast.error('Ошибка', { description: msg });
       return;
     }
-    
+
+    setErrors({});
+    setErrorMsg('');
     setIsLoading(true);
     
     // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise(resolve => setTimeout(resolve, 1800));
     
     try {
       addRequest({
@@ -42,7 +69,7 @@ export function RequestAccountPage() {
       toast.success('Запрос отправлен', { 
         description: 'Администратор рассмотрит вашу заявку в ближайшее время' 
       });
-      navigate('/login');
+      navigate('/login', { state: { registrationSuccess: true } });
     } catch (error) {
       toast.error('Ошибка отправки запроса');
     } finally {
@@ -71,53 +98,83 @@ export function RequestAccountPage() {
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">ФИО <span className="text-red-500">*</span></Label>
+            <Label htmlFor="name" className={errors.name ? "text-red-500" : ""}>
+              ФИО <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (errors.name) {
+                  setErrors(prev => ({ ...prev, name: false }));
+                  setErrorMsg('');
+                }
+              }}
               placeholder="Иванов Иван Иванович"
-              className="h-11"
+              className={`h-11 ${errors.name ? "border-red-500 focus-visible:ring-red-500" : ""}`}
               disabled={isLoading}
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
+            <Label htmlFor="email" className={errors.email ? "text-red-500" : ""}>
+              Email <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) {
+                  setErrors(prev => ({ ...prev, email: false }));
+                  setErrorMsg('');
+                }
+              }}
               placeholder="ivan@medin.ru"
-              className="h-11"
+              className={`h-11 ${errors.email ? "border-red-500 focus-visible:ring-red-500" : ""}`}
               disabled={isLoading}
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="department">Отдел / Кабинет <span className="text-red-500">*</span></Label>
+            <Label htmlFor="department" className={errors.department ? "text-red-500" : ""}>
+              Отдел / Кабинет <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="department"
               value={department}
-              onChange={(e) => setDepartment(e.target.value)}
+              onChange={(e) => {
+                setDepartment(e.target.value);
+                if (errors.department) {
+                  setErrors(prev => ({ ...prev, department: false }));
+                  setErrorMsg('');
+                }
+              }}
               placeholder="Терапия, каб. 101"
-              className="h-11"
+              className={`h-11 ${errors.department ? "border-red-500 focus-visible:ring-red-500" : ""}`}
               disabled={isLoading}
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="reason">Причина запроса <span className="text-red-500">*</span></Label>
+            <Label htmlFor="reason">Причина запроса</Label>
             <Textarea
               id="reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Новый сотрудник, доступ к базе знаний..."
+              placeholder="Новый сотрудник, доступ к базе знаний... (необязательно)"
               className="min-h-[80px]"
               disabled={isLoading}
             />
           </div>
+          
+          {errorMsg && (
+            <p className="text-sm font-medium text-red-500 animate-in fade-in slide-in-from-top-1">
+              {errorMsg}
+            </p>
+          )}
           
           <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-base mt-2" disabled={isLoading}>
             {isLoading ? 'Отправка...' : 'Отправить запрос'}

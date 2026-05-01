@@ -113,6 +113,11 @@ io.on('connection', (socket) => {
 
         // Broadcast update to all clients
         io.emit('user_status_change', { userId: decoded.id, isOnline: true });
+
+        // Update cached stats immediately
+        getDbStats().then(stats => {
+          cachedDbStats = stats;
+        });
       }
     } catch (err: any) {
       fastify.log.error(err, 'Socket authentication error');
@@ -131,6 +136,12 @@ io.on('connection', (socket) => {
         }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to offline on logout'));
 
         io.emit('user_status_change', { userId: decoded.id, isOnline: false });
+
+        // Update cached stats immediately
+        getDbStats().then(stats => {
+          cachedDbStats = stats;
+        });
+        
         console.log(`[Socket] User ${decoded.id} logged out explicitly`);
       }
     } catch (err: any) {
@@ -157,6 +168,11 @@ io.on('connection', (socket) => {
 
       // Broadcast update
       io.emit('user_status_change', { userId: disconnectedUserId, isOnline: false });
+      
+      // Update cached stats immediately
+      getDbStats().then(stats => {
+        cachedDbStats = stats;
+      });
     }
   });
 });
@@ -713,6 +729,8 @@ fastify.get('/dashboard', async (_request, reply) => {
             }
           }
 
+          let cachedStats = null;
+
           socket.on('log', (log) => {
             addLog(log);
             // Update active sessions based on logs
@@ -725,8 +743,42 @@ fastify.get('/dashboard', async (_request, reply) => {
             }
           });
 
+          // Listen for real-time user status changes from main server
+          socket.on('user_status_change', ({ userId, isOnline }) => {
+            console.log('User status change in dashboard:', userId, isOnline);
+          });
+
           function updateActiveUsersUI() {
-            if (activeSessions.size === 0) return;
+            // Use cachedStats if available, otherwise fall back to log-based activeSessions
+            const dbUsers = cachedStats?.db?.activeUsersList;
+            
+            if (dbUsers && dbUsers.length > 0) {
+              activeUsersContainer.innerHTML = dbUsers.map(user => {
+                const timeStr = user.lastLogin ? new Date(user.lastLogin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now';
+                return '<div class="flex items-center justify-between bg-slate-800/30 p-2 rounded-lg border border-slate-700/30 animate-in fade-in duration-300">' +
+                  '<div class="flex items-center gap-2 overflow-hidden">' +
+                    '<div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-xs flex-shrink-0 border border-blue-500/30">' +
+                      (user.name ? user.name.charAt(0) : 'U') +
+                    '</div>' +
+                    '<div class="overflow-hidden">' +
+                      '<p class="text-xs font-bold text-slate-200 truncate">' + (user.name || user.username) + '</p>' +
+                      '<p class="text-[10px] text-slate-500 truncate">' + (user.position || 'User') + '</p>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="flex flex-col items-end gap-1 flex-shrink-0">' +
+                    '<span class="flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>' +
+                    '<span class="text-[9px] text-slate-500 font-mono">' + timeStr + '</span>' +
+                  '</div>' +
+                '</div>';
+              }).join('');
+              return;
+            }
+
+            // Fallback UI based on logs
+            if (activeSessions.size === 0) {
+              activeUsersContainer.innerHTML = '<p class="text-slate-600 text-sm italic text-center py-4">Waiting for activity...</p>';
+              return;
+            }
             
             const sortedUsers = Array.from(activeSessions.entries())
               .sort((a, b) => b[1].timestamp - a[1].timestamp)
@@ -736,18 +788,24 @@ fastify.get('/dashboard', async (_request, reply) => {
               const timeStr = data.timestamp instanceof Date ? data.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
               return '<div class="flex items-center justify-between bg-slate-800/30 p-2 rounded-lg border border-slate-700/30">' +
                 '<div class="flex items-center gap-2 overflow-hidden">' +
-                  '<div class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>' +
-                  '<div class="truncate">' +
-                    '<p class="text-[11px] font-bold text-slate-200 truncate">' + username + '</p>' +
-                    '<p class="text-[9px] text-slate-500 truncate">' + data.lastAction + '</p>' +
+                  '<div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-xs flex-shrink-0 border border-blue-500/30">' +
+                    username.charAt(0).toUpperCase() +
+                  '</div>' +
+                  '<div class="overflow-hidden">' +
+                    '<p class="text-xs font-bold text-slate-200 truncate">' + username + '</p>' +
+                    '<p class="text-[10px] text-slate-500 truncate">' + data.lastAction + '</p>' +
                   '</div>' +
                 '</div>' +
-                '<span class="text-[9px] text-slate-600 font-mono flex-shrink-0">' + timeStr + '</span>' +
+                '<div class="flex flex-col items-end gap-1 flex-shrink-0">' +
+                  '<span class="flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>' +
+                  '<span class="text-[9px] text-slate-500 font-mono">' + timeStr + '</span>' +
+                '</div>' +
               '</div>';
             }).join('');
           }
 
           socket.on('stats', (stats) => {
+            cachedStats = stats;
             clientsCount.innerText = stats.clients;
             uptimeDisplay.innerText = stats.uptime;
             memoryDisplay.innerText = stats.memory + ' MB';
@@ -810,11 +868,12 @@ interface DashboardStats {
   documents: number;
   ticketStatus: Record<string, number>;
   pendingRequests: any[];
+  activeUsersList: any[];
 }
 
 async function getDbStats(): Promise<DashboardStats> {
   try {
-    const [tickets, users, inventory, documents, ticketStatus, pendingRequests] = await Promise.all([
+    const [tickets, users, inventory, documents, ticketStatus, pendingRequests, activeUsersList] = await Promise.all([
       prisma.ticket.count(),
       prisma.user.count(),
       prisma.inventoryItem.count(),
@@ -828,6 +887,18 @@ async function getDbStats(): Promise<DashboardStats> {
         take: 5,
         orderBy: { createdAt: 'desc' },
       }),
+      prisma.user.findMany({
+        where: { isOnline: true },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          position: true,
+          lastLogin: true
+        },
+        take: 5,
+        orderBy: { lastLogin: 'desc' }
+      })
     ]);
 
     const statusMap: Record<string, number> = {};
@@ -842,6 +913,7 @@ async function getDbStats(): Promise<DashboardStats> {
       documents,
       ticketStatus: statusMap,
       pendingRequests,
+      activeUsersList,
     };
   } catch (err: any) {
     console.error('Error fetching DB stats:', err);
@@ -852,6 +924,7 @@ async function getDbStats(): Promise<DashboardStats> {
       documents: 0,
       ticketStatus: {},
       pendingRequests: [],
+      activeUsersList: [],
     };
   }
 }
@@ -863,6 +936,7 @@ let cachedDbStats: DashboardStats = {
   documents: 0,
   ticketStatus: {},
   pendingRequests: [],
+  activeUsersList: [],
 };
 
 // Update DB stats every 10 seconds

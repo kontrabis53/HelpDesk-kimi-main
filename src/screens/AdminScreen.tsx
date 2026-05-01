@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Role, UserWithRole, ActivityLog, ModuleId, ModulePermission } from '@/types/roles';
-import type { RegistrationRequest } from '@/types';
+import type { RegistrationRequest, TechnicalGuide } from '@/types';
 import { moduleLabels, actionLabels } from '@/types/roles';
 import { 
   Users, 
@@ -21,7 +21,8 @@ import {
   Monitor,
   FileText,
   Loader2,
-  ShieldAlert
+  ShieldAlert,
+  Settings
 } from 'lucide-react';
 import { useLocationStore } from '@/stores/locationStore';
 import { useGuideStore } from '@/stores/guideStore';
@@ -43,6 +44,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -95,134 +98,156 @@ export function AdminScreen({
   const [masterPassword, setMasterPassword] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeactivateOption, setShowDeactivateOption] = useState(false);
+  const [locationView, setLocationView] = useState<'floors' | 'departments'>('floors');
+  const [editingBuilding, setEditingBuilding] = useState<string | null>(null);
+  const [editingDepartment, setEditingDepartment] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
   const { 
     buildings, 
     floors, 
+    departments,
     cabinets, 
     equipment, 
     addBuilding, 
+    updateBuilding,
     addFloor, 
+    addDepartment,
+    updateDepartment,
     addCabinet, 
+    updateCabinet,
     addEquipment 
   } = useLocationStore();
 
-  const {
-    guides: technicalGuides,
-    addGuide,
-    deleteGuide
-  } = useGuideStore();
+  const { guides, addGuide, deleteGuide } = useGuideStore();
 
-  // Filter users
-  const filteredUsers = users.filter((u: UserWithRole) => 
-    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (u.department || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Filter requests
-  const filteredRequests = requests.filter((r: RegistrationRequest) => 
-    r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (r.department || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Filter logs
-  const filteredLogs = logs.filter((l: ActivityLog) =>
-    l.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    l.details?.toLowerCase().includes(searchQuery.toLowerCase())
-  ).slice(0, 50);
-
-  const getRoleById = (roleId: string) => roles.find(r => r.id === roleId);
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  // User form state
-  const [userFormData, setUserFormData] = useState({
-    name: '',
-    email: '',
-    roleId: '',
-    position: '',
-    department: '',
-    isActive: true,
-    showGreeting: false,
-    greetingText: 'Шо ты маленький, привет',
-    username: '',
-    password: '',
-  });
-
-  // Role form state
-  const [roleFormData, setRoleFormData] = useState({
+  const [roleFormData, setRoleFormData] = useState<Omit<Role, 'id'>>({
     name: '',
     description: '',
     color: '#3B82F6',
-    permissions: [] as ModulePermission[],
+    permissions: [
+      { moduleId: 'tickets', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'inventory', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'knowledge', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'users', canView: false, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
+    ]
   });
 
-  const handleOpenUserForm = (user?: UserWithRole) => {
-    if (user) {
-      setEditingUser(user);
-      setUserFormData({
-        name: user.name,
-        email: user.email || '',
-        roleId: user.roleId,
-        position: user.position || '',
-        department: user.department || '',
-        isActive: user.isActive || false,
-        showGreeting: user.showGreeting ?? false,
-        greetingText: user.greetingText || 'Шо ты маленький, привет',
-        username: user.username || '',
-        password: user.password || '',
-      });
-    } else {
-      setEditingUser(null);
-      // По умолчанию выбираем первую роль из списка (теперь это "Пользователь")
-      const userRole = roles[0];
-      setUserFormData({
-        name: '',
-        email: '',
-        roleId: userRole?.id || 'user',
-        position: '',
-        department: '',
-        isActive: true,
-        showGreeting: userRole?.id === 'admin' || userRole?.id === 'technician',
-        greetingText: 'Шо ты маленький, привет',
-        username: '',
-        password: '',
-      });
-    }
+  const [userFormData, setUserFormData] = useState<Omit<UserWithRole, 'id' | 'createdAt'>>({
+    username: '',
+    name: '',
+    email: '',
+    password: '',
+    roleId: '',
+    role: 'user',
+    position: '',
+    department: '',
+    isActive: true,
+    showGreeting: true,
+    greetingText: 'Добро пожаловать в систему Медин!'
+  });
+
+  const filteredUsers = users.filter(user => 
+    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (user.username?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.department.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredRoles = roles.filter(role => 
+    role.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredRequests = requests.filter(request => 
+    request.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    request.department.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredLogs = logs.filter(log => 
+    log.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    log.details?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleTogglePermission = (role: Role, moduleId: ModuleId, permission: keyof Omit<ModulePermission, 'moduleId'>) => {
+    const newPermissions = role.permissions.map(p => 
+      p.moduleId === moduleId ? { ...p, [permission]: !p[permission] } : p
+    );
+    onUpdateRole(role.id, { permissions: newPermissions });
+  };
+
+  const togglePermission = (moduleId: ModuleId, field: keyof Omit<ModulePermission, 'moduleId'>) => {
+    setRoleFormData(prev => ({
+      ...prev,
+      permissions: prev.permissions.map(p => 
+        p.moduleId === moduleId ? { ...p, [field]: !p[field] } : p
+      )
+    }));
+  };
+
+  const handleEditUser = (user: UserWithRole) => {
+    setEditingUser(user);
+    setUserFormData({
+      username: user.username,
+      name: user.name,
+      email: user.email || '',
+      password: '', // Не показываем пароль
+      roleId: user.roleId,
+      role: user.role,
+      position: user.position || '',
+      department: user.department,
+      isActive: user.isActive,
+      showGreeting: user.showGreeting ?? true,
+      greetingText: user.greetingText || 'Добро пожаловать в систему Медин!'
+    });
     setShowUserForm(true);
+  };
+
+  const handleEditRole = (role: Role) => {
+    setEditingRole(role);
+    setRoleFormData({
+      name: role.name,
+      description: role.description,
+      color: role.color,
+      permissions: [...role.permissions]
+    });
+    setShowRoleForm(true);
+  };
+
+  const handleSaveUser = async () => {
+    try {
+      if (editingUser) {
+        await onUpdateUser(editingUser.id, userFormData);
+        toast.success('Пользователь обновлен');
+      } else {
+        await onCreateUser(userFormData);
+        toast.success('Пользователь создан');
+      }
+      setShowUserForm(false);
+      setEditingUser(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Ошибка при сохранении');
+    }
+  };
+
+  const handleSaveRole = () => {
+    if (editingRole) {
+      onUpdateRole(editingRole.id, roleFormData);
+      toast.success('Роль обновлена');
+    } else {
+      onCreateRole(roleFormData);
+      toast.success('Роль создана');
+    }
+    setShowRoleForm(false);
+    setEditingRole(null);
   };
 
   const handleApproveAndCreateUser = async (request: RegistrationRequest) => {
     setProcessingRequestId(request.id);
     try {
       await onApproveRequest(request.id);
-      setEditingUser(null);
-      // По умолчанию выбираем первую роль из списка (теперь это "Пользователь")
-      const userRole = roles[0];
-      setUserFormData({
-        name: request.name,
-        email: request.email,
-        roleId: userRole?.id || 'user',
-        position: '',
-        department: request.department,
-        isActive: true,
-        showGreeting: userRole?.id === 'admin' || userRole?.id === 'technician',
-        greetingText: 'Шо ты маленький, привет',
-        username: request.email.split('@')[0],
-        password: Math.random().toString(36).slice(-8),
-      });
-      setShowUserForm(true);
-      setActiveTab('users');
-      toast.success('Заявка одобрена. Заполните данные пользователя.');
+      toast.success('Заявка одобрена');
     } catch (error: any) {
       toast.error('Ошибка при одобрении заявки');
     } finally {
@@ -230,227 +255,121 @@ export function AdminScreen({
     }
   };
 
-  const handleOpenRoleForm = (role?: Role) => {
-    if (role) {
-      setEditingRole(role);
-      setRoleFormData({
-        name: role.name,
-        description: role.description,
-        color: role.color,
-        permissions: role.permissions,
-      });
-    } else {
-      setEditingRole(null);
-      const defaultPermissions: ModulePermission[] = [
-        { moduleId: 'knowledge', canView: false, canCreate: false, canEdit: false, canDelete: false },
-        { moduleId: 'tickets', canView: false, canCreate: false, canEdit: false, canDelete: false },
-        { moduleId: 'documents', canView: false, canCreate: false, canEdit: false, canDelete: false },
-        { moduleId: 'inventory', canView: false, canCreate: false, canEdit: false, canDelete: false },
-        { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
-        { moduleId: 'profile', canView: true, canCreate: false, canEdit: true, canDelete: false },
-      ];
-      setRoleFormData({
-        name: '',
-        description: '',
-        color: '#3B82F6',
-        permissions: defaultPermissions,
-      });
-    }
-    setShowRoleForm(true);
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
-
-  const handleSaveUser = async () => {
-    if (!userFormData.name.trim() || !userFormData.roleId || !(userFormData.department || '').trim()) {
-      return;
-    }
-
-    try {
-      if (editingUser) {
-        await onUpdateUser(editingUser.id, userFormData);
-        toast.success('Данные пользователя обновлены');
-      } else {
-        // Find role object to get role name
-        const role = roles.find(r => r.id === userFormData.roleId);
-        
-        await onCreateUser({
-          ...userFormData,
-          role: (role?.id as any) || 'user', // This is a workaround, ideally we should type this properly
-        } as any);
-        toast.success('Пользователь создан');
-      }
-      setShowUserForm(false);
-      setEditingUser(null);
-    } catch (error: any) {
-      console.error('Save user error:', error);
-      toast.error('Ошибка при сохранении пользователя');
-    }
-  };
-
-  const handleSaveRole = () => {
-    if (!roleFormData.name.trim() || !roleFormData.description.trim()) {
-      return;
-    }
-
-    if (editingRole) {
-      onUpdateRole(editingRole.id, roleFormData);
-    } else {
-      onCreateRole(roleFormData);
-    }
-    setShowRoleForm(false);
-    setEditingRole(null);
-  };
-
-  const togglePermission = (moduleId: ModuleId, action: 'view' | 'create' | 'edit' | 'delete') => {
-    setRoleFormData(prev => ({
-      ...prev,
-      permissions: prev.permissions.map(perm => {
-        if (perm.moduleId === moduleId) {
-          const newPerm = { ...perm };
-          if (action === 'view') newPerm.canView = !newPerm.canView;
-          if (action === 'create') newPerm.canCreate = !newPerm.canCreate;
-          if (action === 'edit') newPerm.canEdit = !newPerm.canEdit;
-          if (action === 'delete') newPerm.canDelete = !newPerm.canDelete;
-          return newPerm;
-        }
-        return perm;
-      }),
-    }));
-  };
-
-  const handleTogglePermission = (role: Role, moduleId: ModuleId, field: keyof Omit<ModulePermission, 'moduleId'>) => {
-    const updatedPermissions = role.permissions.map(p => 
-      p.moduleId === moduleId ? { ...p, [field]: !p[field] } : p
-    );
-    onUpdateRole(role.id, { permissions: updatedPermissions });
-  };
-
-  const tabs: { id: AdminTab; label: string; icon: any }[] = [
-    { id: 'users', label: 'Пользователи', icon: Users },
-    { id: 'roles', label: 'Роли', icon: Shield },
-    { id: 'requests', label: 'Запросы', icon: UserPlus },
-    { id: 'locations', label: 'Локации', icon: MapPin },
-    { id: 'logs', label: 'Логи', icon: ScrollText },
-  ];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 md:pb-8">
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-800 px-4 pt-4 pb-2 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
-        <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4">Управление</h1>
-        
-        {/* Tabs */}
-        <div className="flex gap-1 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap',
-                  isActive 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            );
-          })}
+    <div className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto min-h-screen">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2">
+            <Shield className="w-6 h-6 text-blue-600" />
+            ПАНЕЛЬ УПРАВЛЕНИЯ
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-widest mt-1">Система администрирования Медин</p>
+        </div>
+        <div className="relative w-full md:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Input 
+            placeholder="Быстрый поиск..." 
+            className="pl-10 h-10 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:ring-blue-500"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-4 max-w-5xl mx-auto">
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input
-            type="text"
-            placeholder="Поиск..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-10 h-10 bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-800 w-fit">
+        {[
+          { id: 'users', label: 'Пользователи', icon: Users },
+          { id: 'roles', label: 'Роли и Права', icon: Shield },
+          { id: 'requests', label: 'Запросы', icon: UserPlus, count: requests.filter(r => r.status === 'pending').length },
+          { id: 'locations', label: 'Локации', icon: MapPin },
+          { id: 'logs', label: 'Журнал', icon: ScrollText },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as AdminTab)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+              activeTab === tab.id 
+                ? "bg-white dark:bg-slate-800 text-blue-600 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700" 
+                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            )}
+          >
+            <tab.icon className="w-4 h-4" />
+            <span className="hidden sm:inline">{tab.label}</span>
+            {tab.count !== undefined && tab.count > 0 && (
+              <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
+      <div className="space-y-6">
         {/* Users Tab */}
         {activeTab === 'users' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-                Пользователи ({filteredUsers.length})
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                Сотрудники ({filteredUsers.length})
               </h2>
-              <Button onClick={() => handleOpenUserForm()} size="sm" className="bg-blue-600">
-                <Plus className="w-4 h-4 mr-1" />
-                Добавить
+              <Button 
+                onClick={() => {
+                  setEditingUser(null);
+                  setUserFormData({
+                    username: '',
+                    name: '',
+                    email: '',
+                    password: '',
+                    roleId: roles[0]?.id || '',
+                    role: 'user',
+                    position: '',
+                    department: '',
+                    isActive: true,
+                    showGreeting: true,
+                    greetingText: 'Добро пожаловать в систему Медин!'
+                  });
+                  setShowUserForm(true);
+                }} 
+                className="bg-blue-600 hover:bg-blue-700 text-xs font-black uppercase tracking-wider h-9"
+              >
+                <Plus className="w-4 h-4 mr-1.5" /> Добавить
               </Button>
             </div>
 
-            {filteredUsers.map((user) => {
-              const role = getRoleById(user.roleId);
-              return (
-                <div
-                  key={user.id}
-                  className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-700"
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredUsers.map((user) => (
+                <div 
+                  key={user.id} 
+                  className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group"
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                          <span className="text-white font-bold">{user.name.charAt(0)}</span>
-                        </div>
-                        <div 
-                          className={cn(
-                            "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-800 shadow-sm",
-                            user.isOnline ? "bg-emerald-500" : "bg-red-500"
-                          )}
-                          title={user.isOnline ? "В сети" : "Не в сети"}
-                        />
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-lg border border-blue-100 dark:border-blue-800/50">
+                        {user.name.charAt(0)}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-800 dark:text-slate-100">{user.name}</span>
-                          {!user.isActive && (
-                            <span className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded">
-                              Заблокирован
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-slate-500 dark:text-slate-400">
-                          {user.email} • {user.department}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span 
-                            className="text-xs px-2 py-0.5 rounded text-white"
-                            style={{ backgroundColor: role?.color || '#6B7280' }}
-                          >
-                            {role?.name || 'Нет роли'}
-                          </span>
-                          {user.lastLogin && (
-                            <span className="text-xs text-slate-400">
-                              Последний вход: {formatDate(user.lastLogin)}
-                            </span>
-                          )}
-                        </div>
+                        <h3 className="font-bold text-slate-800 dark:text-slate-100 leading-tight">{user.name}</h3>
+                        <p className="text-[11px] text-slate-400 font-medium uppercase tracking-tighter mt-0.5">@{user.username || 'user'}</p>
                       </div>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={() => handleOpenUserForm(user)}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                        disabled={isLoading}
+                        onClick={() => handleEditUser(user)}
+                        className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
                       >
-                        <Edit2 className="w-4 h-4 text-slate-400" />
+                        <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setUserToDelete(user)}
@@ -461,249 +380,419 @@ export function AdminScreen({
                       </button>
                     </div>
                   </div>
+                  
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold">
+                        {roles.find(r => r.id === user.roleId)?.name || user.role}
+                      </Badge>
+                      {!user.isActive && (
+                        <Badge variant="destructive" className="text-[10px] font-bold">Заблокирован</Badge>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <Shield className="w-3.5 h-3.5" />
+                        <span>{user.department}</span>
+                      </div>
+                      {user.position && (
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <Users className="w-3.5 h-3.5" />
+                          <span>{user.position}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
         )}
 
         {/* Roles Tab */}
         {activeTab === 'roles' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-                Роли ({roles.length})
-              </h2>
-              <Button onClick={() => handleOpenRoleForm()} size="sm" className="bg-blue-600">
-                <Plus className="w-4 h-4 mr-1" />
-                Создать роль
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Роли и Права доступа</h2>
+              <Button 
+                onClick={() => {
+                  setEditingRole(null);
+                  setRoleFormData({
+                    name: '',
+                    description: '',
+                    color: '#3B82F6',
+                    permissions: [
+                      { moduleId: 'tickets', canView: true, canCreate: false, canEdit: false, canDelete: false },
+                      { moduleId: 'inventory', canView: true, canCreate: false, canEdit: false, canDelete: false },
+                      { moduleId: 'knowledge', canView: true, canCreate: false, canEdit: false, canDelete: false },
+                      { moduleId: 'users', canView: false, canCreate: false, canEdit: false, canDelete: false },
+                      { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
+                    ]
+                  });
+                  setShowRoleForm(true);
+                }} 
+                className="bg-blue-600 hover:bg-blue-700 text-xs font-black uppercase tracking-wider h-9"
+              >
+                <Plus className="w-4 h-4 mr-1.5" /> Новая роль
               </Button>
             </div>
 
-            {roles.map((role) => (
-              <div
-                key={role.id}
-                className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden"
-              >
+            <div className="space-y-4">
+              {filteredRoles.map((role) => (
                 <div 
-                  className="p-4 flex items-center justify-between cursor-pointer"
-                  onClick={() => setExpandedRole(expandedRole === role.id ? null : role.id)}
+                  key={role.id} 
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm"
                 >
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-4 h-4 rounded-full"
-                      style={{ backgroundColor: role.color }}
-                    />
-                    <div>
-                      <span className="font-semibold text-slate-800 dark:text-slate-100">{role.name}</span>
-                      {role.isSystem && (
-                        <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
-                          Системная
-                        </span>
-                      )}
-                      <p className="text-sm text-slate-500 dark:text-slate-400">{role.description}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenRoleForm(role);
-                      }}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                      title="Редактировать роль"
-                    >
-                      <Edit2 className="w-4 h-4 text-slate-400" />
-                    </button>
-                    {!role.isSystem && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteRole(role.id);
-                        }}
-                        className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                        title="Удалить роль"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-400" />
-                      </button>
-                    )}
-                    {expandedRole === role.id ? (
-                      <ChevronUp className="w-5 h-5 text-slate-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-slate-400" />
-                    )}
-                  </div>
-                </div>
-
-                {/* Permissions */}
-                {expandedRole === role.id && (
-                  <div className="px-4 pb-4 border-t border-slate-100 dark:border-slate-700">
-                    <div className="pt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {role.permissions.map((perm) => (
-                        <div 
-                          key={perm.moduleId}
-                          className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600/50"
-                        >
-                          <div className="font-bold text-xs text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                            {moduleLabels[perm.moduleId]}
-                          </div>
-                          <div className="grid grid-cols-1 gap-2">
-                            <div className="flex items-center justify-between">
-                              <label htmlFor={`perm-${role.id}-${perm.moduleId}-view`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Просмотр</label>
-                              <Checkbox 
-                                id={`perm-${role.id}-${perm.moduleId}-view`}
-                                checked={perm.canView}
-                                onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canView')}
-                                className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                              />
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <label htmlFor={`perm-${role.id}-${perm.moduleId}-create`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Создание</label>
-                              <Checkbox 
-                                id={`perm-${role.id}-${perm.moduleId}-create`}
-                                checked={perm.canCreate}
-                                onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canCreate')}
-                                className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-600 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
-                              />
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <label htmlFor={`perm-${role.id}-${perm.moduleId}-edit`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Ред-ние</label>
-                              <Checkbox 
-                                id={`perm-${role.id}-${perm.moduleId}-edit`}
-                                checked={perm.canEdit}
-                                onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canEdit')}
-                                className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-600 data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
-                              />
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <label htmlFor={`perm-${role.id}-${perm.moduleId}-delete`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer text-red-400/80">Удаление</label>
-                              <Checkbox 
-                                id={`perm-${role.id}-${perm.moduleId}-delete`}
-                                checked={perm.canDelete}
-                                onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canDelete')}
-                                className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-600 data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Locations Tab */}
-        {activeTab === 'locations' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-                Реестр локаций и оборудования
-              </h2>
-              <div className="flex gap-2">
-                <Button onClick={() => {
-                  const name = prompt('Введите название здания:');
-                  if (name) addBuilding(name);
-                }} size="sm" variant="outline">
-                  <Plus className="w-4 h-4 mr-1" /> Здание
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Buildings Tree */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Структура зданий</h3>
-                <div className="space-y-2">
-                  {buildings.map(building => (
-                    <div key={building.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
-                      <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
-                        <div className="flex items-center gap-2">
-                          <BuildingIcon className="w-4 h-4 text-blue-500" />
-                          <span className="font-bold text-slate-700 dark:text-slate-200">{building.name}</span>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                          const num = prompt('Введите номер этажа:');
-                          if (num) addFloor(building.id, parseInt(num));
-                        }}>
-                          <Plus className="w-3 h-3" />
-                        </Button>
+                  <div className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div 
+                        className="w-3 h-10 rounded-full" 
+                        style={{ backgroundColor: role.color }} 
+                      />
+                      <div>
+                        <h3 className="font-bold text-slate-800 dark:text-slate-100">{role.name}</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{role.description}</p>
                       </div>
-                      <div className="p-2 space-y-1">
-                        {floors.filter(f => f.buildingId === building.id).map(floor => (
-                          <div key={floor.id} className="pl-4 py-1">
-                            <div className="flex items-center justify-between group">
-                              <div className="flex items-center gap-2">
-                                <Layers className="w-3 h-3 text-slate-400" />
-                                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Этаж {floor.number}</span>
-                              </div>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                                const name = prompt('Введите название/номер кабинета:');
-                                if (name) addCabinet(building.id, floor.id, name);
-                              }}>
-                                <Plus className="w-3 h-3" />
-                              </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditRole(role)}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-400 hover:text-blue-600 transition-colors"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteRole(role.id)}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-400 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setExpandedRole(expandedRole === role.id ? null : role.id)}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-400 transition-colors"
+                      >
+                        {expandedRole === role.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Permissions */}
+                  {expandedRole === role.id && (
+                    <div className="px-4 pb-4 border-t border-slate-100 dark:border-slate-700">
+                      <div className="pt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {role.permissions.map((perm) => (
+                          <div 
+                            key={perm.moduleId}
+                            className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600/50"
+                          >
+                            <div className="font-bold text-xs text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                              {moduleLabels[perm.moduleId]}
                             </div>
-                            <div className="pl-4 mt-1 flex flex-wrap gap-1">
-                              {cabinets.filter(c => c.floorId === floor.id).map(cabinet => (
-                                <div key={cabinet.id} className="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[11px] font-bold rounded-lg border border-blue-100 dark:border-blue-800 flex items-center gap-1">
-                                  <MapPin className="w-2.5 h-2.5" />
-                                  {cabinet.name}
-                                </div>
-                              ))}
+                            <div className="grid grid-cols-1 gap-2">
+                              <div className="flex items-center justify-between">
+                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-view`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Просмотр</label>
+                                <Checkbox 
+                                  id={`perm-${role.id}-${perm.moduleId}-view`}
+                                  checked={perm.canView}
+                                  onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canView')}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-create`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Создание</label>
+                                <Checkbox 
+                                  id={`perm-${role.id}-${perm.moduleId}-create`}
+                                  checked={perm.canCreate}
+                                  onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canCreate')}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-edit`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Ред-ние</label>
+                                <Checkbox 
+                                  id={`perm-${role.id}-${perm.moduleId}-edit`}
+                                  checked={perm.canEdit}
+                                  onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canEdit')}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-delete`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer text-red-400/80">Удаление</label>
+                                <Checkbox 
+                                  id={`perm-${role.id}-${perm.moduleId}-delete`}
+                                  checked={perm.canDelete}
+                                  onCheckedChange={() => handleTogglePermission(role, perm.moduleId, 'canDelete')}
+                                />
+                              </div>
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-              {/* Equipment List */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Оборудование</h3>
-                  <Button size="sm" onClick={() => {
-                    const name = prompt('Название оборудования:');
-                    const model = prompt('Модель (например, Hamilton C3):');
-                    if (name && model) {
-                      const cabId = prompt('ID кабинета (например, c2-op1):') || '';
-                      addEquipment({ name, model, cabinetId: cabId, department: 'Общий' });
-                    }
-                  }}>
-                    <Plus className="w-4 h-4 mr-1" /> Добавить
-                  </Button>
+        {/* Locations Tab */}
+        {activeTab === 'locations' && (
+          <div className="space-y-6 w-full max-w-full animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-blue-500" />
+                  Реестр локаций и оборудования
+                </h2>
+                <p className="text-xs text-slate-500 mt-1 font-medium">Управление структурой зданий, этажей и медицинских отделений</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl flex gap-1 shadow-inner border border-slate-200/50 dark:border-slate-800">
+                  <button
+                    onClick={() => setLocationView('floors')}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5",
+                      locationView === 'floors' 
+                        ? "bg-white dark:bg-slate-700 text-blue-600 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600" 
+                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    )}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    ПО ЭТАЖАМ
+                  </button>
+                  <button
+                    onClick={() => setLocationView('departments')}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5",
+                      locationView === 'departments' 
+                        ? "bg-white dark:bg-slate-700 text-blue-600 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600" 
+                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    )}
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    ПО ОТДЕЛЕНИЯМ
+                  </button>
                 </div>
-                <div className="space-y-2">
-                  {equipment.map(item => {
-                    const cab = cabinets.find(c => c.id === item.cabinetId);
-                    const bld = buildings.find(b => b.id === cab?.buildingId);
-                    return (
-                      <div key={item.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                            <Monitor className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-bold text-slate-800 dark:text-slate-200 truncate">{item.name}</h4>
-                              <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-md font-bold">{item.model}</span>
+                <Separator orientation="vertical" className="h-8 hidden md:block" />
+                <Button onClick={() => {
+                  const name = prompt('Введите название здания:');
+                  if (name) addBuilding(name);
+                }} size="sm" variant="default" className="h-9 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
+                  <Plus className="w-4 h-4 mr-1" /> Здание
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+              {/* Buildings/Structure Panel */}
+              <div className="xl:col-span-3 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {buildings.map(building => (
+                    <div key={building.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
+                      <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                          <BuildingIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                          {editingBuilding === building.id ? (
+                            <div className="flex items-center gap-1 w-full">
+                              <Input 
+                                value={editName} 
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="h-7 text-xs py-0"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && editName) {
+                                    updateBuilding(building.id, editName);
+                                    setEditingBuilding(null);
+                                  }
+                                  if (e.key === 'Escape') setEditingBuilding(null);
+                                }}
+                              />
+                              <Button size="icon" variant="ghost" className="h-6 w-6 text-emerald-500" onClick={() => {
+                                if (editName) {
+                                  updateBuilding(building.id, editName);
+                                  setEditingBuilding(null);
+                                }
+                              }}><Check className="w-3 h-3" /></Button>
                             </div>
-                            <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                              <MapPin className="w-3 h-3" />
-                              <span>{bld?.name}, Каб. {cab?.name || 'Не указан'}</span>
-                            </div>
-                          </div>
+                          ) : (
+                            <span 
+                              className="font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-blue-600 transition-colors"
+                              onClick={() => {
+                                setEditingBuilding(building.id);
+                                setEditName(building.name);
+                              }}
+                              title="Нажмите, чтобы переименовать"
+                            >
+                              {building.name}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {locationView === 'floors' ? (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title="Добавить этаж" onClick={() => {
+                              const num = prompt('Введите номер этажа:');
+                              if (num) addFloor(building.id, parseInt(num));
+                            }}>
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-500" title="Добавить отделение" onClick={() => {
+                              const name = prompt('Введите название отделения:');
+                              if (name) addDepartment(building.id, name);
+                            }}>
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
 
+                      <div className="p-3 flex-1">
+                        {locationView === 'floors' ? (
+                          /* View by Floors */
+                          <div className="space-y-4">
+                            {floors.filter(f => f.buildingId === building.id).sort((a,b) => a.number - b.number).map(floor => (
+                              <div key={floor.id} className="space-y-2">
+                                <div className="flex items-center justify-between group">
+                                  <div className="flex items-center gap-2">
+                                    <Layers className="w-3.5 h-3.5 text-slate-400" />
+                                    <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Этаж {floor.number}</span>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                                    const name = prompt('Введите название/номер кабинета:');
+                                    if (name) addCabinet(building.id, floor.id, name);
+                                  }}>
+                                    <Plus className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                  {cabinets.filter(c => c.floorId === floor.id).map(cabinet => (
+                                    <div 
+                                      key={cabinet.id} 
+                                      className="px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg shadow-sm flex items-center justify-between group/cab"
+                                    >
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <MapPin className="w-2.5 h-2.5 text-blue-400 shrink-0" />
+                                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 truncate">{cabinet.name}</span>
+                                      </div>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <button className="opacity-0 group-hover/cab:opacity-100 p-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 transition-all">
+                                            <Settings className="w-2.5 h-2.5" />
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-48 p-2">
+                                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 px-1">Назначить отделение</p>
+                                          <div className="space-y-1">
+                                            <button 
+                                              onClick={() => updateCabinet(cabinet.id, { departmentId: undefined })}
+                                              className={cn(
+                                                "w-full text-left px-2 py-1 text-xs rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
+                                                !cabinet.departmentId && "text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20"
+                                              )}
+                                            >
+                                              Без отделения
+                                            </button>
+                                            {departments.filter(d => d.buildingId === building.id).map(dept => (
+                                              <button 
+                                                key={dept.id}
+                                                onClick={() => updateCabinet(cabinet.id, { departmentId: dept.id })}
+                                                className={cn(
+                                                  "w-full text-left px-2 py-1 text-xs rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
+                                                  cabinet.departmentId === dept.id && "text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20"
+                                                )}
+                                              >
+                                                {dept.name}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          /* View by Departments */
+                          <div className="space-y-4 h-full">
+                            {departments.filter(d => d.buildingId === building.id).map(dept => (
+                              <div key={dept.id} className="bg-slate-50 dark:bg-slate-900/40 rounded-xl p-3 border border-slate-100 dark:border-slate-800/50">
+                                <div className="flex items-center justify-between mb-2 group">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <Shield className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                    {editingDepartment === dept.id ? (
+                                      <div className="flex items-center gap-1 w-full">
+                                        <Input 
+                                          value={editName} 
+                                          onChange={(e) => setEditName(e.target.value)}
+                                          className="h-6 text-xs py-0"
+                                          autoFocus
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && editName) {
+                                              updateDepartment(dept.id, editName);
+                                              setEditingDepartment(null);
+                                            }
+                                            if (e.key === 'Escape') setEditingDepartment(null);
+                                          }}
+                                        />
+                                        <Button size="icon" variant="ghost" className="h-5 w-5 text-emerald-500" onClick={() => {
+                                          if (editName) {
+                                            updateDepartment(dept.id, editName);
+                                            setEditingDepartment(null);
+                                          }
+                                        }}><Check className="w-2.5 h-2.5" /></Button>
+                                      </div>
+                                    ) : (
+                                      <span 
+                                        className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-emerald-600 transition-colors"
+                                        onClick={() => {
+                                          setEditingDepartment(dept.id);
+                                          setEditName(dept.name);
+                                        }}
+                                      >
+                                        {dept.name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
+                                    {cabinets.filter(c => c.departmentId === dept.id).length} каб.
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {cabinets.filter(c => c.departmentId === dept.id).map(cabinet => {
+                                    const floor = floors.find(f => f.id === cabinet.floorId);
+                                    return (
+                                      <div key={cabinet.id} className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg flex flex-col">
+                                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200">{cabinet.name}</span>
+                                        <span className="text-[8px] text-slate-400 uppercase tracking-tighter">эт. {floor?.number || '?'}</span>
+                                      </div>
+                                    );
+                                  })}
+                                  {cabinets.filter(c => c.departmentId === dept.id).length === 0 && (
+                                    <p className="text-[9px] text-slate-400 italic py-1 px-1">Нет назначенных кабинетов</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            {departments.filter(d => d.buildingId === building.id).length === 0 && (
+                              <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl">
+                                <Shield className="w-8 h-8 text-slate-200 dark:text-slate-800 mb-2" />
+                                <p className="text-xs text-slate-400 font-medium">В этом корпусе ещё нет отделений</p>
+                                <Button variant="ghost" size="sm" className="mt-2 text-emerald-600 h-7 text-[10px] font-bold uppercase tracking-wider" onClick={() => {
+                                  const name = prompt('Введите название отделения:');
+                                  if (name) addDepartment(building.id, name);
+                                }}>
+                                  Добавить первое
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
                 {/* Technical Guides Management */}
                 <div className="mt-8 space-y-4">
                   <div className="flex items-center justify-between">
@@ -724,7 +813,7 @@ export function AdminScreen({
                     </Button>
                   </div>
                   <div className="space-y-2">
-                    {technicalGuides.map(guide => (
+                    {guides.map((guide: TechnicalGuide) => (
                       <div key={guide.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
@@ -733,7 +822,7 @@ export function AdminScreen({
                           <div>
                             <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{guide.title}</h4>
                             <div className="flex gap-1 mt-1">
-                              {guide.equipmentModels.map(m => (
+                              {guide.equipmentModels.map((m: string) => (
                                 <Badge key={m} variant="secondary" className="text-[9px] px-1 py-0">{m}</Badge>
                               ))}
                             </div>
@@ -745,6 +834,57 @@ export function AdminScreen({
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+
+              {/* Equipment Panel (Right) */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Оборудование</h3>
+                  <Button size="sm" onClick={() => {
+                    const name = prompt('Название оборудования:');
+                    const model = prompt('Модель (например, Hamilton C3):');
+                    if (name && model) {
+                      const cabId = prompt('ID кабинета (например, c1-101):') || '';
+                      addEquipment({ name, model, cabinetId: cabId, department: 'Общий' });
+                    }
+                  }} className="h-8">
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Добавить
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {equipment.map(item => {
+                    const cab = cabinets.find(c => c.id === item.cabinetId);
+                    const bld = buildings.find(b => b.id === cab?.buildingId);
+                    const dept = departments.find(d => d.id === cab?.departmentId);
+                    return (
+                      <div key={item.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <Monitor className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-bold text-slate-800 dark:text-slate-200 truncate text-sm">{item.name}</h4>
+                              <span className="text-[9px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-md font-black">{item.model}</span>
+                            </div>
+                            <div className="flex flex-col gap-0.5 mt-1">
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                                <MapPin className="w-2.5 h-2.5" />
+                                <span className="truncate">{bld?.name}, Каб. {cab?.name || '?'}</span>
+                              </div>
+                              {dept && (
+                                <div className="flex items-center gap-1.5 text-[10px] text-emerald-500 font-bold">
+                                  <Shield className="w-2.5 h-2.5" />
+                                  <span className="truncate">{dept.name}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -910,7 +1050,6 @@ export function AdminScreen({
             </div>
           </div>
         )}
-
       </div>
 
       {/* User Form Dialog */}
@@ -1084,7 +1223,7 @@ export function AdminScreen({
             showDeactivateOption ? "bg-amber-500" : "bg-red-500"
           )}>
             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-4 animate-pulse">
-              {showDeactivateOption ? <ShieldAlert className="w-6 h-6 text-white" /> : <ShieldAlert className="w-6 h-6 text-white" />}
+              <ShieldAlert className="w-6 h-6 text-white" />
             </div>
             <h3 className="text-xl font-bold mb-2">
               {showDeactivateOption ? 'Связанные данные' : 'Подтвердите удаление'}
@@ -1140,19 +1279,19 @@ export function AdminScreen({
                         setUserToDelete(null);
                         setMasterPassword('');
                       } catch (error: any) {
-                      console.log('Delete error full object:', error);
-                      const responseData = error.response?.data;
-                      const errorCode = responseData?.code || responseData?.errorCode;
-                      const serverMessage = responseData?.message || error.message || '';
-                      
-                      if (errorCode === 'INVALID_MASTER_PASSWORD') {
-                        toast.error('Введен неверный пароль доступа');
-                      } else if (errorCode === 'FOREIGN_KEY_VIOLATION' || serverMessage.includes('за ним закреплены заявки')) {
-                        setShowDeactivateOption(true);
-                      } else {
-                        toast.error(serverMessage || 'Ошибка при удалении пользователя');
-                      }
-                    } finally {
+                        console.log('Delete error full object:', error);
+                        const responseData = error.response?.data;
+                        const errorCode = responseData?.code || responseData?.errorCode;
+                        const serverMessage = responseData?.message || error.message || '';
+                        
+                        if (errorCode === 'INVALID_MASTER_PASSWORD') {
+                          toast.error('Введен неверный пароль доступа');
+                        } else if (errorCode === 'FOREIGN_KEY_VIOLATION' || serverMessage.includes('за ним закреплены заявки')) {
+                          setShowDeactivateOption(true);
+                        } else {
+                          toast.error(serverMessage || 'Ошибка при удалении пользователя');
+                        }
+                      } finally {
                         setIsDeleting(false);
                       }
                     }}
@@ -1302,28 +1441,28 @@ export function AdminScreen({
                           <td className="py-1 px-1 text-center">
                             <Checkbox
                               checked={perm.canView}
-                              onCheckedChange={() => togglePermission(perm.moduleId, 'view')}
+                              onCheckedChange={() => togglePermission(perm.moduleId, 'canView')}
                               className="h-3.5 w-3.5 [&>svg]:h-2.5 [&>svg]:w-2.5"
                             />
                           </td>
                           <td className="py-1 px-1 text-center">
                             <Checkbox
                               checked={perm.canCreate}
-                              onCheckedChange={() => togglePermission(perm.moduleId, 'create')}
+                              onCheckedChange={() => togglePermission(perm.moduleId, 'canCreate')}
                               className="h-3.5 w-3.5 [&>svg]:h-2.5 [&>svg]:w-2.5"
                             />
                           </td>
                           <td className="py-1 px-1 text-center">
                             <Checkbox
                               checked={perm.canEdit}
-                              onCheckedChange={() => togglePermission(perm.moduleId, 'edit')}
+                              onCheckedChange={() => togglePermission(perm.moduleId, 'canEdit')}
                               className="h-3.5 w-3.5 [&>svg]:h-2.5 [&>svg]:w-2.5"
                             />
                           </td>
                           <td className="py-1 px-1 text-center">
                             <Checkbox
                               checked={perm.canDelete}
-                              onCheckedChange={() => togglePermission(perm.moduleId, 'delete')}
+                              onCheckedChange={() => togglePermission(perm.moduleId, 'canDelete')}
                               className="h-3.5 w-3.5 [&>svg]:h-2.5 [&>svg]:w-2.5"
                             />
                           </td>
@@ -1335,13 +1474,13 @@ export function AdminScreen({
               </div>
             </div>
           </div>
-          <div className="flex gap-2 pt-4 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+          <div className="flex gap-2 pt-4 border-t mt-auto flex-shrink-0">
             <Button
               onClick={handleSaveRole}
-              className="flex-1 bg-blue-600"
-              disabled={!roleFormData.name.trim() || !roleFormData.description.trim()}
+              className="flex-1 bg-blue-600 h-9 text-sm"
+              disabled={isLoading || !roleFormData.name.trim() || !roleFormData.description.trim()}
             >
-              {editingRole ? 'Сохранить' : 'Создать'}
+              {editingRole ? 'Сохранить изменения' : 'Создать роль'}
             </Button>
             <Button
               variant="outline"
@@ -1349,6 +1488,7 @@ export function AdminScreen({
                 setShowRoleForm(false);
                 setEditingRole(null);
               }}
+              className="h-9 text-sm"
             >
               Отмена
             </Button>

@@ -2,7 +2,7 @@
 
 import type { User } from './index';
 
-export type ModuleId = 'knowledge' | 'tickets' | 'documents' | 'inventory' | 'directory' | 'chat' | 'parser' | 'admin' | 'profile' | 'guides';
+export type ModuleId = 'knowledge' | 'tickets' | 'documents' | 'inventory' | 'directory' | 'chat' | 'parser' | 'admin' | 'profile' | 'guides' | 'users';
 
 export interface ModulePermission {
   moduleId: ModuleId;
@@ -138,6 +138,7 @@ export const moduleLabels: Record<ModuleId, string> = {
   admin: 'Управление',
   profile: 'Профиль',
   guides: 'Инструкции',
+  users: 'Пользователи',
 };
 
 export const moduleIcons: Record<ModuleId, string> = {
@@ -151,6 +152,7 @@ export const moduleIcons: Record<ModuleId, string> = {
   admin: 'Settings',
   profile: 'User',
   guides: 'Book',
+  users: 'Users',
 };
 
 export const actionLabels: Record<string, string> = {

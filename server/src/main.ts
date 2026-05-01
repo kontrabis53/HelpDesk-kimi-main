@@ -38,18 +38,6 @@ fastify.register(fastifyHelmet, {
   contentSecurityPolicy: false, // Disable CSP for easier dashboard development, enable in full prod
 });
 
-// 1. DATABASE: Reset online status for all users on startup
-async function resetOnlineStatus() {
-  try {
-    await prisma.user.updateMany({
-      data: { isOnline: false }
-    });
-    console.log('[Server] Reset all user online statuses to offline');
-  } catch (err) {
-    console.error('[Server] Failed to reset online statuses:', err);
-  }
-}
-
 // 2. MIDDLEWARE & PLUGINS
 fastify.register(fastifyCors, {
   origin: '*', // Temporarily allow all for network access debugging
@@ -749,32 +737,36 @@ fastify.get('/dashboard', async (_request, reply) => {
           });
 
           function updateActiveUsersUI() {
-            // Use cachedStats if available, otherwise fall back to log-based activeSessions
+            // Priority: Real-time DB status from cachedStats
             const dbUsers = cachedStats?.db?.activeUsersList;
             
-            if (dbUsers && dbUsers.length > 0) {
-              activeUsersContainer.innerHTML = dbUsers.map(user => {
-                const timeStr = user.lastLogin ? new Date(user.lastLogin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now';
-                return '<div class="flex items-center justify-between bg-slate-800/30 p-2 rounded-lg border border-slate-700/30 animate-in fade-in duration-300">' +
-                  '<div class="flex items-center gap-2 overflow-hidden">' +
-                    '<div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-xs flex-shrink-0 border border-blue-500/30">' +
-                      (user.name ? user.name.charAt(0) : 'U') +
+            if (dbUsers) {
+              if (dbUsers.length > 0) {
+                activeUsersContainer.innerHTML = dbUsers.map(user => {
+                  const timeStr = user.lastLogin ? new Date(user.lastLogin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now';
+                  return '<div class="flex items-center justify-between bg-slate-800/30 p-2 rounded-lg border border-slate-700/30 animate-in fade-in duration-300">' +
+                    '<div class="flex items-center gap-2 overflow-hidden">' +
+                      '<div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-xs flex-shrink-0 border border-blue-500/30">' +
+                        (user.name ? user.name.charAt(0) : 'U') +
+                      '</div>' +
+                      '<div class="overflow-hidden">' +
+                        '<p class="text-xs font-bold text-slate-200 truncate">' + (user.name || user.username) + '</p>' +
+                        '<p class="text-[10px] text-slate-500 truncate">' + (user.position || 'User') + '</p>' +
+                      '</div>' +
                     '</div>' +
-                    '<div class="overflow-hidden">' +
-                      '<p class="text-xs font-bold text-slate-200 truncate">' + (user.name || user.username) + '</p>' +
-                      '<p class="text-[10px] text-slate-500 truncate">' + (user.position || 'User') + '</p>' +
+                    '<div class="flex flex-col items-end gap-1 flex-shrink-0">' +
+                      '<span class="flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>' +
+                      '<span class="text-[9px] text-slate-500 font-mono">' + timeStr + '</span>' +
                     '</div>' +
-                  '</div>' +
-                  '<div class="flex flex-col items-end gap-1 flex-shrink-0">' +
-                    '<span class="flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>' +
-                    '<span class="text-[9px] text-slate-500 font-mono">' + timeStr + '</span>' +
-                  '</div>' +
-                '</div>';
-              }).join('');
+                  '</div>';
+                }).join('');
+              } else {
+                activeUsersContainer.innerHTML = '<p class="text-slate-600 text-sm italic text-center py-4">No active sessions</p>';
+              }
               return;
             }
 
-            // Fallback UI based on logs
+            // Fallback UI based on logs (only if stats not yet loaded)
             if (activeSessions.size === 0) {
               activeUsersContainer.innerHTML = '<p class="text-slate-600 text-sm italic text-center py-4">Waiting for activity...</p>';
               return;
@@ -818,6 +810,9 @@ fastify.get('/dashboard', async (_request, reply) => {
             usersStat.innerText = stats.db.users;
             inventoryStat.innerText = stats.db.inventory;
             docsStat.innerText = stats.db.documents;
+
+            // Update Active Sessions
+            updateActiveUsersUI();
 
             // Update chart
             if (!ticketChart) {
@@ -980,11 +975,9 @@ async function resetUserStatus() {
   }
 }
 
-resetUserStatus();
-
 const start = async () => {
   try {
-    await resetOnlineStatus();
+    await resetUserStatus();
     const port = parseInt(process.env.PORT || '3000');
     await fastify.listen({ port, host: '0.0.0.0' });
     console.log(`[Server] Fastify listening on 0.0.0.0:${port}`);

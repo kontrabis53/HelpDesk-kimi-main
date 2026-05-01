@@ -96,6 +96,12 @@ export interface Building {
   name: string; // Например, "Корпус А", "Корпус Б"
 }
 
+export interface Department {
+  id: string;
+  buildingId: string;
+  name: string; // Например, "Терапия", "Хирургия"
+}
+
 export interface Floor {
   id: string;
   buildingId: string;
@@ -106,6 +112,7 @@ export interface Cabinet {
   id: string;
   buildingId: string;
   floorId: string;
+  departmentId?: string; // Связь с отделением
   name: string; // Номер или название кабинета
 }
 

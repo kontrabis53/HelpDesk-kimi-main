@@ -55,12 +55,12 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.patch('/:id', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
+    const { id: userId } = request.params as { id: string };
     try {
-      const { id } = request.params as { id: string };
       const currentUser = request.user as any;
 
       // Check permissions: admin can update anyone, user can only update themselves
-      if (currentUser.role !== 'admin' && currentUser.id !== id) {
+      if (currentUser.role !== 'admin' && currentUser.id !== userId) {
         return reply.status(403).send({ message: 'Вы можете редактировать только свой профиль' });
       }
 
@@ -103,11 +103,11 @@ export default async function userRoutes(fastify: FastifyInstance) {
         }
       });
 
-      fastify.log.info({ id, updateData }, 'Updating user');
+      fastify.log.info({ userId, updateData }, 'Updating user');
       
       if (Object.keys(updateData).length === 0) {
         const user = await prisma.user.findUnique({
-          where: { id },
+          where: { id: userId },
           select: {
             id: true,
             username: true,
@@ -135,7 +135,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
     }
     
     const user = await prisma.user.update({
-        where: { id },
+        where: { id: userId },
         data: updateData,
         select: {
           id: true,
@@ -161,13 +161,22 @@ export default async function userRoutes(fastify: FastifyInstance) {
       if (updateData.isActive === false) {
         const io = (fastify as any).io;
         if (io) {
-          io.emit('user_deactivated', { userId: id });
+          io.emit('user_deactivated', { userId: userId });
         }
       }
 
       return user;
     } catch (error: any) {
-      fastify.log.error(error);
+      fastify.log.error({ userId, error }, 'Error updating user');
+      
+      // Обработка ошибок связанных данных (Foreign Key Constraint)
+      if (error.code === 'P2003') {
+        return reply.status(400).send({ 
+          message: 'Невозможно удалить пользователя, так как за ним закреплены заявки или другие документы. Сначала удалите связанные данные или деактивируйте пользователя.',
+          code: 'FOREIGN_KEY_VIOLATION'
+        });
+      }
+
       if (error.code === 'P2002') {
         return reply.status(400).send({ message: 'Этот логин или email уже заняты' });
       }
@@ -186,21 +195,47 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.delete('/:id', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
+    const { id: userId } = request.params as { id: string };
     try {
-      const { id } = request.params as { id: string };
+      const { masterPassword } = request.body as { masterPassword?: string };
       const currentUser = request.user as any;
 
       if (currentUser.role !== 'admin') {
         return reply.status(403).send({ message: 'Только администратор может удалять пользователей' });
       }
 
+      // Проверка мастер-пароля
+      const correctMasterPassword = process.env.MASTER_DELETE_PASSWORD || 'root';
+      if (!masterPassword || masterPassword !== correctMasterPassword) {
+        return reply.status(400).send({ 
+          message: 'Неверный мастер-пароль на удаление',
+          code: 'INVALID_MASTER_PASSWORD'
+        });
+      }
+
       await prisma.user.delete({
-        where: { id }
+        where: { id: userId }
       });
+      fastify.log.info({ userId }, 'User deleted successfully');
       return { success: true };
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({ message: 'Ошибка при удалении пользователя' });
+      const errorCode = error.code;
+      fastify.log.error({ userId, errorCode, errorMessage: error.message }, 'Error deleting user');
+
+      // Обработка ошибок связанных данных (Foreign Key Constraint)
+      if (errorCode === 'P2003') {
+        fastify.log.warn({ userId }, 'User has linked data, sending FOREIGN_KEY_VIOLATION');
+        return reply.status(400).send({ 
+          message: 'Невозможно удалить пользователя, так как за ним закреплены заявки или другие документы.',
+          code: 'FOREIGN_KEY_VIOLATION'
+        });
+      }
+
+      return reply.status(500).send({ 
+        message: 'Ошибка при удалении пользователя',
+        error: error.message,
+        code: errorCode 
+      });
     }
   });
 }

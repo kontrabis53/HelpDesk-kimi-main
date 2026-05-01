@@ -39,7 +39,7 @@ interface RoleStore {
   addLog: (action: string, entityType: ActivityLog['entityType'], entityId?: string, entityName?: string, details?: string) => void;
   updateUser: (userId: string, data: Partial<User>) => Promise<void>;
   addUser: (user: User) => Promise<void>;
-  deleteUser: (userId: string) => Promise<void>;
+  deleteUser: (userId: string, masterPassword?: string) => Promise<void>;
   createRole: (role: Omit<Role, 'id'>) => Promise<void>;
   updateRole: (id: string, role: Partial<Role>) => Promise<void>;
   deleteRole: (id: string) => Promise<void>;
@@ -196,10 +196,12 @@ export const useRoleStore = create<RoleStore>((set, get) => ({
     }
   },
   
-  deleteUser: async (userId) => {
+  deleteUser: async (userId, masterPassword) => {
     set({ isLoading: true });
     try {
-      await apiClient.delete(`/users/${userId}`);
+      await apiClient.delete(`/users/${userId}`, {
+        data: { masterPassword }
+      });
       set(state => ({
         users: state.users.filter((u: User) => u.id !== userId),
         isLoading: false

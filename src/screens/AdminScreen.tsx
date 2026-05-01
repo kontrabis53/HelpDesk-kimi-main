@@ -20,7 +20,8 @@ import {
   Layers,
   Monitor,
   FileText,
-  Loader2
+  Loader2,
+  ShieldAlert
 } from 'lucide-react';
 import { useLocationStore } from '@/stores/locationStore';
 import { useGuideStore } from '@/stores/guideStore';
@@ -59,7 +60,7 @@ interface AdminScreenProps {
   onDeleteRole: (roleId: string) => void;
   onCreateUser: (_user: Omit<UserWithRole, 'id' | 'createdAt'>) => Promise<void>;
   onUpdateUser: (_userId: string, _data: Partial<UserWithRole>) => Promise<void>;
-  onDeleteUser: (userId: string) => Promise<void>;
+  onDeleteUser: (userId: string, masterPassword?: string) => Promise<void>;
   onApproveRequest: (id: string) => Promise<void>;
   onRejectRequest: (id: string) => Promise<void>;
   onDeleteRequest: (id: string) => Promise<void>;
@@ -90,6 +91,10 @@ export function AdminScreen({
   const [showUserForm, setShowUserForm] = useState(false);
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+  const [userToDelete, setUserToDelete] = useState<UserWithRole | null>(null);
+  const [masterPassword, setMasterPassword] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeactivateOption, setShowDeactivateOption] = useState(false);
 
   const { 
     buildings, 
@@ -448,24 +453,11 @@ export function AdminScreen({
                         <Edit2 className="w-4 h-4 text-slate-400" />
                       </button>
                       <button
-                        onClick={async () => {
-                          if (confirm(`Вы уверены, что хотите удалить пользователя ${user.name}?`)) {
-                            try {
-                              await onDeleteUser(user.id);
-                              toast.success('Пользователь удален');
-                            } catch (error: any) {
-                              toast.error('Ошибка при удалении пользователя');
-                            }
-                          }
-                        }}
+                        onClick={() => setUserToDelete(user)}
                         className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                         disabled={isLoading}
                       >
-                        {isLoading ? (
-                          <Loader2 className="w-4 h-4 text-red-400 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4 text-red-400" />
-                        )}
+                        <Trash2 className="w-4 h-4 text-red-400" />
                       </button>
                     </div>
                   </div>
@@ -1074,6 +1066,165 @@ export function AdminScreen({
                 Отмена
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={!!userToDelete} onOpenChange={(open) => {
+        if (!open) {
+          setUserToDelete(null);
+          setMasterPassword('');
+          setShowDeactivateOption(false);
+        }
+      }}>
+        <DialogContent className="max-w-[320px] p-0 overflow-hidden border-none bg-white dark:bg-slate-900 shadow-2xl">
+          <div className={cn(
+            "p-6 flex flex-col items-center text-center text-white transition-colors duration-300",
+            showDeactivateOption ? "bg-amber-500" : "bg-red-500"
+          )}>
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-4 animate-pulse">
+              {showDeactivateOption ? <ShieldAlert className="w-6 h-6 text-white" /> : <ShieldAlert className="w-6 h-6 text-white" />}
+            </div>
+            <h3 className="text-xl font-bold mb-2">
+              {showDeactivateOption ? 'Связанные данные' : 'Подтвердите удаление'}
+            </h3>
+            <p className="text-sm text-white/90 opacity-90 leading-relaxed">
+              {showDeactivateOption ? (
+                <>
+                  Нельзя удалить: у пользователя <span className="font-bold underline">{userToDelete?.name}</span> есть заявки или документы.
+                </>
+              ) : (
+                <>
+                  Вы собираетесь безвозвратно удалить пользователя:
+                  <span className="block text-white font-black text-base mt-1 underline decoration-white/30">{userToDelete?.name}</span>
+                  Это действие нельзя отменить.
+                </>
+              )}
+            </p>
+          </div>
+          
+          <div className="p-6 space-y-4">
+            {!showDeactivateOption ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="master-password" title="Мастер пароль" className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Мастер-пароль
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="master-password"
+                      type="password"
+                      value={masterPassword}
+                      onChange={(e) => setMasterPassword(e.target.value)}
+                      placeholder="Введите мастер-пароль"
+                      className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10 text-center font-mono tracking-widest focus:ring-red-500 focus:border-red-500"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Button
+                    onClick={async () => {
+                      if (!userToDelete) return;
+                      if (!masterPassword) {
+                        toast.error('Введите мастер-пароль');
+                        return;
+                      }
+                      
+                      setIsDeleting(true);
+                      try {
+                        await onDeleteUser(userToDelete.id, masterPassword);
+                        toast.success('Пользователь успешно удален');
+                        setUserToDelete(null);
+                        setMasterPassword('');
+                      } catch (error: any) {
+                      console.log('Delete error full object:', error);
+                      const responseData = error.response?.data;
+                      const errorCode = responseData?.code || responseData?.errorCode;
+                      const serverMessage = responseData?.message || error.message || '';
+                      
+                      if (errorCode === 'INVALID_MASTER_PASSWORD') {
+                        toast.error('Введен неверный пароль доступа');
+                      } else if (errorCode === 'FOREIGN_KEY_VIOLATION' || serverMessage.includes('за ним закреплены заявки')) {
+                        setShowDeactivateOption(true);
+                      } else {
+                        toast.error(serverMessage || 'Ошибка при удалении пользователя');
+                      }
+                    } finally {
+                        setIsDeleting(false);
+                      }
+                    }}
+                    disabled={isDeleting || !masterPassword}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-10 shadow-lg shadow-red-500/20"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-2" />
+                    )}
+                    УДАЛИТЬ НАВСЕГДА
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setUserToDelete(null);
+                      setMasterPassword('');
+                    }}
+                    disabled={isDeleting}
+                    className="w-full text-slate-500 dark:text-slate-400 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    Отмена
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4 animate-in fade-in zoom-in duration-300">
+                <p className="text-xs text-slate-500 dark:text-slate-400 text-center leading-relaxed">
+                  Рекомендуется деактивировать учетную запись. Это закроет доступ к системе, но сохранит историю действий.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    onClick={async () => {
+                      if (!userToDelete) return;
+                      setIsDeleting(true);
+                      try {
+                        await onUpdateUser(userToDelete.id, { isActive: false });
+                        toast.success('Пользователь деактивирован');
+                        setUserToDelete(null);
+                        setShowDeactivateOption(false);
+                      } catch (error: any) {
+                        toast.error('Ошибка при деактивации');
+                      } finally {
+                        setIsDeleting(false);
+                      }
+                    }}
+                    disabled={isDeleting}
+                    className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold h-10 shadow-lg shadow-amber-500/20"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <ShieldAlert className="w-4 h-4 mr-2" />
+                    )}
+                    ДЕАКТИВИРОВАТЬ
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setUserToDelete(null);
+                      setShowDeactivateOption(false);
+                      setMasterPassword('');
+                    }}
+                    disabled={isDeleting}
+                    className="w-full text-slate-500 dark:text-slate-400 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    Закрыть
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

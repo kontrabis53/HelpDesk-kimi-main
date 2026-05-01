@@ -38,7 +38,19 @@ fastify.register(fastifyHelmet, {
   contentSecurityPolicy: false, // Disable CSP for easier dashboard development, enable in full prod
 });
 
-// 2. SECURITY: CORS (Restrict access to the API)
+// 1. DATABASE: Reset online status for all users on startup
+async function resetOnlineStatus() {
+  try {
+    await prisma.user.updateMany({
+      data: { isOnline: false }
+    });
+    console.log('[Server] Reset all user online statuses to offline');
+  } catch (err) {
+    console.error('[Server] Failed to reset online statuses:', err);
+  }
+}
+
+// 2. MIDDLEWARE & PLUGINS
 fastify.register(fastifyCors, {
   origin: '*', // Temporarily allow all for network access debugging
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -898,6 +910,7 @@ resetUserStatus();
 
 const start = async () => {
   try {
+    await resetOnlineStatus();
     const port = parseInt(process.env.PORT || '3000');
     await fastify.listen({ port, host: '0.0.0.0' });
     console.log(`[Server] Fastify listening on 0.0.0.0:${port}`);

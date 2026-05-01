@@ -47,6 +47,14 @@ export const useAuthStore = create<AuthState>()(
         isNewLogin: false,
 
       initAutoLogout: () => {
+        const INACTIVITY_LIMIT = 60; // 60 minutes
+        
+        const resetTimer = () => {
+          if (get().isAuthenticated) {
+            localStorage.setItem('last_seen', Date.now().toString());
+          }
+        };
+
         const checkInactivity = () => {
           if (!get().isAuthenticated) return;
           
@@ -56,10 +64,11 @@ export const useAuthStore = create<AuthState>()(
             const now = Date.now();
             const diffMinutes = (now - lastSeenTime) / (1000 * 60);
             
-            if (diffMinutes >= 5) {
-              console.log('Logging out due to 5 minutes of inactivity/tab closure');
+            if (diffMinutes >= INACTIVITY_LIMIT) {
+              console.log(`Logging out due to ${INACTIVITY_LIMIT} minutes of inactivity`);
               get().logout();
               localStorage.removeItem('last_seen');
+              window.location.href = '/login?error=timeout';
               return true;
             }
           }
@@ -68,29 +77,33 @@ export const useAuthStore = create<AuthState>()(
 
         // Check on init
         if (checkInactivity()) return;
-        localStorage.removeItem('last_seen');
+        resetTimer();
 
-        // Listen for visibility changes
+        // Activity listeners
+        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+        events.forEach(event => {
+          window.addEventListener(event, resetTimer);
+        });
+
+        // Periodic check (every minute)
+        const interval = setInterval(checkInactivity, 60000);
+
+        // Visibility change logic
         const handleVisibilityChange = () => {
-          if (document.visibilityState === 'hidden') {
-            localStorage.setItem('last_seen', Date.now().toString());
-          } else if (document.visibilityState === 'visible') {
+          if (document.visibilityState === 'visible') {
             checkInactivity();
-            localStorage.removeItem('last_seen');
+            resetTimer();
           }
         };
 
-        // Listen for tab close/refresh
-        const handleBeforeUnload = () => {
-          localStorage.setItem('last_seen', Date.now().toString());
-        };
-
         window.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('beforeunload', handleBeforeUnload);
 
         return () => {
+          events.forEach(event => {
+            window.removeEventListener(event, resetTimer);
+          });
           window.removeEventListener('visibilitychange', handleVisibilityChange);
-          window.removeEventListener('beforeunload', handleBeforeUnload);
+          clearInterval(interval);
         };
       },
 

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Stethoscope, Moon, Sun, AlertCircle, ShieldAlert } from 'lucide-react';
+import { Stethoscope, Moon, Sun, AlertCircle, ShieldAlert, Clock } from 'lucide-react';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -20,6 +20,7 @@ export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deactivatedError, setDeactivatedError] = useState(false);
+  const [timeoutError, setTimeoutError] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -28,8 +29,11 @@ export function LoginPage() {
   }, [isAuthenticated, navigate]);
 
   useEffect(() => {
-    if (searchParams.get('error') === 'deactivated') {
+    const errorType = searchParams.get('error');
+    if (errorType === 'deactivated') {
       setDeactivatedError(true);
+    } else if (errorType === 'timeout') {
+      setTimeoutError(true);
     }
   }, [searchParams]);
 
@@ -98,6 +102,18 @@ export function LoginPage() {
               <h3 className="font-bold text-amber-800 dark:text-amber-300">Доступ ограничен</h3>
               <p className="text-amber-700 dark:text-amber-400 text-xs leading-relaxed">
                 Доступ к системе Вам ограничен, обратитесь к администратору систем доступов
+              </p>
+            </div>
+          )}
+
+          {timeoutError && (
+            <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800/50 flex flex-col items-center text-center gap-2 animate-in fade-in zoom-in duration-300">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-800/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-1">
+                <Clock className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-blue-800 dark:text-blue-300">Сессия завершена</h3>
+              <p className="text-blue-700 dark:text-blue-400 text-xs leading-relaxed">
+                Вы были разлогинены из-за длительного бездействия. Пожалуйста, войдите снова.
               </p>
             </div>
           )}

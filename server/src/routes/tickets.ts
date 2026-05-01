@@ -150,6 +150,11 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         }
       });
 
+      // Notify through socket
+      if ((fastify as any).io) {
+        (fastify as any).io.emit('ticket_updated', ticket);
+      }
+
       return ticket;
     } catch (error: any) {
       return reply.status(500).send({ message: 'Ошибка при обновлении заявки' });
@@ -177,6 +182,11 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
           }
         }
       });
+
+      // Notify through socket
+      if ((fastify as any).io) {
+        (fastify as any).io.emit('new_comment', { ticketId, comment });
+      }
 
       return reply.status(201).send(comment);
     } catch (error: any) {

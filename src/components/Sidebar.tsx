@@ -4,6 +4,9 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useRoleStore } from '@/stores/roleStore';
+import { useNotificationStore } from '@/stores/notificationStore';
+import { NotificationPanel } from './NotificationPanel';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 interface SidebarProps {
   availableModules?: string[];
@@ -15,6 +18,7 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
   const user = useAuthStore(state => state.user);
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const { getRoleById } = useRoleStore();
+  const { unreadCount, isPanelOpen, setPanelOpen } = useNotificationStore();
   
   const userRole = user ? getRoleById(user.roleId) : null;
   
@@ -81,13 +85,28 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
               </div>
             )}
           </NavLink>
-          <button 
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors relative group/bell"
-            title="Уведомления"
-          >
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-800" />
-          </button>
+          <Popover open={isPanelOpen} onOpenChange={setPanelOpen}>
+            <PopoverTrigger asChild>
+              <button 
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors relative group/bell"
+                title="Уведомления"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-800" />
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent 
+              side="right" 
+              align="start" 
+              sideOffset={12} 
+              collisionPadding={10}
+              className="p-0 border-none shadow-2xl z-[100]"
+            >
+              <NotificationPanel />
+            </PopoverContent>
+          </Popover>
         </div>
         
         <nav className="space-y-1">

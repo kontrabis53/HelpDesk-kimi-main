@@ -161,6 +161,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
         data
       });
 
+      // Notify admins through socket
+      if ((fastify as any).io) {
+        (fastify as any).io.emit('new_registration_request', registrationRequest);
+      }
+
       return reply.status(201).send(registrationRequest);
     } catch (error: any) {
       if (error instanceof z.ZodError) {

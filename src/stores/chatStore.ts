@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
 import { chatService } from '@/api/chat';
 
-interface ChatMessage {
+import { useNotificationStore } from './notificationStore';
+
+export interface ChatMessage {
   id: string;
   chatId: string;
   text: string;
@@ -68,17 +70,33 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     console.log('Connecting to socket at:', SOCKET_URL);
     const socket = io(SOCKET_URL, {
       transports: ['websocket'],
-      upgrade: false
+      upgrade: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
     });
 
-    // Authenticate socket for status tracking
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      socket.emit('authenticate', token);
-    }
-    
+    // Re-authenticate on every connection/reconnection
+    socket.on('connect', () => {
+      console.log('Socket connected, authenticating...');
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        socket.emit('authenticate', token);
+      }
+    });
+
     socket.on('chat:message', (message: ChatMessage) => {
       get().addMessage(message);
+      
+      // Add notification for new message if panel is closed or it's a different chat
+      const currentUser = (window as any).useAuthStore?.getState()?.user;
+      if (currentUser && message.senderId !== currentUser.id) {
+        useNotificationStore.getState().addNotification({
+          title: 'Новое сообщение',
+          message: message.text,
+          type: 'info',
+        });
+      }
     });
 
     socket.on('user_deactivated', ({ userId }: { userId: string }) => {
@@ -86,6 +104,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       try {
         const authState = (window as any).useAuthStore?.getState();
         if (authState?.user?.id === userId) {
+          // Add notification to store before logout (though it might be lost on redirect)
+          useNotificationStore.getState().addNotification({
+            title: 'Доступ ограничен',
+            message: 'Ваша учетная запись деактивирована администратором.',
+            type: 'error',
+          });
+
           // Показываем уведомление перед разлогином
           import('sonner').then(({ toast }) => {
             toast.error('Доступ к системе ограничен', {
@@ -106,15 +131,91 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     });
 
     socket.on('user_status_change', ({ userId, isOnline }: { userId: string, isOnline: boolean }) => {
-      // We need to update the user status in roleStore or wherever users are managed
-      // Since stores are separate, we can use a global event or direct store update if possible
-      // For now, let's just log it and assume roleStore will handle the update if we can access it
       console.log(`User ${userId} is now ${isOnline ? 'online' : 'offline'}`);
       
-      // Try to update roleStore users if it's available in the same context
-      // Alternatively, we can use a callback or window event
+      // Add notification for status change
+      const currentUser = (window as any).useAuthStore?.getState()?.user;
+      if (currentUser && currentUser.id !== userId && currentUser.notificationsEnabled) {
+        // We need the user name, but we only have userId here. 
+        // We can get it from roleStore if needed, or just show a generic message for now.
+        const users = (window as any).useRoleStore?.getState()?.users || [];
+        const changedUser = users.find((u: any) => u.id === userId);
+        
+        if (changedUser) {
+          useNotificationStore.getState().addNotification({
+            title: isOnline ? 'Пользователь в сети' : 'Пользователь вышел',
+            message: `${changedUser.name} теперь ${isOnline ? 'в сети' : 'не в сети'}`,
+            type: 'system',
+          });
+        }
+      }
+      
       const event = new CustomEvent('user_status_updated', { detail: { userId, isOnline } });
       window.dispatchEvent(event);
+    });
+
+    socket.on('new_registration_request', (request: any) => {
+      const currentUser = (window as any).useAuthStore?.getState()?.user;
+      if (currentUser && currentUser.role === 'admin') {
+        useNotificationStore.getState().addNotification({
+          title: 'Новая заявка на доступ',
+          message: `${request.name} (${request.department}) запрашивает доступ к системе`,
+          type: 'warning',
+        });
+      }
+    });
+
+    socket.on('ticket_updated', (ticket: any) => {
+      console.log('Ticket update received through socket:', ticket);
+      const currentUser = (window as any).useAuthStore?.getState()?.user;
+      
+      // Обновляем список заявок в ticketStore, если он существует
+      try {
+        const ticketStore = (window as any).useTicketStore?.getState();
+        if (ticketStore) {
+          console.log('Updating ticket in ticketStore:', ticket.id);
+          ticketStore.fetchTickets(); // Самый надежный способ - перекачать актуальный список
+        }
+      } catch (e) {
+        console.error('Failed to update ticketStore:', e);
+      }
+      
+      if (currentUser && (
+        currentUser.id === ticket.authorId || 
+        currentUser.id === ticket.assigneeId || 
+        currentUser.role === 'admin' || 
+        currentUser.role === 'technician'
+      )) {
+        // Если это не сам текущий пользователь обновил заявку
+        // (Мы не хотим уведомлять админа о его собственных действиях)
+        // Но если он автор, и кто-то другой обновил - тогда надо.
+        
+        let title = `Заявка #${ticket.number} обновлена`;
+        let message = `Статус: ${ticket.status}`;
+
+        if (currentUser.id === ticket.assigneeId) {
+          title = 'Вам назначена заявка';
+          message = `Заявка #${ticket.number}: ${ticket.title}`;
+        }
+
+        console.log('Adding notification for user:', currentUser.name, 'Title:', title);
+        useNotificationStore.getState().addNotification({
+          title,
+          message,
+          type: 'success',
+        });
+      }
+    });
+
+    socket.on('new_comment', ({ comment }: { ticketId: string, comment: any }) => {
+      const currentUser = (window as any).useAuthStore?.getState()?.user;
+      if (currentUser && currentUser.id !== comment.authorId) {
+        useNotificationStore.getState().addNotification({
+          title: 'Новый комментарий',
+          message: `${comment.author.name}: ${comment.text}`,
+          type: 'info',
+        });
+      }
     });
 
     set({ socket });

@@ -5,20 +5,60 @@ import { documentService } from '@/api/documents';
 interface DocumentStore {
   documents: Document[];
   filter: DocumentFilter;
+  viewType: 'list' | 'calendar' | 'grid' | 'day';
+  currentDate: Date;
   isLoading: boolean;
   
   fetchDocuments: () => Promise<void>;
   setFilter: (filter: Partial<DocumentFilter>) => void;
+  setViewType: (viewType: 'list' | 'calendar' | 'grid' | 'day') => void;
+  setCurrentDate: (date: Date) => void;
   createDocument: (doc: any) => Promise<Document>;
   updateDocument: (id: string, updates: Partial<Document>) => Promise<void>;
   archiveDocument: (id: string) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
 }
 
+const getInitialViewType = (): 'list' | 'calendar' | 'grid' | 'day' => {
+  const saved = localStorage.getItem('documentsViewType');
+  if (saved === 'list' || saved === 'calendar' || saved === 'grid' || saved === 'day') {
+    return saved;
+  }
+  return 'calendar';
+};
+
 export const useDocumentStore = create<DocumentStore>((set) => ({
   documents: [],
   filter: {},
+  viewType: getInitialViewType(),
+  currentDate: new Date(),
   isLoading: false,
+  
+  setViewType: (viewType) => {
+    localStorage.setItem('documentsViewType', viewType);
+    
+    // Update switch counts to determine preferred default
+    if (viewType !== 'day') {
+      const countsJson = localStorage.getItem('documentsViewTypeCounts');
+      const counts = countsJson ? JSON.parse(countsJson) : { list: 0, calendar: 0, grid: 0 };
+      counts[viewType] = (counts[viewType] || 0) + 1;
+      
+      // If user switches to this type 3 or more times, make it the permanent default
+      if (counts[viewType] >= 3) {
+        localStorage.setItem('documentsViewType', viewType);
+      }
+      
+      localStorage.setItem('documentsViewTypeCounts', JSON.stringify(counts));
+    }
+    
+    set({ viewType });
+  },
+  
+  setCurrentDate: (date) => set((state) => {
+    // Only update if the date has actually changed (comparing timestamps)
+    if (state.currentDate.getTime() === date.getTime()) return state;
+    return { currentDate: date };
+  }),
   
   fetchDocuments: async () => {
     set({ isLoading: true });

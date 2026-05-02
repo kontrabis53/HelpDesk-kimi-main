@@ -15,7 +15,7 @@ interface KnowledgeStore {
   updateArticle: (id: string, updates: Partial<KBArticle>) => Promise<void>;
   deleteArticle: (id: string) => Promise<void>;
   getArticleById: (id: string) => Promise<KBArticle | null>;
-  incrementViews: (id: string) => Promise<void>;
+  incrementViews: (id: string, viewKey?: string) => Promise<void>;
 }
 
 export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
@@ -24,13 +24,17 @@ export const useKnowledgeStore = create<KnowledgeStore>((set) => ({
   selectedArticle: null,
   isLoading: false,
   
-  incrementViews: async (id) => {
+  incrementViews: async (id, viewKey) => {
     try {
-      // No need to call explicitly as getById increments it on server
+      await knowledgeService.incrementViews(id, viewKey);
+      
       set(state => ({
         articles: state.articles.map(a => 
           a.id === id ? { ...a, views: a.views + 1 } : a
-        )
+        ),
+        selectedArticle: state.selectedArticle?.id === id 
+          ? { ...state.selectedArticle, views: state.selectedArticle.views + 1 } 
+          : state.selectedArticle
       }));
     } catch (error) {
       console.error('Increment views error:', error);

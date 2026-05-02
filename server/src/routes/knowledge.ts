@@ -1,7 +1,19 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 
+// Кэш для предотвращения повторных инкрементов (userId + articleId)
+const viewCache = new Map<string, number>();
+const CACHE_TTL = 30 * 60 * 1000; // 30 минут
+
 export default async function knowledgeRoutes(fastify: FastifyInstance) {
+
+  // Очистка кэша раз в час
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, timestamp] of viewCache.entries()) {
+      if (now - timestamp > CACHE_TTL) viewCache.delete(key);
+    }
+  }, 60 * 60 * 1000);
   
   // List all articles
   fastify.get('', {
@@ -24,11 +36,39 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
+      const user = request.user as any;
+      const cacheKey = `${user.id}:${id}`;
+      const now = Date.now();
+
+      // Проверяем, был ли инкремент недавно
+      const lastView = viewCache.get(cacheKey);
       
-      // Increment views
-      const article = await prisma.kBArticle.update({
+      if (!lastView || (now - lastView > CACHE_TTL)) {
+        // Делаем инкремент ТОЛЬКО ТУТ и только если нет в кэше
+        viewCache.set(cacheKey, now);
+        fastify.log.info(`[KB] Real increment for ${cacheKey}`);
+        
+        const article = await prisma.kBArticle.update({
+          where: { id },
+          data: { views: { increment: 1 } },
+          include: {
+            author: {
+              select: { id: true, name: true, position: true }
+            }
+          }
+        });
+
+        if (!article) {
+          return reply.status(404).send({ message: 'Статья не найдена' });
+        }
+
+        return article;
+      }
+
+      // Если в кэше есть — просто отдаем данные без инкремента
+      fastify.log.info(`[KB] Suppressed double increment for ${cacheKey}`);
+      const article = await prisma.kBArticle.findUnique({
         where: { id },
-        data: { views: { increment: 1 } },
         include: {
           author: {
             select: { id: true, name: true, position: true }
@@ -36,11 +76,12 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
         }
       });
 
-      return article;
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+      if (!article) {
         return reply.status(404).send({ message: 'Статья не найдена' });
       }
+
+      return article;
+    } catch (error: any) {
       fastify.log.error(error);
       return reply.status(500).send({ message: 'Ошибка сервера' });
     }

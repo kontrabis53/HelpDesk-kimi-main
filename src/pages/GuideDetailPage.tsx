@@ -18,20 +18,25 @@ export function GuideDetailPage() {
   
   useEffect(() => {
     async function loadArticle() {
-      if (id) {
-        setLoading(true);
+      if (!id) return;
+      
+      setLoading(true);
+      try {
         const article = await getArticleById(id);
         if (article) {
           setSelectedArticle(article);
-          // Only update UI count, server was updated by getArticleById
           incrementViews(id);
         } else {
           toast.error('Статья не найдена');
           navigate('/knowledge');
         }
+      } catch (error) {
+        console.error('Load article error:', error);
+      } finally {
         setLoading(false);
       }
     }
+
     loadArticle();
   }, [id, getArticleById, setSelectedArticle, incrementViews, navigate]);
 

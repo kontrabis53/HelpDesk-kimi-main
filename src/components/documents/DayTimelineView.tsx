@@ -62,11 +62,6 @@ export function DayTimelineView({
     return [currentDate, addDays(currentDate, 1)];
   }, [currentDate]);
 
-  // Handle month change based on currentDate
-  useEffect(() => {
-    onDateChange(currentDate);
-  }, [currentDate]);
-
   // Desktop view shows the whole week
   const displayedDays = useMemo(() => {
     return isDesktop ? weekDays : mobileDays;

@@ -11,7 +11,6 @@ export function KnowledgePage() {
   
   const allArticles = useKnowledgeStore((state) => state.articles);
   const fetchArticles = useKnowledgeStore((state) => state.fetchArticles);
-  const incrementViews = useKnowledgeStore((state) => state.incrementViews);
   const filter = useKnowledgeStore((state) => state.filter);
   const setFilter = useKnowledgeStore((state) => state.setFilter);
   const setSelectedArticle = useKnowledgeStore((state) => state.setSelectedArticle);
@@ -49,7 +48,7 @@ export function KnowledgePage() {
   
   const handleArticleClick = (article: KBArticle) => {
     setSelectedArticle(article);
-    incrementViews(article.id);
+    // На странице списка НИКОГО не вызываем, инкремент будет только внутри статьи
     navigate(`/knowledge/${article.id}`);
   };
   

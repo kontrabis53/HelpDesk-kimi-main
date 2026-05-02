@@ -33,6 +33,7 @@ interface LocationState {
   getDepartmentById: (id: string) => Department | undefined;
   getCabinetById: (id: string) => Cabinet | undefined;
   getEquipmentById: (id: string) => Equipment | undefined;
+  getEquipmentByModel: (model: string) => Equipment | undefined;
   getFloorsByBuilding: (buildingId: string) => Floor[];
   getDepartmentsByBuilding: (buildingId: string) => Department[];
   getCabinetsByFloor: (floorId: string) => Cabinet[];
@@ -130,6 +131,10 @@ export const useLocationStore = create<LocationState>()(
       getDepartmentById: (id) => get().departments.find(d => d.id === id),
       getCabinetById: (id) => get().cabinets.find(c => c.id === id),
       getEquipmentById: (id) => get().equipment.find(e => e.id === id),
+      getEquipmentByModel: (model) => get().equipment.find(e => 
+        e.model.toLowerCase() === model.toLowerCase() || 
+        e.name.toLowerCase() === model.toLowerCase()
+      ),
       getFloorsByBuilding: (buildingId) => get().floors.filter(f => f.buildingId === buildingId),
       getDepartmentsByBuilding: (buildingId) => get().departments.filter(d => d.buildingId === buildingId),
       getCabinetsByFloor: (floorId) => get().cabinets.filter(c => c.floorId === floorId),

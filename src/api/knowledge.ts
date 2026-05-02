@@ -22,9 +22,10 @@ export const knowledgeService = {
     return response.data;
   },
 
-  incrementViews: async (id: string): Promise<void> => {
-    // This is often handled automatically by getById on server, but we can have an explicit call
-    await apiClient.patch(`/knowledge/${id}`, { incrementViews: true });
+  incrementViews: async (id: string, viewKey?: string): Promise<void> => {
+    await apiClient.patch(`/knowledge/${id}/increment-views`, undefined, {
+      headers: viewKey ? { 'x-view-key': viewKey } : undefined
+    });
   },
   
   delete: async (id: string): Promise<void> => {

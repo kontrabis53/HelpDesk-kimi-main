@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import type { Document, DocumentType } from '@/types';
 import { documentStatusLabels } from '@/types';
 import { EmptyState } from '@/components/EmptyState';
+import { useDocumentStore } from '@/stores/documentStore';
 import { 
   Search, 
   FileText, 
@@ -89,30 +90,15 @@ export function DocumentsScreen({
   const [activeTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Use localStorage to persist viewType and switch counts
-  const [viewType, setViewType] = useState<ViewType | 'day'>(() => {
-    return (localStorage.getItem('documentsViewType') as ViewType) || 'calendar';
-  });
+  const viewType = useDocumentStore((state) => state.viewType);
+  const setViewType = useDocumentStore((state) => state.setViewType);
+  const currentDate = useDocumentStore((state) => state.currentDate);
+  const setCurrentDate = useDocumentStore((state) => state.setCurrentDate);
 
   const handleViewTypeChange = (newType: ViewType | 'day') => {
     setViewType(newType);
-    
-    // Update switch counts to determine preferred default
-    if (newType !== 'day') {
-      const countsJson = localStorage.getItem('documentsViewTypeCounts');
-      const counts = countsJson ? JSON.parse(countsJson) : { list: 0, calendar: 0, grid: 0 };
-      counts[newType] = (counts[newType] || 0) + 1;
-      
-      // If user switches to this type 3 or more times, make it the permanent default
-      if (counts[newType] >= 3) {
-        localStorage.setItem('documentsViewType', newType);
-      }
-      
-      localStorage.setItem('documentsViewTypeCounts', JSON.stringify(counts));
-    }
   };
 
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [pickerView, setPickerView] = useState<'days' | 'months' | 'years'>('days');

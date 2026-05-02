@@ -1,4 +1,4 @@
-import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare, Network, ChevronLeft, ChevronRight, Book, Stethoscope, Bell } from 'lucide-react';
+import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare, Network, ChevronLeft, ChevronRight, Book, Stethoscope, Bell, ClipboardList } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -30,6 +30,7 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
     { id: 'documents' as const, label: 'Документы', icon: FileText, moduleId: 'documents', path: '/documents' },
     { id: 'inventory' as const, label: 'Склад', icon: Package, moduleId: 'inventory', path: '/inventory' },
     { id: 'directory' as const, label: 'Справочник', icon: Users, moduleId: 'directory', path: '/directory' },
+    { id: 'registry' as const, label: 'Регистратура', icon: ClipboardList, moduleId: 'registry', path: '#', disabled: true },
     { id: 'chat' as const, label: 'Чат', icon: MessageSquare, moduleId: 'chat', path: '/chat' },
     { id: 'parser' as const, label: 'Парсер', icon: Network, moduleId: 'parser', path: '/parser' },
     { id: 'admin' as const, label: 'Управление', icon: Shield, moduleId: 'admin', path: '/admin' },
@@ -38,8 +39,8 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
 
   // Filter tabs based on permissions
   const visibleTabs = allTabs.filter(tab => {
-    // Profile is always visible
-    if (tab.id === 'profile') return true;
+    // Profile and disabled (announcement) tabs are always visible
+    if (tab.id === 'profile' || (tab as any).disabled) return true;
     
     // Check module permission
     if (availableModules.includes(tab.moduleId)) return true;
@@ -114,6 +115,33 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const isDisabled = (tab as any).disabled;
+
+            if (isDisabled) {
+              return (
+                <div
+                  key={tab.id}
+                  className={cn(
+                    'flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 group relative border-2 border-transparent cursor-not-allowed opacity-40 grayscale',
+                    isSidebarCollapsed ? 'justify-center' : 'gap-3'
+                  )}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0 text-slate-400" />
+                  {!isSidebarCollapsed && (
+                    <div className="flex flex-col">
+                      <span className="truncate text-slate-500">{tab.label}</span>
+                      <span className="text-[10px] font-bold text-blue-500 uppercase tracking-tighter leading-none mt-0.5">Скоро</span>
+                    </div>
+                  )}
+                  {isSidebarCollapsed && (
+                    <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-[100]">
+                      {tab.label} (Скоро)
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <NavLink
                 key={tab.id}

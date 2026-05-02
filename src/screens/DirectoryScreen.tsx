@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, memo } from 'react';
-import { Search, Phone, Send, MapPin, Users, TrendingUp, User, Building, Plus, MoreVertical, Edit, Trash2, X } from 'lucide-react';
+import { Search, Phone, Send, MapPin, Users, TrendingUp, User, Building, Plus, MoreVertical, Edit, Trash2, X, LayoutGrid, List } from 'lucide-react';
 
 // Memoized Directory Card for performance
 const DirectoryCard = memo(({ 
@@ -173,13 +173,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
 
+import { useLocationStore } from '@/stores/locationStore';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 export function DirectoryScreen() {
   const { entries, fetchEntries, getTopStats, recordSearch, addEntry, updateEntry, deleteEntry } = useDirectoryStore();
+  const { departments } = useLocationStore();
   const hasPermission = useRoleStore((state) => state.hasPermission);
   const canManage = hasPermission('directory', 'edit');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [localSearchQuery, setLocalSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<DirectoryEntry | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
@@ -431,12 +436,40 @@ export function DirectoryScreen() {
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Поиск контактов и кабинетов</p>
             </div>
           </div>
-          {canManage && (
-            <Button onClick={handleOpenAdd} size="sm" className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-1" />
-              Добавить
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <div className="bg-slate-100 dark:bg-slate-700 p-1 rounded-xl flex gap-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  "p-1.5 rounded-lg transition-all",
+                  viewMode === 'list' 
+                    ? "bg-white dark:bg-slate-600 text-blue-600 shadow-sm" 
+                    : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                )}
+                title="Вид списком"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={cn(
+                  "p-1.5 rounded-lg transition-all",
+                  viewMode === 'grid' 
+                    ? "bg-white dark:bg-slate-600 text-blue-600 shadow-sm" 
+                    : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                )}
+                title="Вид плиткой"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+            </div>
+            {canManage && (
+              <Button onClick={handleOpenAdd} size="sm" className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="w-4 h-4 mr-1" />
+                Добавить
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Search Row */}
@@ -490,10 +523,106 @@ export function DirectoryScreen() {
       </div>
 
       {/* Results Area - Scrollable */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
+      <div className="flex-1 overflow-y-auto p-4 pb-24">
         {searchResults.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-slate-500">Ничего не найдено по запросу "{searchQuery}"</p>
+          </div>
+        ) : viewMode === 'list' ? (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400">Сотрудник</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400">Контакты</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400">Локация</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">Действия</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                  {displayedResults.map((entry) => (
+                    <tr key={entry.id} className={cn(
+                      "hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors group",
+                      entry.isDirectHit && "bg-blue-50/30 dark:bg-blue-900/10"
+                    )}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 border transition-colors",
+                            entry.isDirectHit 
+                              ? "bg-blue-600 text-white border-blue-400 shadow-inner" 
+                              : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800"
+                          )}>
+                            <User className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight truncate">
+                              {entry.name}
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
+                              {entry.position} • {entry.department}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => handleContactAction('call', entry.internalPhone)}
+                            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:scale-105 transition-transform"
+                          >
+                            <Phone className="w-3 h-3 fill-current" />
+                            <span className="text-xs font-bold">{entry.internalPhone}</span>
+                          </button>
+                          {entry.mobilePhone && (
+                            <button 
+                              onClick={() => handleContactAction('call', entry.mobilePhone!)}
+                              className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 hover:scale-105 transition-transform"
+                              title={formatDisplayPhone(entry.mobilePhone)}
+                            >
+                              <Phone className="w-3.5 h-3.5 fill-current" />
+                            </button>
+                          )}
+                          {entry.telegram && (
+                            <button 
+                              onClick={() => handleContactAction('telegram', entry.telegram!)}
+                              className="p-1.5 rounded-lg bg-[#0088CC]/10 border border-[#0088CC]/20 text-[#0088CC] hover:scale-105 transition-transform"
+                            >
+                              <Send className="w-3.5 h-3.5 fill-current" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 font-bold">
+                          <MapPin className="w-3 h-3 text-slate-400" />
+                          <span>Каб. {entry.cabinet}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {canManage && (
+                          <div className="flex justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenEdit(entry)}
+                              className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(entry.id)}
+                              className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-slate-400 hover:text-red-600 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -568,12 +697,26 @@ export function DirectoryScreen() {
 
             <div className="space-y-2">
               <Label htmlFor="department">Отделение</Label>
-              <Input
-                id="department"
-                value={formData.department || ''}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                placeholder="Технический отдел"
-              />
+              <Select
+                value={departments.find(d => d.name === formData.department)?.id || ""}
+                onValueChange={(value) => {
+                  const dept = departments.find(d => d.id === value);
+                  if (dept) {
+                    setFormData(prev => ({ ...prev, department: dept.name }));
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-white dark:bg-slate-700">
+                  <SelectValue placeholder="Выберите отделение" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

@@ -22,7 +22,9 @@ import {
   FileText,
   Loader2,
   ShieldAlert,
-  Settings
+  Settings,
+  EyeOff,
+  Eye
 } from 'lucide-react';
 import { useLocationStore } from '@/stores/locationStore';
 import { useGuideStore } from '@/stores/guideStore';
@@ -102,6 +104,8 @@ export function AdminScreen({
   const [editingBuilding, setEditingBuilding] = useState<string | null>(null);
   const [editingDepartment, setEditingDepartment] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [userToBlock, setUserToBlock] = useState<UserWithRole | null>(null);
+  const [isBlocking, setIsBlocking] = useState(false);
 
   const { 
     buildings, 
@@ -114,6 +118,7 @@ export function AdminScreen({
     addFloor, 
     addDepartment,
     updateDepartment,
+    deleteDepartment,
     addCabinet, 
     updateCabinet,
     addEquipment 
@@ -218,6 +223,11 @@ export function AdminScreen({
   const handleSaveUser = async () => {
     try {
       if (editingUser) {
+        // If user was active and is now being deactivated, show confirmation
+        if (editingUser.isActive && !userFormData.isActive) {
+          setUserToBlock(editingUser);
+          return;
+        }
         await onUpdateUser(editingUser.id, userFormData);
         toast.success('Пользователь обновлен');
       } else {
@@ -228,6 +238,29 @@ export function AdminScreen({
       setEditingUser(null);
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Ошибка при сохранении');
+    }
+  };
+
+  const handleConfirmBlock = async () => {
+    if (!userToBlock) return;
+    setIsBlocking(true);
+    try {
+      if (editingUser) {
+        // Called from within edit form
+        await onUpdateUser(userToBlock.id, userFormData);
+        toast.success('Пользователь обновлен и заблокирован');
+        setShowUserForm(false);
+        setEditingUser(null);
+      } else {
+        // Called from quick action button
+        await onUpdateUser(userToBlock.id, { isActive: !userToBlock.isActive });
+        toast.success(userToBlock.isActive ? 'Пользователь заблокирован' : 'Пользователь разблокирован');
+      }
+      setUserToBlock(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Ошибка при блокировке');
+    } finally {
+      setIsBlocking(false);
     }
   };
 
@@ -266,7 +299,7 @@ export function AdminScreen({
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto min-h-screen">
+    <div className="p-4 md:p-6 space-y-6 max-w-full mx-auto min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2">
@@ -322,7 +355,7 @@ export function AdminScreen({
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                Сотрудники ({filteredUsers.length})
+                Пользователи ({filteredUsers.length})
               </h2>
               <Button 
                 onClick={() => {
@@ -348,63 +381,132 @@ export function AdminScreen({
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredUsers.map((user) => (
-                <div 
-                  key={user.id} 
-                  className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-lg border border-blue-100 dark:border-blue-800/50">
-                        {user.name.charAt(0)}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-800 dark:text-slate-100 leading-tight">{user.name}</h3>
-                        <p className="text-[11px] text-slate-400 font-medium uppercase tracking-tighter mt-0.5">@{user.username || 'user'}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleEditUser(user)}
-                        className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse table-fixed">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                      <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-400 w-[45%]">Пользователь</th>
+                      <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-400 w-[15%]">Роль</th>
+                      <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-400 w-[10%]">Отделение</th>
+                      <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-400 w-[18%]">Должность</th>
+                      <th className="px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-400 text-right w-[12%]">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                    {filteredUsers.map((user) => (
+                      <tr 
+                        key={user.id} 
+                        className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors group"
                       >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setUserToDelete(user)}
-                        className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                        disabled={isLoading}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-400" />
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold">
-                        {roles.find(r => r.id === user.roleId)?.name || user.role}
-                      </Badge>
-                      {!user.isActive && (
-                        <Badge variant="destructive" className="text-[10px] font-bold">Заблокирован</Badge>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                        <Shield className="w-3.5 h-3.5" />
-                        <span>{user.department}</span>
-                      </div>
-                      {user.position && (
-                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                          <Users className="w-3.5 h-3.5" />
-                          <span>{user.position}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                        <td className="px-4 py-3 overflow-hidden">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative shrink-0">
+                              <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-lg border border-blue-100 dark:border-blue-800/50 overflow-hidden">
+                                {user.avatar ? (
+                                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  user.name.charAt(0)
+                                )}
+                              </div>
+                              <div className={cn(
+                                "absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-800",
+                                user.isOnline ? "bg-emerald-500" : "bg-red-500"
+                              )} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="font-bold text-slate-800 dark:text-slate-100 text-lg leading-tight truncate">{user.name}</div>
+                                {!user.isActive && (
+                                  <div className="px-2.5 py-1 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 text-[11px] font-bold rounded flex items-center gap-2 shrink-0 shadow-sm shadow-red-500/5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                    Заблокирован
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-xs text-slate-400 font-medium uppercase tracking-tighter mt-0.5 truncate">@{user.username || 'user'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const userRole = roles.find(r => r.id === user.roleId);
+                            return (
+                              <Badge 
+                                variant="secondary" 
+                                className="text-sm font-bold whitespace-nowrap px-2 py-0.5 max-w-full truncate border shadow-sm"
+                                style={{ 
+                                  backgroundColor: userRole ? `${userRole.color}15` : undefined,
+                                  color: userRole?.color || undefined,
+                                  borderColor: userRole ? `${userRole.color}30` : undefined
+                                }}
+                              >
+                                {userRole?.name || user.role}
+                              </Badge>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 text-base text-slate-500 dark:text-slate-400 font-medium truncate">
+                            <Shield className="w-4 h-4 shrink-0" />
+                            <span className="truncate">{user.department}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-base text-slate-500 dark:text-slate-400 font-medium truncate">
+                            {user.position || '—'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg text-slate-400 hover:text-blue-600 transition-colors shrink-0"
+                              title="Редактировать"
+                            >
+                              <Edit2 className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (user.isActive) {
+                                  setUserToBlock(user);
+                                } else {
+                                  onUpdateUser(user.id, { isActive: true });
+                                  toast.success('Пользователь разблокирован');
+                                }
+                              }}
+                              className={cn(
+                                "p-2 rounded-lg transition-colors shrink-0 group/block",
+                                user.isActive 
+                                  ? "hover:bg-amber-50 dark:hover:bg-amber-900/20 text-slate-400 hover:text-amber-500" 
+                                  : "bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40"
+                              )}
+                              title={user.isActive ? "Заблокировать" : "Разблокировать"}
+                            >
+                              {user.isActive ? (
+                                <>
+                                  <Eye className="w-5 h-5 group-hover/block:hidden" />
+                                  <EyeOff className="w-5 h-5 hidden group-hover/block:block" />
+                                </>
+                              ) : (
+                                <EyeOff className="w-5 h-5" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => setUserToDelete(user)}
+                              className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-slate-400 hover:text-red-600 transition-colors shrink-0"
+                              disabled={isLoading}
+                              title="Удалить"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -450,8 +552,8 @@ export function AdminScreen({
                         style={{ backgroundColor: role.color }} 
                       />
                       <div>
-                        <h3 className="font-bold text-slate-800 dark:text-slate-100">{role.name}</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{role.description}</p>
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">{role.name}</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{role.description}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -485,13 +587,13 @@ export function AdminScreen({
                             key={perm.moduleId}
                             className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600/50"
                           >
-                            <div className="font-bold text-xs text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+                            <div className="font-bold text-sm text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                               {moduleLabels[perm.moduleId]}
                             </div>
                             <div className="grid grid-cols-1 gap-2">
                               <div className="flex items-center justify-between">
-                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-view`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Просмотр</label>
+                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-view`} className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Просмотр</label>
                                 <Checkbox 
                                   id={`perm-${role.id}-${perm.moduleId}-view`}
                                   checked={perm.canView}
@@ -499,7 +601,7 @@ export function AdminScreen({
                                 />
                               </div>
                               <div className="flex items-center justify-between">
-                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-create`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Создание</label>
+                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-create`} className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Создание</label>
                                 <Checkbox 
                                   id={`perm-${role.id}-${perm.moduleId}-create`}
                                   checked={perm.canCreate}
@@ -507,7 +609,7 @@ export function AdminScreen({
                                 />
                               </div>
                               <div className="flex items-center justify-between">
-                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-edit`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Ред-ние</label>
+                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-edit`} className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Ред-ние</label>
                                 <Checkbox 
                                   id={`perm-${role.id}-${perm.moduleId}-edit`}
                                   checked={perm.canEdit}
@@ -515,7 +617,7 @@ export function AdminScreen({
                                 />
                               </div>
                               <div className="flex items-center justify-between">
-                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-delete`} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer text-red-400/80">Удаление</label>
+                                <label htmlFor={`perm-${role.id}-${perm.moduleId}-delete`} className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer text-red-400/80">Удаление</label>
                                 <Checkbox 
                                   id={`perm-${role.id}-${perm.moduleId}-delete`}
                                   checked={perm.canDelete}
@@ -574,10 +676,15 @@ export function AdminScreen({
                 </div>
                 <Separator orientation="vertical" className="h-8 hidden md:block" />
                 <Button onClick={() => {
-                  const name = prompt('Введите название здания:');
-                  if (name) addBuilding(name);
+                  if (locationView === 'floors') {
+                    const name = prompt('Введите название здания:');
+                    if (name) addBuilding(name);
+                  } else {
+                    const name = prompt('Введите название отделения:');
+                    if (name) addDepartment(name);
+                  }
                 }} size="sm" variant="default" className="h-9 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
-                  <Plus className="w-4 h-4 mr-1" /> Здание
+                  <Plus className="w-4 h-4 mr-1" /> {locationView === 'floors' ? 'Здание' : 'Отделение'}
                 </Button>
               </div>
             </div>
@@ -585,76 +692,64 @@ export function AdminScreen({
             <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
               {/* Buildings/Structure Panel */}
               <div className="xl:col-span-3 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {buildings.map(building => (
-                    <div key={building.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
-                      <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
-                        <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
-                          <BuildingIcon className="w-4 h-4 text-blue-500 shrink-0" />
-                          {editingBuilding === building.id ? (
-                            <div className="flex items-center gap-1 w-full">
-                              <Input 
-                                value={editName} 
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="h-7 text-xs py-0"
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && editName) {
+                {locationView === 'floors' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {buildings.map(building => (
+                      <div key={building.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                            <BuildingIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                            {editingBuilding === building.id ? (
+                              <div className="flex items-center gap-1 w-full">
+                                <Input 
+                                  value={editName} 
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  className="h-7 text-sm py-0"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && editName) {
+                                      updateBuilding(building.id, editName);
+                                      setEditingBuilding(null);
+                                    }
+                                    if (e.key === 'Escape') setEditingBuilding(null);
+                                  }}
+                                />
+                                <Button size="icon" variant="ghost" className="h-6 w-6 text-emerald-500" onClick={() => {
+                                  if (editName) {
                                     updateBuilding(building.id, editName);
                                     setEditingBuilding(null);
                                   }
-                                  if (e.key === 'Escape') setEditingBuilding(null);
+                                }}><Check className="w-3 h-3" /></Button>
+                              </div>
+                            ) : (
+                              <span 
+                                className="text-lg font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-blue-600 transition-colors"
+                                onClick={() => {
+                                  setEditingBuilding(building.id);
+                                  setEditName(building.name);
                                 }}
-                              />
-                              <Button size="icon" variant="ghost" className="h-6 w-6 text-emerald-500" onClick={() => {
-                                if (editName) {
-                                  updateBuilding(building.id, editName);
-                                  setEditingBuilding(null);
-                                }
-                              }}><Check className="w-3 h-3" /></Button>
-                            </div>
-                          ) : (
-                            <span 
-                              className="font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-blue-600 transition-colors"
-                              onClick={() => {
-                                setEditingBuilding(building.id);
-                                setEditName(building.name);
-                              }}
-                              title="Нажмите, чтобы переименовать"
-                            >
-                              {building.name}
-                            </span>
-                          )}
+                                title="Нажмите, чтобы переименовать"
+                              >
+                                {building.name}
+                              </span>
+                            )}
+                          </div>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title="Добавить этаж" onClick={() => {
+                            const num = prompt('Введите номер этажа:');
+                            if (num) addFloor(building.id, parseInt(num));
+                          }}>
+                            <Plus className="w-4 h-4" />
+                          </Button>
                         </div>
-                        <div className="flex items-center gap-1">
-                          {locationView === 'floors' ? (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title="Добавить этаж" onClick={() => {
-                              const num = prompt('Введите номер этажа:');
-                              if (num) addFloor(building.id, parseInt(num));
-                            }}>
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          ) : (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-500" title="Добавить отделение" onClick={() => {
-                              const name = prompt('Введите название отделения:');
-                              if (name) addDepartment(building.id, name);
-                            }}>
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
 
-                      <div className="p-3 flex-1">
-                        {locationView === 'floors' ? (
-                          /* View by Floors */
+                        <div className="p-3 flex-1">
                           <div className="space-y-4">
                             {floors.filter(f => f.buildingId === building.id).sort((a,b) => a.number - b.number).map(floor => (
                               <div key={floor.id} className="space-y-2">
                                 <div className="flex items-center justify-between group">
                                   <div className="flex items-center gap-2">
-                                    <Layers className="w-3.5 h-3.5 text-slate-400" />
-                                    <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Этаж {floor.number}</span>
+                                    <Layers className="w-4 h-4 text-slate-400" />
+                                    <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Этаж {floor.number}</span>
                                   </div>
                                   <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
                                     const name = prompt('Введите название/номер кабинета:');
@@ -670,8 +765,8 @@ export function AdminScreen({
                                       className="px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg shadow-sm flex items-center justify-between group/cab"
                                     >
                                       <div className="flex items-center gap-1.5 min-w-0">
-                                        <MapPin className="w-2.5 h-2.5 text-blue-400 shrink-0" />
-                                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 truncate">{cabinet.name}</span>
+                                        <MapPin className="w-3 h-3 text-blue-400 shrink-0" />
+                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{cabinet.name}</span>
                                       </div>
                                       <Popover>
                                         <PopoverTrigger asChild>
@@ -691,7 +786,7 @@ export function AdminScreen({
                                             >
                                               Без отделения
                                             </button>
-                                            {departments.filter(d => d.buildingId === building.id).map(dept => (
+                                            {departments.map(dept => (
                                               <button 
                                                 key={dept.id}
                                                 onClick={() => updateCabinet(cabinet.id, { departmentId: dept.id })}
@@ -712,20 +807,32 @@ export function AdminScreen({
                               </div>
                             ))}
                           </div>
-                        ) : (
-                          /* View by Departments */
-                          <div className="space-y-4 h-full">
-                            {departments.filter(d => d.buildingId === building.id).map(dept => (
-                              <div key={dept.id} className="bg-slate-50 dark:bg-slate-900/40 rounded-xl p-3 border border-slate-100 dark:border-slate-800/50">
-                                <div className="flex items-center justify-between mb-2 group">
-                                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <Shield className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Global View by Departments */
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span className="font-bold text-slate-700 dark:text-slate-200">Все отделения (сквозные)</span>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {departments.map(dept => (
+                          <div key={dept.id} className="bg-slate-50 dark:bg-slate-900/40 rounded-xl p-3 border border-slate-100 dark:border-slate-800/50">
+                            <div className="flex items-center justify-between mb-2 group">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
                                     {editingDepartment === dept.id ? (
                                       <div className="flex items-center gap-1 w-full">
                                         <Input 
                                           value={editName} 
                                           onChange={(e) => setEditName(e.target.value)}
-                                          className="h-6 text-xs py-0"
+                                          className="h-6 text-sm py-0"
                                           autoFocus
                                           onKeyDown={(e) => {
                                             if (e.key === 'Enter' && editName) {
@@ -744,7 +851,7 @@ export function AdminScreen({
                                       </div>
                                     ) : (
                                       <span 
-                                        className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-emerald-600 transition-colors"
+                                        className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-emerald-600 transition-colors"
                                         onClick={() => {
                                           setEditingDepartment(dept.id);
                                           setEditName(dept.name);
@@ -754,44 +861,47 @@ export function AdminScreen({
                                       </span>
                                     )}
                                   </div>
-                                  <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
-                                    {cabinets.filter(c => c.departmentId === dept.id).length} каб.
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {cabinets.filter(c => c.departmentId === dept.id).map(cabinet => {
-                                    const floor = floors.find(f => f.id === cabinet.floorId);
-                                    return (
-                                      <div key={cabinet.id} className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg flex flex-col">
-                                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200">{cabinet.name}</span>
-                                        <span className="text-[8px] text-slate-400 uppercase tracking-tighter">эт. {floor?.number || '?'}</span>
-                                      </div>
-                                    );
-                                  })}
-                                  {cabinets.filter(c => c.departmentId === dept.id).length === 0 && (
-                                    <p className="text-[9px] text-slate-400 italic py-1 px-1">Нет назначенных кабинетов</p>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                            {departments.filter(d => d.buildingId === building.id).length === 0 && (
-                              <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl">
-                                <Shield className="w-8 h-8 text-slate-200 dark:text-slate-800 mb-2" />
-                                <p className="text-xs text-slate-400 font-medium">В этом корпусе ещё нет отделений</p>
-                                <Button variant="ghost" size="sm" className="mt-2 text-emerald-600 h-7 text-[10px] font-bold uppercase tracking-wider" onClick={() => {
-                                  const name = prompt('Введите название отделения:');
-                                  if (name) addDepartment(building.id, name);
-                                }}>
-                                  Добавить первое
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
+                                  {cabinets.filter(c => c.departmentId === dept.id).length} каб.
+                                </span>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-red-400 hover:text-red-600"
+                                  onClick={() => {
+                                    if (confirm(`Удалить отделение "${dept.name}"?`)) {
+                                      deleteDepartment(dept.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="w-3 h-3" />
                                 </Button>
                               </div>
-                            )}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {cabinets.filter(c => c.departmentId === dept.id).map(cabinet => {
+                                const floor = floors.find(f => f.id === cabinet.floorId);
+                                const bld = buildings.find(b => b.id === cabinet.buildingId);
+                                return (
+                                  <div key={cabinet.id} className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg flex flex-col">
+                                      <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{cabinet.name}</span>
+                                      <span className="text-xs text-slate-400 uppercase tracking-tighter">
+                                        {bld?.name.split(' ')[0]} {floor?.number ? `эт. ${floor.number}` : ''}
+                                      </span>
+                                    </div>
+                                );
+                              })}
+                              {cabinets.filter(c => c.departmentId === dept.id).length === 0 && (
+                                <p className="text-[9px] text-slate-400 italic py-1 px-1">Нет назначенных кабинетов</p>
+                              )}
+                            </div>
                           </div>
-                        )}
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
                 
                 {/* Technical Guides Management */}
                 <div className="mt-8 space-y-4">
@@ -913,9 +1023,9 @@ export function AdminScreen({
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-slate-800 dark:text-slate-100">{request.name}</h3>
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">{request.name}</h3>
                         <span className={cn(
-                          "text-xs px-2 py-0.5 rounded-full",
+                          "text-sm px-2 py-0.5 rounded-full",
                           request.status === 'pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                           request.status === 'approved' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
                           "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
@@ -924,14 +1034,14 @@ export function AdminScreen({
                            request.status === 'approved' ? 'Одобрен' : 'Отклонен'}
                         </span>
                       </div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400 mb-2">
+                      <div className="text-base text-slate-500 dark:text-slate-400 mb-2">
                         {request.email} • {request.department}
                       </div>
-                      <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 p-2 rounded-lg">
-                        <span className="font-medium text-xs text-slate-400 block mb-1">Причина запроса:</span>
+                      <div className="text-base text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 p-2 rounded-lg">
+                        <span className="font-bold text-xs text-slate-400 block mb-1 uppercase tracking-wider">Причина запроса:</span>
                         {request.reason}
                       </div>
-                      <div className="text-xs text-slate-400 mt-2">
+                      <div className="text-sm text-slate-400 mt-2">
                         Создан: {formatDate(request.createdAt)}
                       </div>
                     </div>
@@ -1028,18 +1138,18 @@ export function AdminScreen({
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-slate-700 dark:text-slate-200">
+                        <span className="font-bold text-base text-slate-700 dark:text-slate-200">
                           {log.userName}
                         </span>
-                        <span className="text-xs text-slate-400">
+                        <span className="text-sm text-slate-400">
                           {formatDate(log.createdAt)}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                      <p className="text-base text-slate-600 dark:text-slate-300 mt-1">
                         {log.details || actionLabels[log.action] || log.action}
                       </p>
                       {log.entityName && (
-                        <span className="text-xs text-slate-400 mt-1 inline-block">
+                        <span className="text-sm text-slate-400 mt-1 inline-block">
                           {log.entityName}
                         </span>
                       )}
@@ -1140,13 +1250,26 @@ export function AdminScreen({
             </div>
             <div className="space-y-2">
               <Label htmlFor="user-department">Отдел *</Label>
-              <Input
-                id="user-department"
-                value={userFormData.department}
-                onChange={(e) => setUserFormData(prev => ({ ...prev, department: e.target.value }))}
-                placeholder="Название отдела"
-                className="dark:bg-slate-800"
-              />
+              <Select
+                value={departments.find(d => d.name === userFormData.department)?.id || ""}
+                onValueChange={(value) => {
+                  const dept = departments.find(d => d.id === value);
+                  if (dept) {
+                    setUserFormData(prev => ({ ...prev, department: dept.name, departmentId: dept.id }));
+                  }
+                }}
+              >
+                <SelectTrigger className="dark:bg-slate-800">
+                  <SelectValue placeholder="Выберите отделение" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-700">
               <div className="flex items-center justify-between">
@@ -1489,6 +1612,40 @@ export function AdminScreen({
                 setEditingRole(null);
               }}
               className="h-9 text-sm"
+            >
+              Отмена
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Block User Confirmation Dialog */}
+      <Dialog open={!!userToBlock} onOpenChange={(open) => !open && setUserToBlock(null)}>
+        <DialogContent className="max-w-[400px] p-0 overflow-hidden border-none bg-white dark:bg-slate-900 shadow-2xl">
+          <div className="p-6 flex flex-col items-center text-center bg-amber-500 text-white">
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-4 animate-pulse">
+              <EyeOff className="w-6 h-6 text-white" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Приостановка доступа</h3>
+            <p className="text-sm text-white/90 leading-relaxed">
+              Пользователь <span className="font-bold underline">{userToBlock?.name}</span> будет переведен в статус <span className="font-bold">не активные</span>. 
+              Все его текущие сессии будут приостановлены.
+            </p>
+          </div>
+          <div className="p-6 flex flex-col gap-3">
+            <Button
+              onClick={handleConfirmBlock}
+              disabled={isBlocking}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold h-11 shadow-lg shadow-amber-500/20"
+            >
+              {isBlocking ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+              ПОДТВЕРДИТЬ БЛОКИРОВКУ
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setUserToBlock(null)}
+              disabled={isBlocking}
+              className="w-full text-slate-500 dark:text-slate-400 text-xs font-medium"
             >
               Отмена
             </Button>

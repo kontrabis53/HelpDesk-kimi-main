@@ -17,6 +17,7 @@ model User {
   roleId        String   @default("user")
   position      String?
   department    String?
+  departmentId  String?
   avatar        String?
   isActive      Boolean  @default(true)
   isOnline      Boolean  @default(false)
@@ -37,6 +38,7 @@ model User {
   
   // Role Relation
   roleRelation    Role?    @relation(fields: [roleId], references: [id])
+  departmentRelation Department? @relation(fields: [departmentId], references: [id])
 }
 
 model Role {
@@ -47,6 +49,14 @@ model Role {
   isSystem    Boolean  @default(false)
   permissions Json     // Store ModulePermission[] as JSON
   users       User[]
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  users     User[]
+  entries   DirectoryEntry[]
+  cabinets  Cabinet[]
 }
 
 model RegistrationRequest {
@@ -132,6 +142,7 @@ model DirectoryEntry {
   name          String
   position      String?
   department    String?
+  departmentId  String?
   cabinet       String?
   internalPhone String?
   mobilePhone   String?
@@ -139,6 +150,8 @@ model DirectoryEntry {
   tags          String[] @default([])
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  departmentRelation Department? @relation(fields: [departmentId], references: [id])
 }
 
 model KBArticle {
@@ -178,4 +191,14 @@ model SystemLog {
   user      String   @default("Anonymous")
   timestamp DateTime @default(now())
   details   Json?
+}
+
+model Cabinet {
+  id            String   @id @default(uuid())
+  name          String
+  floorId       String?
+  buildingId    String?
+  departmentId  String?
+  
+  department    Department? @relation(fields: [departmentId], references: [id])
 }

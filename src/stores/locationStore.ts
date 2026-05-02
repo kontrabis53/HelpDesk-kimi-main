@@ -17,7 +17,7 @@ interface LocationState {
   addFloor: (buildingId: string, number: number) => void;
   deleteFloor: (id: string) => void;
   
-  addDepartment: (buildingId: string, name: string) => void;
+  addDepartment: (name: string, buildingId?: string) => void;
   updateDepartment: (id: string, name: string) => void;
   deleteDepartment: (id: string) => void;
   
@@ -96,8 +96,8 @@ export const useLocationStore = create<LocationState>()(
         cabinets: state.cabinets.filter(c => c.floorId !== id)
       })),
 
-      addDepartment: (buildingId, name) => set(state => ({
-        departments: [...state.departments, { id: `d-${Date.now()}`, buildingId, name }]
+      addDepartment: (name, buildingId) => set(state => ({
+        departments: [...state.departments, { id: `d-${Date.now()}`, name, buildingId }]
       })),
 
       updateDepartment: (id, name) => set(state => ({

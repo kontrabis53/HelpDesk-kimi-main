@@ -14,6 +14,7 @@ export interface User {
   role: 'user' | 'technician' | 'admin' | 'viewer' | 'manager'; // Added viewer and manager
   roleId: string; // Added for compatibility with RoleStore
   department: string;
+  departmentId?: string; // Link to department
   isActive?: boolean;
   isOnline?: boolean;
   notificationsEnabled?: boolean;
@@ -98,8 +99,8 @@ export interface Building {
 
 export interface Department {
   id: string;
-  buildingId: string;
   name: string; // Например, "Терапия", "Хирургия"
+  buildingId?: string; // Optional building
 }
 
 export interface Floor {

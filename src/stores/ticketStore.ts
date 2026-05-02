@@ -8,12 +8,14 @@ interface TicketStore {
   selectedTicket: Ticket | null;
   isLoading: boolean;
   
-  fetchTickets: () => Promise<void>;
+  fetchTickets: (archived?: boolean) => Promise<void>;
   setFilter: (filter: Partial<TicketFilter>) => void;
   setSelectedTicket: (ticket: Ticket | null) => void;
   getTicketById: (id: string) => Promise<Ticket | null>;
   createTicket: (ticket: any) => Promise<Ticket>;
   updateTicket: (id: string, updates: Partial<Ticket> & { assigneeId?: string | null }) => Promise<void>;
+  archiveTicket: (id: string) => Promise<void>;
+  unarchiveTicket: (id: string) => Promise<void>;
   deleteTicket: (id: string) => Promise<void>;
   updateTicketStatus: (id: string, status: TicketStatus) => Promise<void>;
   updateTicketPriority: (id: string, priority: TicketPriority) => Promise<void>;
@@ -39,10 +41,10 @@ export const useTicketStore = create<TicketStore>((set, get) => {
     selectedTicket: null,
     isLoading: false,
     
-    fetchTickets: async () => {
+    fetchTickets: async (archived = false) => {
       set({ isLoading: true });
       try {
-        const tickets = await ticketService.getAll();
+        const tickets = await ticketService.getAll(archived);
         set({ tickets: tickets || [], isLoading: false });
       } catch (error: any) {
         console.error('Fetch tickets error:', error);
@@ -103,6 +105,38 @@ export const useTicketStore = create<TicketStore>((set, get) => {
         }));
       } catch (error: any) {
         console.error('Update ticket error:', error);
+        set({ isLoading: false });
+        throw error;
+      }
+    },
+
+    archiveTicket: async (id) => {
+      set({ isLoading: true });
+      try {
+        await ticketService.archive(id);
+        set((state) => ({
+          tickets: state.tickets.filter((t) => t.id !== id),
+          selectedTicket: state.selectedTicket?.id === id ? null : state.selectedTicket,
+          isLoading: false
+        }));
+      } catch (error) {
+        console.error('Archive ticket error:', error);
+        set({ isLoading: false });
+        throw error;
+      }
+    },
+
+    unarchiveTicket: async (id) => {
+      set({ isLoading: true });
+      try {
+        await ticketService.unarchive(id);
+        set((state) => ({
+          tickets: state.tickets.filter((t) => t.id !== id),
+          selectedTicket: state.selectedTicket?.id === id ? null : state.selectedTicket,
+          isLoading: false
+        }));
+      } catch (error) {
+        console.error('Unarchive ticket error:', error);
         set({ isLoading: false });
         throw error;
       }

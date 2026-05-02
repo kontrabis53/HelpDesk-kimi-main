@@ -52,9 +52,12 @@ export interface Ticket {
   category: TicketCategory;
   priority: TicketPriority;
   status: TicketStatus;
+  isArchived: boolean;
   createdAt: string;
   updatedAt: string;
+  authorId: string;
   author: User;
+  assigneeId?: string | null;
   assignee?: User;
   comments: Comment[];
   _count?: {

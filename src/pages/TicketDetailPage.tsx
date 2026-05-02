@@ -16,6 +16,9 @@ export function TicketDetailPage() {
   const setSelectedTicket = useTicketStore((state) => state.setSelectedTicket);
   const updateTicketStatus = useTicketStore((state) => state.updateTicketStatus);
   const updateTicket = useTicketStore((state) => state.updateTicket);
+  const deleteTicket = useTicketStore((state) => state.deleteTicket);
+  const archiveTicket = useTicketStore((state) => state.archiveTicket);
+  const unarchiveTicket = useTicketStore((state) => state.unarchiveTicket);
   const addComment = useTicketStore((state) => state.addComment);
   
   const hasPermission = useRoleStore((state) => state.hasPermission);
@@ -94,6 +97,41 @@ export function TicketDetailPage() {
       });
     }
   };
+
+  const handleDelete = async (ticketId: string) => {
+    if (window.confirm('Вы уверены, что хотите безвозвратно удалить эту заявку?')) {
+      try {
+        await deleteTicket(ticketId);
+        addLog('ticket.deleted', 'ticket', ticketId, undefined, 'Заявка удалена');
+        toast.success('Заявка удалена');
+        navigate('/tickets');
+      } catch (error) {
+        toast.error('Ошибка при удалении');
+      }
+    }
+  };
+
+  const handleArchive = async (ticketId: string) => {
+    try {
+      await archiveTicket(ticketId);
+      addLog('ticket.archived', 'ticket', ticketId, undefined, 'Заявка отправлена в архив');
+      toast.success('Заявка архивирована');
+      navigate('/tickets');
+    } catch (error) {
+      toast.error('Ошибка при архивации');
+    }
+  };
+
+  const handleUnarchive = async (ticketId: string) => {
+    try {
+      await unarchiveTicket(ticketId);
+      addLog('ticket.unarchived', 'ticket', ticketId, undefined, 'Заявка восстановлена из архива');
+      toast.success('Заявка восстановлена');
+      navigate('/tickets');
+    } catch (error) {
+      toast.error('Ошибка при восстановлении');
+    }
+  };
   
   return (
     <TicketDetailScreen
@@ -103,6 +141,9 @@ export function TicketDetailPage() {
       onAddComment={handleAddComment}
       onEdit={handleEdit}
       onAssign={handleAssign}
+      onDelete={handleDelete}
+      onArchive={handleArchive}
+      onUnarchive={handleUnarchive}
       availableAssignees={(users || []).filter((u: User) => u.role === 'technician' || u.role === 'admin')}
     />
   );

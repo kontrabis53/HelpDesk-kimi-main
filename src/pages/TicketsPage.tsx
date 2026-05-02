@@ -15,8 +15,16 @@ export function TicketsPage() {
   const hasPermission = useRoleStore((state) => state.hasPermission);
 
   useEffect(() => {
-    fetchTickets();
+    fetchTickets(false); // Fetch active tickets by default
   }, [fetchTickets]);
+
+  const handleTabChange = (tab: string) => {
+    if (tab === 'archived') {
+      fetchTickets(true);
+    } else {
+      fetchTickets(false);
+    }
+  };
 
   const tickets = useMemo(() => {
     return allTickets.filter((ticket) => {
@@ -36,12 +44,16 @@ export function TicketsPage() {
   }, [allTickets, filter]);
 
   const ticketsByStatus = useMemo(() => {
+    const active = tickets.filter(t => !t.isArchived);
+    const archived = tickets.filter(t => t.isArchived);
+
     return {
-      all: tickets,
-      new: tickets.filter(t => t.status === 'new'),
-      in_progress: tickets.filter(t => t.status === 'in_progress'),
-      waiting: tickets.filter(t => t.status === 'waiting'),
-      resolved: tickets.filter(t => t.status === 'resolved'),
+      all: active,
+      new: active.filter(t => t.status === 'new'),
+      in_progress: active.filter(t => t.status === 'in_progress'),
+      waiting: active.filter(t => t.status === 'waiting'),
+      resolved: active.filter(t => t.status === 'resolved'),
+      archived: archived,
     };
   }, [tickets]);
   
@@ -69,6 +81,7 @@ export function TicketsPage() {
       onTicketClick={handleTicketClick}
       onSearch={handleSearch}
       onCreateClick={handleCreateClick}
+      onTabChange={handleTabChange}
     />
   );
 }

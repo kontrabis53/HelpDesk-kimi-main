@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Ticket } from '@/types';
 import { TicketCard } from '@/components/TicketCard';
 import { EmptyState } from '@/components/EmptyState';
-import { Search, Plus, X } from 'lucide-react';
+import { Search, Plus, X, Archive } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -15,20 +15,23 @@ interface TicketListScreenProps {
     in_progress: Ticket[];
     waiting: Ticket[];
     resolved: Ticket[];
+    archived?: Ticket[];
   };
   onTicketClick: (ticket: Ticket) => void;
   onSearch: (query: string) => void;
   onCreateClick?: () => void;
+  onTabChange?: (tab: TabType) => void;
 }
 
-type TabType = 'all' | 'new' | 'in_progress' | 'waiting' | 'resolved';
+type TabType = 'all' | 'new' | 'in_progress' | 'waiting' | 'resolved' | 'archived';
 
-const tabs: { id: TabType; label: string; count?: number }[] = [
+const tabs: { id: TabType; label: string; count?: number; icon?: any }[] = [
   { id: 'all', label: 'Все' },
   { id: 'new', label: 'Новые' },
   { id: 'in_progress', label: 'В работе' },
   { id: 'waiting', label: 'Ожидание' },
   { id: 'resolved', label: 'Решенные' },
+  { id: 'archived', label: 'Архив', icon: Archive },
 ];
 
 export function TicketListScreen({ 
@@ -38,11 +41,13 @@ export function TicketListScreen({
     new: [],
     in_progress: [],
     waiting: [],
-    resolved: []
+    resolved: [],
+    archived: []
   }, 
   onTicketClick,
   onSearch,
-  onCreateClick
+  onCreateClick,
+  onTabChange
 }: TicketListScreenProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,6 +57,13 @@ export function TicketListScreen({
     onSearch(value);
   };
 
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    if (onTabChange) {
+      onTabChange(tab);
+    }
+  };
+
   const getTicketsForTab = () => {
     switch (activeTab) {
       case 'all': return ticketsByStatus.all;
@@ -59,6 +71,7 @@ export function TicketListScreen({
       case 'in_progress': return ticketsByStatus.in_progress;
       case 'waiting': return ticketsByStatus.waiting;
       case 'resolved': return ticketsByStatus.resolved;
+      case 'archived': return ticketsByStatus.archived || [];
       default: return tickets;
     }
   };
@@ -102,24 +115,25 @@ export function TicketListScreen({
         {/* Tabs */}
         <div className="flex gap-1 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
           {tabs.map((tab) => {
-            const count = ticketsByStatus[tab.id]?.length;
+            const count = (ticketsByStatus as any)[tab.id]?.length;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={cn(
                   'flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap',
                   isActive 
-                    ? 'bg-blue-600 text-white' 
+                    ? tab.id === 'archived' ? 'bg-amber-600 text-white' : 'bg-blue-600 text-white' 
                     : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                 )}
               >
+                {tab.icon && <tab.icon className="w-3.5 h-3.5" />}
                 {tab.label}
                 {count !== undefined && count > 0 && (
                   <span className={cn(
                     'ml-0.5 text-xs',
-                    isActive ? 'text-blue-100' : 'text-slate-400'
+                    isActive ? 'text-white/80' : 'text-slate-400'
                   )}>
                     {count}
                   </span>

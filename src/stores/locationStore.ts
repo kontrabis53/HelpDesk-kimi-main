@@ -26,6 +26,8 @@ interface LocationState {
   deleteCabinet: (id: string) => void;
   
   addEquipment: (equipment: Omit<Equipment, 'id'>) => void;
+  updateEquipment: (id: string, data: Partial<Equipment>) => void;
+  deleteEquipment: (id: string) => void;
   
   // Selectors
   getBuildingById: (id: string) => Building | undefined;
@@ -124,6 +126,14 @@ export const useLocationStore = create<LocationState>()(
 
       addEquipment: (eq) => set(state => ({
         equipment: [...state.equipment, { ...eq, id: `e-${Date.now()}` }]
+      })),
+
+      updateEquipment: (id, data) => set(state => ({
+        equipment: state.equipment.map(e => e.id === id ? { ...e, ...data } : e)
+      })),
+
+      deleteEquipment: (id) => set(state => ({
+        equipment: state.equipment.filter(e => e.id !== id)
       })),
 
       getBuildingById: (id) => get().buildings.find(b => b.id === id),

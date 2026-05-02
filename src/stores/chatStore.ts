@@ -198,11 +198,32 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           message = `Заявка #${ticket.number}: ${ticket.title}`;
         }
 
-        console.log('Adding notification for user:', currentUser.name, 'Title:', title);
         useNotificationStore.getState().addNotification({
           title,
           message,
-          type: 'success',
+          type: 'info',
+        });
+      }
+    });
+
+    socket.on('inventory_low_stock', (item: any) => {
+      console.log('Low stock alert received:', item);
+      const currentUser = (window as any).useAuthStore?.getState()?.user;
+      
+      // Notify admins and technicians if they have notifications enabled
+      if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'technician') && currentUser.notificationsEnabled) {
+        useNotificationStore.getState().addNotification({
+          title: 'Мало товаров на складе',
+          message: `Товар "${item.name}" (SKU: ${item.sku}) заканчивается. Осталось: ${item.quantity} ${item.unit || 'шт.'}`,
+          type: 'warning',
+        });
+        
+        // Also show a toast for immediate feedback
+        import('sonner').then(({ toast }) => {
+          toast.warning('Заканчивается товар', {
+            description: `${item.name}: осталось ${item.quantity}`,
+            duration: 5000,
+          });
         });
       }
     });

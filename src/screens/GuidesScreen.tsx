@@ -1,24 +1,33 @@
 import { useState, useMemo } from 'react';
 import type { TechnicalGuide } from '@/types';
 import { EmptyState } from '@/components/EmptyState';
-import { Search, FileText, ExternalLink, Book, Download, Layers, Info, X } from 'lucide-react';
+import { Search, FileText, ExternalLink, Book, Download, Layers, Info, X, Plus, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { useRoleStore } from '@/stores/roleStore';
 
 interface GuidesScreenProps {
   guides: TechnicalGuide[];
   onGuideClick: (guide: TechnicalGuide) => void;
   onSearch: (query: string) => void;
+  onAddGuide?: () => void;
+  onDeleteGuide?: (id: string) => void;
 }
 
 export function GuidesScreen({ 
   guides, 
   onGuideClick,
-  onSearch
+  onSearch,
+  onAddGuide,
+  onDeleteGuide
 }: GuidesScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const hasPermission = useRoleStore((state) => state.hasPermission);
+
+  const canCreate = hasPermission('guides', 'create');
+  const canDelete = hasPermission('guides', 'delete');
 
   const handleSearch = (value: string) => {
     setSearchQuery(value);
@@ -44,6 +53,13 @@ export function GuidesScreen({
                 <p className="text-sm text-slate-500 dark:text-slate-400">Техническая документация, PDF-руководства и мануалы</p>
               </div>
             </div>
+
+            {canCreate && (
+              <Button onClick={onAddGuide} className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
+                <Plus className="w-4 h-4 mr-2" />
+                Добавить инструкцию
+              </Button>
+            )}
           </div>
           
           <div className="relative max-w-2xl">
@@ -101,8 +117,23 @@ export function GuidesScreen({
                           {guide.title}
                         </h3>
                       </div>
-                      <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 flex items-center justify-center shadow-sm">
-                        <FileText className="w-5 h-5 text-blue-500" />
+                      <div className="flex flex-col gap-2">
+                        <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 flex items-center justify-center shadow-sm">
+                          <FileText className="w-5 h-5 text-blue-500" />
+                        </div>
+                        {canDelete && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onDeleteGuide) onDeleteGuide(guide.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 italic">

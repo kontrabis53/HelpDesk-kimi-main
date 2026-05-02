@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Role, UserWithRole, ActivityLog, ModuleId, ModulePermission } from '@/types/roles';
-import type { RegistrationRequest, TechnicalGuide } from '@/types';
+import type { RegistrationRequest } from '@/types';
 import { moduleLabels, actionLabels } from '@/types/roles';
 import { 
   Users, 
@@ -19,7 +19,6 @@ import {
   Building as BuildingIcon,
   Layers,
   Monitor,
-  FileText,
   Loader2,
   ShieldAlert,
   Settings,
@@ -27,7 +26,6 @@ import {
   Eye
 } from 'lucide-react';
 import { useLocationStore } from '@/stores/locationStore';
-import { useGuideStore } from '@/stores/guideStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -101,12 +99,36 @@ export function AdminScreen({
   const [masterPassword, setMasterPassword] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeactivateOption, setShowDeactivateOption] = useState(false);
-  const [locationView, setLocationView] = useState<'floors' | 'departments'>('floors');
+  const [locationView, setLocationView] = useState<'floors' | 'departments' | 'equipment'>('floors');
   const [editingBuilding, setEditingBuilding] = useState<string | null>(null);
   const [editingDepartment, setEditingDepartment] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [userToBlock, setUserToBlock] = useState<UserWithRole | null>(null);
   const [isBlocking, setIsBlocking] = useState(false);
+
+  // Custom Dialog States for Locations Registry
+  const [locationDialog, setLocationDialog] = useState<{
+    isOpen: boolean;
+    type: 'building' | 'floor' | 'department' | 'cabinet' | 'equipment';
+    mode: 'add' | 'edit' | 'delete';
+    title: string;
+    description?: string;
+    inputValue?: string;
+    buildingId?: string;
+    floorId?: string;
+    id?: string;
+    model?: string;
+    cabinetId?: string;
+  }>({
+    isOpen: false,
+    type: 'building',
+    mode: 'add',
+    title: '',
+    model: '',
+    cabinetId: '',
+  });
+
+  const closeLocationDialog = () => setLocationDialog(prev => ({ ...prev, isOpen: false }));
 
   const { 
     buildings, 
@@ -116,16 +138,87 @@ export function AdminScreen({
     equipment, 
     addBuilding, 
     updateBuilding,
+    deleteBuilding,
     addFloor, 
     addDepartment,
     updateDepartment,
     deleteDepartment,
     addCabinet, 
     updateCabinet,
-    addEquipment 
+    addEquipment,
+    updateEquipment,
+    deleteEquipment
   } = useLocationStore();
 
-  const { guides, addGuide, deleteGuide } = useGuideStore();
+  const handleLocationAction = () => {
+    const { type, mode, inputValue, buildingId, floorId, id, model, cabinetId } = locationDialog;
+    
+    if (mode === 'delete' && id) {
+      if (type === 'building') {
+        deleteBuilding(id);
+        toast.success('Здание удалено');
+      } else if (type === 'department') {
+        deleteDepartment(id);
+        toast.success('Отделение удалено');
+      } else if (type === 'equipment') {
+        deleteEquipment(id);
+        toast.success('Оборудование удалено');
+      }
+      closeLocationDialog();
+      return;
+    }
+
+    if (!inputValue?.trim()) return;
+
+    if (type === 'building') {
+      if (mode === 'add') addBuilding(inputValue);
+      else if (id) updateBuilding(id, inputValue);
+      toast.success(mode === 'add' ? 'Здание добавлено' : 'Здание обновлено');
+    } else if (type === 'floor' && buildingId) {
+      addFloor(buildingId, parseInt(inputValue));
+      toast.success('Этаж добавлен');
+    } else if (type === 'department') {
+      if (mode === 'add') addDepartment(inputValue);
+      else if (id) updateDepartment(id, inputValue);
+      toast.success(mode === 'add' ? 'Отделение добавлено' : 'Отделение обновлено');
+    } else if (type === 'cabinet' && buildingId && floorId) {
+      addCabinet(buildingId, floorId, inputValue);
+      toast.success('Кабинет добавлен');
+    } else if (type === 'equipment') {
+      if (mode === 'add' || mode === 'edit') {
+        if (!model?.trim()) {
+          toast.error('Введите модель оборудования');
+          return;
+        }
+        if (!cabinetId) {
+          toast.error('Выберите кабинет');
+          return;
+        }
+        const cab = cabinets.find(c => c.id === cabinetId);
+        const dept = departments.find(d => d.id === cab?.departmentId);
+        
+        if (mode === 'add') {
+          addEquipment({ 
+            name: inputValue, 
+            model, 
+            cabinetId, 
+            department: dept?.name || 'Общий' 
+          });
+          toast.success('Оборудование добавлено');
+        } else if (id) {
+          updateEquipment(id, {
+            name: inputValue,
+            model,
+            cabinetId,
+            department: dept?.name || 'Общий'
+          });
+          toast.success('Оборудование обновлено');
+        }
+      }
+    }
+
+    closeLocationDialog();
+  };
 
   const [roleFormData, setRoleFormData] = useState<Omit<Role, 'id'>>({
     name: '',
@@ -135,6 +228,7 @@ export function AdminScreen({
       { moduleId: 'tickets', canView: true, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'inventory', canView: true, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'knowledge', canView: true, canCreate: false, canEdit: false, canDelete: false },
+      { moduleId: 'guides', canView: true, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'users', canView: false, canCreate: false, canEdit: false, canDelete: false },
       { moduleId: 'admin', canView: false, canCreate: false, canEdit: false, canDelete: false },
     ]
@@ -326,7 +420,7 @@ export function AdminScreen({
           { id: 'users', label: 'Пользователи', icon: Users },
           { id: 'roles', label: 'Роли и Права', icon: Shield },
           { id: 'requests', label: 'Запросы', icon: UserPlus, count: requests.filter(r => r.status === 'pending').length },
-          { id: 'locations', label: 'Локации', icon: MapPin },
+          { id: 'locations', label: 'Реестр', icon: MapPin },
           { id: 'logs', label: 'Журнал', icon: ScrollText },
         ].map((tab) => (
           <button
@@ -661,7 +755,7 @@ export function AdminScreen({
                     )}
                   >
                     <Layers className="w-3.5 h-3.5" />
-                    ПО ЭТАЖАМ
+                    ЗДАНИЕ
                   </button>
                   <button
                     onClick={() => setLocationView('departments')}
@@ -673,29 +767,61 @@ export function AdminScreen({
                     )}
                   >
                     <Shield className="w-3.5 h-3.5" />
-                    ПО ОТДЕЛЕНИЯМ
+                    ОТДЕЛЕНИЯ
+                  </button>
+                  <button
+                    onClick={() => setLocationView('equipment')}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5",
+                      locationView === 'equipment' 
+                        ? "bg-white dark:bg-slate-700 text-blue-600 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600" 
+                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    )}
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                    ОБОРУДОВАНИЕ
                   </button>
                 </div>
                 <Separator orientation="vertical" className="h-8 hidden md:block" />
                 <Button onClick={() => {
                   if (locationView === 'floors') {
-                    const name = prompt('Введите название здания:');
-                    if (name) addBuilding(name);
-                  } else {
-                    const name = prompt('Введите название отделения:');
-                    if (name) addDepartment(name);
+                    setLocationDialog({
+                      isOpen: true,
+                      type: 'building',
+                      mode: 'add',
+                      title: 'Добавить новое здание',
+                      inputValue: ''
+                    });
+                  } else if (locationView === 'departments') {
+                    setLocationDialog({
+                      isOpen: true,
+                      type: 'department',
+                      mode: 'add',
+                      title: 'Добавить новое отделение',
+                      inputValue: ''
+                    });
+                  } else if (locationView === 'equipment') {
+                    setLocationDialog({
+                      isOpen: true,
+                      type: 'equipment',
+                      mode: 'add',
+                      title: 'Добавить новое оборудование',
+                      inputValue: '',
+                      model: '',
+                      cabinetId: ''
+                    });
                   }
                 }} size="sm" variant="default" className="h-9 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
-                  <Plus className="w-4 h-4 mr-1" /> {locationView === 'floors' ? 'Здание' : 'Отделение'}
+                  <Plus className="w-4 h-4 mr-1" /> {locationView === 'floors' ? 'Здание' : locationView === 'departments' ? 'Отделение' : 'Оборудование'}
                 </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-              {/* Buildings/Structure Panel */}
-              <div className="xl:col-span-3 space-y-4">
+            <div className="w-full">
+              {/* Main Panel */}
+              <div className="space-y-4">
                 {locationView === 'floors' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {buildings.map(building => (
                       <div key={building.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
                         <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
@@ -736,12 +862,38 @@ export function AdminScreen({
                               </span>
                             )}
                           </div>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title="Добавить этаж" onClick={() => {
-                            const num = prompt('Введите номер этажа:');
-                            if (num) addFloor(building.id, parseInt(num));
-                          }}>
-                            <Plus className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title="Добавить этаж" onClick={() => {
+                              setLocationDialog({
+                                isOpen: true,
+                                type: 'floor',
+                                mode: 'add',
+                                title: `Добавить этаж в "${building.name}"`,
+                                inputValue: '',
+                                buildingId: building.id
+                              });
+                            }}>
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" 
+                              title="Удалить здание" 
+                              onClick={() => {
+                                setLocationDialog({
+                                  isOpen: true,
+                                  type: 'building',
+                                  mode: 'delete',
+                                  title: 'Удалить здание?',
+                                  description: `Вы уверены, что хотите удалить здание "${building.name}"? Это также удалит все связанные этажи, кабинеты и привязки к отделениям.`,
+                                  id: building.id
+                                });
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
 
                         <div className="p-3 flex-1">
@@ -754,8 +906,15 @@ export function AdminScreen({
                                     <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Этаж {floor.number}</span>
                                   </div>
                                   <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                                    const name = prompt('Введите название/номер кабинета:');
-                                    if (name) addCabinet(building.id, floor.id, name);
+                                    setLocationDialog({
+                                      isOpen: true,
+                                      type: 'cabinet',
+                                      mode: 'add',
+                                      title: `Добавить кабинет на ${floor.number} этаж`,
+                                      inputValue: '',
+                                      buildingId: building.id,
+                                      floorId: floor.id
+                                    });
                                   }}>
                                     <Plus className="w-3 h-3" />
                                   </Button>
@@ -813,7 +972,7 @@ export function AdminScreen({
                       </div>
                     ))}
                   </div>
-                ) : (
+                ) : locationView === 'departments' ? (
                   /* Global View by Departments */
                   <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
@@ -853,16 +1012,22 @@ export function AdminScreen({
                                       </div>
                                     ) : (
                                       <span 
-                                        className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-emerald-600 transition-colors"
-                                        onClick={() => {
-                                          setEditingDepartment(dept.id);
-                                          setEditName(dept.name);
-                                        }}
-                                      >
-                                        {dept.name}
-                                      </span>
-                                    )}
-                                  </div>
+                                    className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-emerald-600 transition-colors"
+                                    onClick={() => {
+                                      setLocationDialog({
+                                        isOpen: true,
+                                        type: 'department',
+                                        mode: 'edit',
+                                        title: 'Редактировать отделение',
+                                        inputValue: dept.name,
+                                        id: dept.id
+                                      });
+                                    }}
+                                  >
+                                    {dept.name}
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
                                   {cabinets.filter(c => c.departmentId === dept.id).length} каб.
@@ -872,9 +1037,14 @@ export function AdminScreen({
                                   size="icon" 
                                   className="h-6 w-6 text-red-400 hover:text-red-600"
                                   onClick={() => {
-                                    if (confirm(`Удалить отделение "${dept.name}"?`)) {
-                                      deleteDepartment(dept.id);
-                                    }
+                                    setLocationDialog({
+                                      isOpen: true,
+                                      type: 'department',
+                                      mode: 'delete',
+                                      title: 'Удалить отделение?',
+                                      description: `Вы уверены, что хотите удалить отделение "${dept.name}"? Это действие нельзя отменить.`,
+                                      id: dept.id
+                                    });
                                   }}
                                 >
                                   <Trash2 className="w-3 h-3" />
@@ -903,101 +1073,112 @@ export function AdminScreen({
                       </div>
                     </div>
                   </div>
+                ) : (
+                  /* Equipment View */
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Оборудование</th>
+                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Модель</th>
+                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Локация</th>
+                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Отделение</th>
+                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400 text-right">Действия</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                          {equipment.map(item => {
+                            const cab = cabinets.find(c => c.id === item.cabinetId);
+                            const floor = floors.find(f => f.id === cab?.floorId);
+                            const bld = buildings.find(b => b.id === cab?.buildingId);
+                            const dept = departments.find(d => d.id === cab?.departmentId);
+                            return (
+                              <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors group">
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                                      <Monitor className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <span className="font-bold text-slate-800 dark:text-slate-100">{item.name}</span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <Badge variant="secondary" className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-none font-bold">
+                                    {item.model}
+                                  </Badge>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{bld?.name}</span>
+                                    <span className="text-xs text-slate-400">Этаж {floor?.number}, Каб. {cab?.name || '?'}</span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  {dept ? (
+                                    <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/5 font-bold">
+                                      <Shield className="w-3 h-3 mr-1" />
+                                      {dept.name}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-slate-400 italic text-xs">Не назначено</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                      onClick={() => {
+                                        setLocationDialog({
+                                          isOpen: true,
+                                          type: 'equipment',
+                                          mode: 'edit',
+                                          title: 'Редактировать оборудование',
+                                          inputValue: item.name,
+                                          model: item.model,
+                                          cabinetId: item.cabinetId,
+                                          id: item.id
+                                        });
+                                      }}
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8 text-slate-400 hover:text-red-600"
+                                      onClick={() => {
+                                        setLocationDialog({
+                                          isOpen: true,
+                                          type: 'equipment',
+                                          mode: 'delete',
+                                          title: 'Удалить оборудование?',
+                                          description: `Вы уверены, что хотите удалить "${item.name}" (${item.model})?`,
+                                          id: item.id
+                                        });
+                                      }}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {equipment.length === 0 && (
+                            <tr>
+                              <td colSpan={5} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 italic">
+                                Список оборудования пуст
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 )}
-                
-                {/* Technical Guides Management */}
-                <div className="mt-8 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Инструкции к оборудованию</h3>
-                    <Button size="sm" variant="outline" onClick={() => {
-                      const title = prompt('Название инструкции:');
-                      const model = prompt('К какому оборудованию (модель):');
-                      if (title && model) {
-                        addGuide({ 
-                          title, 
-                          description: 'Техническая документация', 
-                          equipmentModels: [model], 
-                          fileUrls: [] 
-                        });
-                      }
-                    }}>
-                      <Plus className="w-4 h-4 mr-1" /> Добавить
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {guides.map((guide: TechnicalGuide) => (
-                      <div key={guide.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                            <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{guide.title}</h4>
-                            <div className="flex gap-1 mt-1">
-                              {guide.equipmentModels.map((m: string) => (
-                                <Badge key={m} variant="secondary" className="text-[9px] px-1 py-0">{m}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => deleteGuide(guide.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Equipment Panel (Right) */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Оборудование</h3>
-                  <Button size="sm" onClick={() => {
-                    const name = prompt('Название оборудования:');
-                    const model = prompt('Модель (например, Hamilton C3):');
-                    if (name && model) {
-                      const cabId = prompt('ID кабинета (например, c1-101):') || '';
-                      addEquipment({ name, model, cabinetId: cabId, department: 'Общий' });
-                    }
-                  }} className="h-8">
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Добавить
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {equipment.map(item => {
-                    const cab = cabinets.find(c => c.id === item.cabinetId);
-                    const bld = buildings.find(b => b.id === cab?.buildingId);
-                    const dept = departments.find(d => d.id === cab?.departmentId);
-                    return (
-                      <div key={item.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                            <Monitor className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-bold text-slate-800 dark:text-slate-200 truncate text-sm">{item.name}</h4>
-                              <span className="text-[9px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-md font-black">{item.model}</span>
-                            </div>
-                            <div className="flex flex-col gap-0.5 mt-1">
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
-                                <MapPin className="w-2.5 h-2.5" />
-                                <span className="truncate">{bld?.name}, Каб. {cab?.name || '?'}</span>
-                              </div>
-                              {dept && (
-                                <div className="flex items-center gap-1.5 text-[10px] text-emerald-500 font-bold">
-                                  <Shield className="w-2.5 h-2.5" />
-                                  <span className="truncate">{dept.name}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
             </div>
           </div>
@@ -1651,6 +1832,117 @@ export function AdminScreen({
             >
               Отмена
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Custom Dialog for Registry Actions */}
+      <Dialog open={locationDialog.isOpen} onOpenChange={(open) => !open && closeLocationDialog()}>
+        <DialogContent className="max-w-[400px] p-0 overflow-hidden border-none bg-white dark:bg-slate-900 shadow-2xl">
+          <div className={cn(
+            "p-6 flex flex-col items-center text-center text-white",
+            locationDialog.mode === 'delete' ? "bg-red-500" : "bg-blue-600"
+          )}>
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-4">
+              {locationDialog.mode === 'delete' ? (
+                <Trash2 className="w-6 h-6" />
+              ) : (
+                <Plus className="w-6 h-6" />
+              )}
+            </div>
+            <DialogTitle className="text-xl font-bold mb-2 text-white">{locationDialog.title}</DialogTitle>
+            {locationDialog.description && (
+              <p className="text-sm text-white/90 leading-relaxed">{locationDialog.description}</p>
+            )}
+          </div>
+          
+          <div className="p-6 space-y-4">
+            {locationDialog.mode !== 'delete' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="location-input" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    {locationDialog.type === 'floor' ? 'Номер этажа' : 'Название'}
+                  </Label>
+                  <Input
+                    id="location-input"
+                    value={locationDialog.inputValue}
+                    onChange={(e) => setLocationDialog(prev => ({ ...prev, inputValue: e.target.value }))}
+                    placeholder={locationDialog.type === 'floor' ? 'Например: 1' : 'Введите название...'}
+                    className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && locationDialog.type !== 'equipment') handleLocationAction();
+                      if (e.key === 'Escape') closeLocationDialog();
+                    }}
+                  />
+                </div>
+
+                {locationDialog.type === 'equipment' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="equipment-model" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Модель
+                      </Label>
+                      <Input
+                        id="equipment-model"
+                        value={locationDialog.model}
+                        onChange={(e) => setLocationDialog(prev => ({ ...prev, model: e.target.value }))}
+                        placeholder="Например: Hamilton C3"
+                        className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="equipment-cabinet" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Кабинет
+                      </Label>
+                      <Select 
+                        value={locationDialog.cabinetId} 
+                        onValueChange={(val) => setLocationDialog(prev => ({ ...prev, cabinetId: val }))}
+                      >
+                        <SelectTrigger className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10">
+                          <SelectValue placeholder="Выберите кабинет" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {buildings.map(bld => (
+                            <div key={bld.id}>
+                              <div className="px-2 py-1.5 text-[10px] font-black text-slate-400 uppercase bg-slate-50 dark:bg-slate-900/50">
+                                {bld.name}
+                              </div>
+                              {cabinets.filter(c => c.buildingId === bld.id).map(cab => (
+                                <SelectItem key={cab.id} value={cab.id}>
+                                  Каб. {cab.name}
+                                </SelectItem>
+                              ))}
+                            </div>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <Button
+                onClick={handleLocationAction}
+                disabled={locationDialog.mode !== 'delete' && !locationDialog.inputValue?.trim()}
+                className={cn(
+                  "w-full font-bold h-10 shadow-lg",
+                  locationDialog.mode === 'delete' 
+                    ? "bg-red-600 hover:bg-red-700 shadow-red-500/20" 
+                    : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                )}
+              >
+                {locationDialog.mode === 'delete' ? 'УДАЛИТЬ' : (locationDialog.mode === 'add' ? 'ДОБАВИТЬ' : 'СОХРАНИТЬ')}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={closeLocationDialog}
+                className="w-full text-slate-500 dark:text-slate-400 text-xs font-medium"
+              >
+                Отмена
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -25,8 +25,14 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   // List all tickets
   fastify.get('/', {
     onRequest: [fastify.authenticate]
-  }, async (request, reply) => {
-    const tickets = await prisma.ticket.findMany({
+  }, async (request) => {
+    const { archived } = request.query as { archived?: string };
+    const isArchived = archived === 'true';
+
+    const tickets = await (prisma.ticket as any).findMany({
+      where: {
+        isArchived: isArchived
+      },
       include: {
         author: {
           select: { id: true, name: true, role: true, avatar: true }
@@ -224,6 +230,63 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
     } catch (error: any) {
       fastify.log.error(error);
       return reply.status(500).send({ message: 'Ошибка при удалении заявки' });
+    }
+  });
+
+  // Archive ticket
+  fastify.post('/:id/archive', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const user = request.user as any;
+
+      const existingTicket = await prisma.ticket.findUnique({ where: { id } });
+      if (!existingTicket) {
+        return reply.status(404).send({ message: 'Заявка не найдена' });
+      }
+
+      // Only admin or technician can archive resolved/closed tickets
+      // Or author if ticket is closed
+      const canArchive = user.role === 'admin' || 
+                         user.role === 'technician' || 
+                         (user.id === existingTicket.authorId && (existingTicket.status === 'closed' || existingTicket.status === 'resolved'));
+      
+      if (!canArchive) {
+        return reply.status(403).send({ message: 'Нет прав на архивацию этой заявки' });
+      }
+
+      const ticket = await (prisma.ticket as any).update({
+        where: { id },
+        data: { isArchived: true },
+      });
+
+      return ticket;
+    } catch (error: any) {
+      return reply.status(500).send({ message: 'Ошибка при архивации заявки' });
+    }
+  });
+
+  // Unarchive ticket
+  fastify.post('/:id/unarchive', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const user = request.user as any;
+
+      if (user.role !== 'admin' && user.role !== 'technician') {
+        return reply.status(403).send({ message: 'Нет прав на восстановление заявок из архива' });
+      }
+
+      const ticket = await (prisma.ticket as any).update({
+        where: { id },
+        data: { isArchived: false },
+      });
+
+      return ticket;
+    } catch (error: any) {
+      return reply.status(500).send({ message: 'Ошибка при восстановлении заявки' });
     }
   });
 }

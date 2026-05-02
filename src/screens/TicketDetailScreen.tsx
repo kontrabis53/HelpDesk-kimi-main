@@ -23,9 +23,13 @@ import {
   Clock,
   XCircle,
   Send,
-  Edit
+  Edit,
+  Archive,
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
+import { useAuthStore } from '@/stores/authStore';
 
 
 interface TicketDetailScreenProps {
@@ -35,6 +39,9 @@ interface TicketDetailScreenProps {
   onAddComment: (ticketId: string, text: string) => void;
   onEdit?: () => void;
   onAssign?: (ticketId: string, assigneeId: string) => void;
+  onDelete?: (ticketId: string) => void;
+  onArchive?: (ticketId: string) => void;
+  onUnarchive?: (ticketId: string) => void;
   availableAssignees?: User[];
 }
 
@@ -45,9 +52,13 @@ export function TicketDetailScreen({
   onAddComment,
   onEdit,
   onAssign,
+  onDelete,
+  onArchive,
+  onUnarchive,
   availableAssignees = []
 }: TicketDetailScreenProps) {
   const [commentText, setCommentText] = useState('');
+  const user = useAuthStore(state => state.user);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -68,76 +79,139 @@ export function TicketDetailScreen({
   };
 
   const getActionButtons = () => {
+    if (ticket.isArchived) {
+      return (
+        <>
+          {onUnarchive && (user?.role === 'admin' || user?.role === 'technician') && (
+            <Button 
+              onClick={() => onUnarchive(ticket.id)}
+              className="flex-1 bg-slate-600 hover:bg-slate-700"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Восстановить из архива
+            </Button>
+          )}
+          {onDelete && user?.role === 'admin' && (
+            <Button 
+              variant="destructive"
+              onClick={() => onDelete(ticket.id)}
+              className="flex-1"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Удалить навсегда
+            </Button>
+          )}
+        </>
+      );
+    }
+
+    const buttons = [];
+
     switch (ticket.status) {
       case 'new':
-        return (
-          <>
-            <Button 
-              onClick={() => onStatusChange(ticket.id, 'in_progress')}
-              className="flex-1 bg-blue-600 hover:bg-blue-700"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Взять в работу
-            </Button>
-            <Button 
-              variant="outline"
-              onClick={() => onStatusChange(ticket.id, 'cancelled')}
-              className="flex-1 dark:border-slate-600 dark:text-slate-300"
-            >
-              <XCircle className="w-4 h-4 mr-2" />
-              Отменить
-            </Button>
-          </>
+        buttons.push(
+          <Button 
+            key="start"
+            onClick={() => onStatusChange(ticket.id, 'in_progress')}
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Взять в работу
+          </Button>
         );
+        buttons.push(
+          <Button 
+            key="cancel"
+            variant="outline"
+            onClick={() => onStatusChange(ticket.id, 'cancelled')}
+            className="flex-1 dark:border-slate-600 dark:text-slate-300"
+          >
+            <XCircle className="w-4 h-4 mr-2" />
+            Отменить
+          </Button>
+        );
+        break;
       case 'in_progress':
-        return (
-          <>
-            <Button 
-              onClick={() => onStatusChange(ticket.id, 'waiting')}
-              variant="outline"
-              className="flex-1 dark:border-slate-600 dark:text-slate-300"
-            >
-              <Clock className="w-4 h-4 mr-2" />
-              В ожидание
-            </Button>
-            <Button 
-              onClick={() => onStatusChange(ticket.id, 'resolved')}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-            >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Закрыть
-            </Button>
-          </>
+        buttons.push(
+          <Button 
+            key="wait"
+            onClick={() => onStatusChange(ticket.id, 'waiting')}
+            variant="outline"
+            className="flex-1 dark:border-slate-600 dark:text-slate-300"
+          >
+            <Clock className="w-4 h-4 mr-2" />
+            В ожидание
+          </Button>
         );
+        buttons.push(
+          <Button 
+            key="resolve"
+            onClick={() => onStatusChange(ticket.id, 'resolved')}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+          >
+            <CheckCircle className="w-4 h-4 mr-2" />
+            Закрыть
+          </Button>
+        );
+        break;
       case 'waiting':
-        return (
-          <>
-            <Button 
-              onClick={() => onStatusChange(ticket.id, 'in_progress')}
-              className="flex-1 bg-blue-600 hover:bg-blue-700"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Вернуть в работу
-            </Button>
-          </>
+        buttons.push(
+          <Button 
+            key="resume"
+            onClick={() => onStatusChange(ticket.id, 'in_progress')}
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Вернуть в работу
+          </Button>
         );
+        break;
       case 'resolved':
       case 'cancelled':
-        return (
-          <>
-            <Button 
-              onClick={() => onStatusChange(ticket.id, 'in_progress')}
-              variant="outline"
-              className="flex-1 dark:border-slate-600 dark:text-slate-300"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Вернуть в работу
-            </Button>
-          </>
+        buttons.push(
+          <Button 
+            key="reopen"
+            onClick={() => onStatusChange(ticket.id, 'in_progress')}
+            variant="outline"
+            className="flex-1 dark:border-slate-600 dark:text-slate-300"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Вернуть в работу
+          </Button>
         );
-      default:
-        return null;
+        
+        // Archive button for resolved/cancelled tickets
+        if (onArchive) {
+          buttons.push(
+            <Button 
+              key="archive"
+              onClick={() => onArchive(ticket.id)}
+              className="flex-1 bg-amber-600 hover:bg-amber-700"
+            >
+              <Archive className="w-4 h-4 mr-2" />
+              В архив
+            </Button>
+          );
+        }
+        break;
     }
+
+    // Always show delete for admin, or for author if ticket is new
+    if (onDelete && (user?.role === 'admin' || (user?.id === ticket.authorId && ticket.status === 'new'))) {
+      buttons.push(
+        <Button 
+          key="delete"
+          variant="destructive"
+          onClick={() => onDelete(ticket.id)}
+          className="flex-1"
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Удалить
+        </Button>
+      );
+    }
+
+    return buttons;
   };
 
   return (

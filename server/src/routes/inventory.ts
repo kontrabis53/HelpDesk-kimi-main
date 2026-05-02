@@ -82,6 +82,19 @@ export default async function inventoryRoutes(fastify: FastifyInstance) {
       const item = await prisma.inventoryItem.create({
         data
       });
+
+      // Check for low stock on creation
+      if (item.minQuantity !== null && item.quantity <= item.minQuantity) {
+         (fastify as any).io.emit('inventory_low_stock', {
+           id: item.id,
+           sku: item.sku,
+           name: item.name,
+           quantity: item.quantity,
+           minQuantity: item.minQuantity,
+           unit: item.unit
+         });
+       }
+
       return reply.status(201).send(item);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -108,6 +121,19 @@ export default async function inventoryRoutes(fastify: FastifyInstance) {
         where: { id },
         data
       });
+
+      // Check for low stock and notify if necessary
+      if (item.minQuantity !== null && item.quantity <= item.minQuantity) {
+         (fastify as any).io.emit('inventory_low_stock', {
+           id: item.id,
+           sku: item.sku,
+           name: item.name,
+           quantity: item.quantity,
+           minQuantity: item.minQuantity,
+           unit: item.unit
+         });
+       }
+
       return item;
     } catch (error: any) {
       fastify.log.error(error);

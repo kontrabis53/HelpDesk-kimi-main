@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 
 export function GuidesPage() {
   const allGuides = useGuideStore((state) => state.guides);
+  const addGuide = useGuideStore((state) => state.addGuide);
+  const deleteGuide = useGuideStore((state) => state.deleteGuide);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredGuides = useMemo(() => {
@@ -29,12 +31,36 @@ export function GuidesPage() {
   const handleSearch = (query: string) => {
     setSearchQuery(query);
   };
+
+  const handleAddGuide = () => {
+    const title = prompt('Название инструкции:');
+    const model = prompt('К какому оборудованию (модель):');
+    if (title && model) {
+      addGuide({ 
+        title, 
+        description: 'Техническая документация', 
+        equipmentModels: [model], 
+        fileUrls: [] 
+      });
+      toast.success('Инструкция добавлена');
+    }
+  };
+
+  const handleDeleteGuide = (id: string) => {
+    const guide = allGuides.find(g => g.id === id);
+    if (window.confirm(`Вы уверены, что хотите удалить инструкцию "${guide?.title}"?`)) {
+      deleteGuide(id);
+      toast.success('Инструкция удалена');
+    }
+  };
   
   return (
     <GuidesScreen
       guides={filteredGuides}
       onGuideClick={handleGuideClick}
       onSearch={handleSearch}
+      onAddGuide={handleAddGuide}
+      onDeleteGuide={handleDeleteGuide}
     />
   );
 }

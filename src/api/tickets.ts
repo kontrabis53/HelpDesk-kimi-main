@@ -2,8 +2,8 @@ import apiClient from './client/apiClient';
 import type { Ticket } from '@/types';
 
 export const ticketService = {
-  getAll: async (): Promise<Ticket[]> => {
-    const response = await apiClient.get('/tickets');
+  getAll: async (archived = false): Promise<Ticket[]> => {
+    const response = await apiClient.get('/tickets', { params: { archived } });
     return response.data;
   },
 
@@ -19,6 +19,16 @@ export const ticketService = {
 
   update: async (id: string, updates: any): Promise<Ticket> => {
     const response = await apiClient.patch(`/tickets/${id}`, updates);
+    return response.data;
+  },
+
+  archive: async (id: string): Promise<Ticket> => {
+    const response = await apiClient.post(`/tickets/${id}/archive`);
+    return response.data;
+  },
+
+  unarchive: async (id: string): Promise<Ticket> => {
+    const response = await apiClient.post(`/tickets/${id}/unarchive`);
     return response.data;
   },
 

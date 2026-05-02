@@ -15,6 +15,7 @@ export interface User {
   roleId: string; // Added for compatibility with RoleStore
   department: string;
   departmentId?: string; // Link to department
+  avatarHistory?: string[];
   isActive?: boolean;
   isOnline?: boolean;
   notificationsEnabled?: boolean;

@@ -1,7 +1,16 @@
-import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight, Info, Loader2, Stethoscope } from 'lucide-react';
+import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight, Info, Loader2, Stethoscope, Camera, Trash2, X, Check, Image as ImageIcon, Smile, Type } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { UserAvatar } from '@/components/UserAvatar';
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -34,24 +43,111 @@ interface ProfileScreenProps {
 export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, userRole }: ProfileScreenProps) {
   const isDark = theme === 'dark';
   const navigate = useNavigate();
-  const { user, logout, updateUserSettings } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const updateUserSettings = useAuthStore((state) => state.updateUserSettings);
+  
   const [isUpdatingNotifications, setIsUpdatingNotifications] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [showAvatarEditor, setShowAvatarEditor] = useState(false);
+  const [tempAvatar, setTempAvatar] = useState<string | null>(null);
+  const [isEmojiMode, setIsEmojiMode] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const memojis = ['👦', '👧', '👨‍💻', '👩‍💻', '🦸', '🦹', '🐱', '🐶', '🦊', '🦁', '🐸', '🐨'];
+  const monogramColors = [
+    'bg-amber-400', 'bg-blue-500', 'bg-emerald-500', 
+    'bg-rose-500', 'bg-violet-500', 'bg-slate-700'
+  ];
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const handleToggleNotifications = async (enabled: boolean) => {
-    if (!user || isUpdatingNotifications) return;
-    
+  const handleToggleNotifications = async (checked: boolean) => {
     setIsUpdatingNotifications(true);
     try {
-      await updateUserSettings({ notificationsEnabled: enabled });
+      await updateUserSettings({ notificationsEnabled: checked });
     } catch (error) {
-      console.error('Failed to toggle notifications:', error);
+      toast.error('Не удалось обновить настройки уведомлений');
     } finally {
       setIsUpdatingNotifications(false);
+    }
+  };
+
+  const handleAvatarClick = () => {
+    setShowAvatarEditor(true);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Размер файла не должен превышать 2МБ');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Файл должен быть изображением');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setTempAvatar(base64);
+      setIsEmojiMode(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSelectEmoji = (emoji: string) => {
+    setTempAvatar(emoji);
+    setIsEmojiMode(true);
+  };
+
+  const handleSelectMonogram = (colorClass: string) => {
+    // We'll store monogram as a special string "monogram:colorClass"
+    setTempAvatar(`monogram:${colorClass}`);
+    setIsEmojiMode(false);
+  };
+
+  const handleSaveAvatar = async () => {
+    if (!tempAvatar) return;
+    setIsUploadingAvatar(true);
+    try {
+      console.log('Saving avatar:', tempAvatar);
+      await updateUserSettings({ avatar: tempAvatar });
+      console.log('Avatar updated successfully');
+      toast.success('Аватар обновлен');
+      setShowAvatarEditor(false);
+      setTempAvatar(null);
+    } catch (error) {
+      console.error('Save avatar error:', error);
+      toast.error('Не удалось сохранить аватар');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  // Log user changes for debugging
+  useEffect(() => {
+    console.log('ProfileScreen: User updated', user?.avatar);
+  }, [user?.avatar]);
+
+  const handleResetAvatar = async () => {
+    setIsUploadingAvatar(true);
+    try {
+      await updateUserSettings({ avatar: null });
+      toast.success('Аватар сброшен');
+      setShowAvatarEditor(false);
+      setTempAvatar(null);
+    } catch (error) {
+      toast.error('Не удалось сбросить аватар');
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -75,32 +171,223 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
       <div className="p-4 space-y-4 max-w-2xl mx-auto">
         {/* User Card */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div 
-              className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: userRole?.color || '#3B82F6' }}
-            >
-              <span className="text-2xl font-bold text-white">
-                {user.name.charAt(0)}
-              </span>
+          <div className="flex items-center gap-6">
+            <div className="relative group/avatar cursor-pointer" onClick={handleAvatarClick}>
+              <UserAvatar 
+                avatarUrl={user.avatar} 
+                name={user.name} 
+                userRole={userRole} 
+                sizeClass="w-24 h-24" 
+                textClass="text-4xl"
+                className="border-4"
+              />
+              
+              {/* Overlay on hover */}
+              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                <Camera className="w-8 h-8 text-white" />
+              </div>
+
+              {isUploadingAvatar && (
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 text-white animate-spin" />
+                </div>
+              )}
             </div>
+
             <div className="flex-1">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{user.name}</h2>
-              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mt-1">
-                <Building2 className="w-4 h-4" />
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{user.name}</h2>
+              <div className="flex items-center gap-2 text-base text-slate-500 dark:text-slate-400 mt-1.5 font-medium">
+                <Building2 className="w-4.5 h-4.5" />
                 <span>{user.department}</span>
               </div>
-              <div className="mt-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <span 
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
+                  className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold text-white uppercase tracking-wider"
                   style={{ backgroundColor: userRole?.color || '#6B7280' }}
                 >
                   {userRole?.name || 'Пользователь'}
                 </span>
+                {user.position && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    {user.position}
+                  </span>
+                )}
               </div>
             </div>
           </div>
         </div>
+
+        {/* iOS Style Avatar Editor Dialog */}
+        <Dialog open={showAvatarEditor} onOpenChange={(open) => {
+          if (!open) {
+            setShowAvatarEditor(false);
+            setTempAvatar(null);
+          }
+        }}>
+          <DialogContent className="max-w-[460px] p-0 overflow-hidden border-none bg-[#F2F2F7] dark:bg-black rounded-[32px] shadow-2xl">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Редактирование аватара</DialogTitle>
+            </DialogHeader>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
+              <button 
+                onClick={() => {
+                  setShowAvatarEditor(false);
+                  setTempAvatar(null);
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-900 dark:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              
+              <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-full flex gap-1">
+                <button className="px-4 py-1 rounded-full bg-white dark:bg-slate-700 text-xs font-bold shadow-sm">Аватар</button>
+                <button className="px-4 py-1 rounded-full text-xs font-bold text-slate-400">Постер</button>
+              </div>
+
+              <button 
+                onClick={handleSaveAvatar}
+                disabled={!tempAvatar || isUploadingAvatar}
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                  tempAvatar ? "bg-blue-500 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-300"
+                )}
+              >
+                {isUploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <div className="p-8 flex flex-col items-center gap-8">
+              {/* Hidden File Input */}
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                className="hidden" 
+                accept="image/*"
+              />
+              
+              {/* Preview Circle */}
+              <div className="relative group">
+                <div className="w-48 h-48 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center overflow-hidden border-4 border-white dark:border-slate-900 shadow-xl">
+                  <UserAvatar 
+                    avatarUrl={tempAvatar || user.avatar} 
+                    name={user.name} 
+                    userRole={userRole} 
+                    sizeClass="w-full h-full" 
+                    textClass="text-7xl"
+                    className="border-0"
+                  />
+                </div>
+                
+                {(tempAvatar || user.avatar) && (
+                  <button 
+                    onClick={handleResetAvatar}
+                    className="absolute -top-1 -right-1 w-8 h-8 bg-slate-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-500 transition-colors border-2 border-white dark:border-slate-900"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <button className="px-6 py-2 bg-slate-200 dark:bg-slate-800 rounded-full text-sm font-bold text-slate-900 dark:text-white">
+                Настроить
+              </button>
+
+              {/* Grid Options (iOS Style) */}
+              <div className="w-full space-y-6 overflow-y-auto max-h-[300px] px-6 py-2 custom-scrollbar">
+                {/* Photo Row */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Фото &gt;</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <ImageIcon className="w-6 h-6" />
+                    </button>
+                    {/* Render up to 3 previous avatars from history */}
+                    {user.avatarHistory?.map((histAvatar, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => setTempAvatar(histAvatar)}
+                        className={cn(
+                          "aspect-square rounded-full overflow-hidden transition-all hover:scale-110",
+                          tempAvatar === histAvatar && "ring-4 ring-blue-500 ring-offset-2 dark:ring-offset-black"
+                        )}
+                      >
+                        <UserAvatar 
+                          avatarUrl={histAvatar} 
+                          name={user.name} 
+                          userRole={userRole} 
+                          sizeClass="w-full h-full" 
+                          textClass="text-lg"
+                        />
+                      </button>
+                    ))}
+                    {/* Fill empty slots if history is less than 3 */}
+                    {Array.from({ length: Math.max(0, 3 - (user.avatarHistory?.length || 0)) }).map((_, idx) => (
+                      <div key={`empty-${idx}`} className="aspect-square rounded-full bg-slate-300/30 dark:bg-slate-700/30 overflow-hidden" />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Memoji Row */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Memoji &gt;</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    <button 
+                      className="aspect-square rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <Smile className="w-6 h-6" />
+                    </button>
+                    {memojis.map((emoji, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => handleSelectEmoji(emoji)}
+                        className={cn(
+                          "aspect-square rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110",
+                          idx % 4 === 0 ? "bg-blue-100" : idx % 4 === 1 ? "bg-amber-100" : idx % 4 === 2 ? "bg-emerald-100" : "bg-rose-100",
+                          tempAvatar === emoji && "ring-4 ring-blue-500 ring-offset-2 dark:ring-offset-black"
+                        )}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Monogram Row */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Монограмма &gt;</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    <button className="aspect-square rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 text-sm font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">Aa</button>
+                    {monogramColors.map((color, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => handleSelectMonogram(color)}
+                        className={cn(
+                          "aspect-square rounded-full flex items-center justify-center text-xl font-bold text-white transition-all hover:scale-110",
+                          color,
+                          tempAvatar === `monogram:${color}` && "ring-4 ring-blue-500 ring-offset-2 dark:ring-offset-black"
+                        )}
+                      >
+                        {user.name.charAt(0)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Stats */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
@@ -251,7 +538,7 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
 
         <div className="pt-8 text-center pb-8">
           <p className="text-xs font-bold text-slate-300 dark:text-slate-700 uppercase tracking-widest">
-            Медин v1.1.9 Current
+            Медин v1.2.6 Current
           </p>
         </div>
       </div>

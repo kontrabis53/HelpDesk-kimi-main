@@ -52,6 +52,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { UserAvatar } from '@/components/UserAvatar';
 
 type AdminTab = 'users' | 'roles' | 'requests' | 'locations' | 'logs';
 
@@ -402,13 +403,14 @@ export function AdminScreen({
                         <td className="px-4 py-3 overflow-hidden">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="relative shrink-0">
-                              <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-lg border border-blue-100 dark:border-blue-800/50 overflow-hidden">
-                                {user.avatar ? (
-                                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  user.name.charAt(0)
-                                )}
-                              </div>
+                              <UserAvatar 
+                                avatarUrl={user.avatar} 
+                                name={user.name} 
+                                userRole={roles.find(r => r.id === user.roleId)} 
+                                sizeClass="w-12 h-12" 
+                                textClass="text-lg"
+                                className="border border-blue-100 dark:border-blue-800/50"
+                              />
                               <div className={cn(
                                 "absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-800",
                                 user.isOnline ? "bg-emerald-500" : "bg-red-500"

@@ -16,10 +16,12 @@ const userUpdateSchema = z.object({
   notificationsEnabled: z.boolean().optional().nullable(),
   showGreeting: z.boolean().optional().nullable(),
   greetingText: z.string().optional().nullable().or(z.literal('')),
+  avatar: z.string().optional().nullable().or(z.literal('')),
+  avatarHistory: z.array(z.string()).optional(),
 });
 
 export default async function userRoutes(fastify: FastifyInstance) {
-  // Get all users
+  // Get all users 
   fastify.get('/', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
@@ -35,14 +37,15 @@ export default async function userRoutes(fastify: FastifyInstance) {
           position: true,
           department: true,
           avatar: true,
-            isActive: true,
-            isOnline: true,
-            notificationsEnabled: true,
-            showGreeting: true,
-            greetingText: true,
-            createdAt: true,
+          avatarHistory: true,
+          isActive: true,
+          isOnline: true,
+          notificationsEnabled: true,
+          showGreeting: true,
+          greetingText: true,
+          createdAt: true,
           lastLogin: true
-        }
+        } as any
       });
       return users;
     } catch (error: any) {
@@ -93,9 +96,9 @@ export default async function userRoutes(fastify: FastifyInstance) {
           if (typeof value === 'string' && value.length >= 6) {
             updateData[key] = value;
           }
-        } else if (key === 'notificationsEnabled' || key === 'showGreeting' || key === 'isActive') {
-          // Boolean values should be included even if false
-          if (value !== undefined && value !== null) {
+        } else if (key === 'notificationsEnabled' || key === 'showGreeting' || key === 'isActive' || key === 'avatar' || key === 'avatarHistory') {
+          // Boolean values and avatar should be included even if false or null
+          if (value !== undefined) {
             updateData[key] = value;
           }
         } else if (value !== '' && value !== undefined && value !== null) {
@@ -105,6 +108,11 @@ export default async function userRoutes(fastify: FastifyInstance) {
 
       fastify.log.info({ userId, updateData }, 'Updating user');
       
+      // Separate check for password processing
+      if (updateData.password) {
+        updateData.password = await bcrypt.hash(updateData.password, 10);
+      }
+
       if (Object.keys(updateData).length === 0) {
         const user = await prisma.user.findUnique({
           where: { id: userId },
@@ -118,23 +126,20 @@ export default async function userRoutes(fastify: FastifyInstance) {
             position: true,
             department: true,
             avatar: true,
-          isActive: true,
-          isOnline: true,
-          notificationsEnabled: true,
-          showGreeting: true,
-          greetingText: true,
-          createdAt: true,
-          lastLogin: true
-        }
-      });
-      return user;
-    }
+            avatarHistory: true,
+            isActive: true,
+            isOnline: true,
+            notificationsEnabled: true,
+            showGreeting: true,
+            greetingText: true,
+            createdAt: true,
+            lastLogin: true
+          } as any
+        });
+        return user;
+      }
     
-    if (updateData.password) {
-      updateData.password = await bcrypt.hash(updateData.password, 10);
-    }
-    
-    const user = await prisma.user.update({
+      const user = await prisma.user.update({
         where: { id: userId },
         data: updateData,
         select: {
@@ -147,6 +152,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
           position: true,
           department: true,
           avatar: true,
+          avatarHistory: true,
           isActive: true,
           isOnline: true,
           notificationsEnabled: true,
@@ -154,7 +160,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
           greetingText: true,
           createdAt: true,
           lastLogin: true
-        }
+        } as any
       });
 
       // Если пользователя деактивировали, уведомляем его через сокет

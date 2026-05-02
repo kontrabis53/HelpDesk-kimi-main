@@ -11,6 +11,7 @@ import { useEffect } from 'react';
 
 export function ProfilePage() {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
   const stats = useTicketStore(useShallow((state) => state.stats()));
   const theme = useThemeStore((state) => state.theme);
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
@@ -20,6 +21,8 @@ export function ProfilePage() {
     navigate('/settings');
   };
   
+  if (!user) return null;
+
   // Transform stats to match ProfileScreenProps
   const profileStats = {
     total: stats.total,

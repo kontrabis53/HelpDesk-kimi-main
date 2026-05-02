@@ -24,6 +24,7 @@ model User {
   notificationsEnabled Boolean @default(false)
   showGreeting  Boolean  @default(false)
   greetingText  String   @default("Шо ты маленький, привет")
+  avatarHistory String[] @default([])
   createdAt     DateTime @default(now())
   lastLogin     DateTime?
   

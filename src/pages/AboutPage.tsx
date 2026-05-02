@@ -9,10 +9,25 @@ export function AboutPage() {
 
   const versions = [
     {
+      version: '1.2.6',
+      date: '2 мая 2026',
+      title: 'Эволюция профиля и аватаров',
+      isCurrent: true,
+      changes: [
+        'Реализован умный редактор аватаров в стиле iOS с поддержкой Memoji, монограмм и фото',
+        'Добавлена система истории аватаров: хранение 3-х последних пользовательских изображений',
+        'Создан единый компонент UserAvatar для унификации отображения аватаров во всей системе',
+        'Устранена критическая ошибка сервера, блокировавшая сохранение данных профиля',
+        'Оптимизирована производительность: внедрена синхронизация хранилищ authStore и roleStore',
+        'Увеличен лимит загрузки данных до 10МБ для поддержки качественных изображений',
+        'Улучшена доступность (A11y): добавлены скрытые заголовки для скринридеров в модальных окнах',
+        'Исправлен дизайн: устранено наложение элементов на полосу прокрутки, добавлен кастомный скроллбар'
+      ]
+    },
+    {
       version: '1.1.9',
       date: '27 апреля 2026',
       title: 'Устранение дубликатов и стабильность',
-      isCurrent: true,
       changes: [
         'Исправлена критическая ошибка дублирования уведомлений о входе пользователей',
         'Реализована фильтрация повторных событий статуса через useRef и Map в RootLayout',
@@ -257,7 +272,7 @@ export function AboutPage() {
         {/* App Info */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center relative overflow-hidden">
           <div className="absolute top-4 right-4 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-xs font-black border border-blue-100 dark:border-blue-800">
-            v1.1.9 Current
+            v1.2.6 Current
           </div>
           
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-blue-500/20">

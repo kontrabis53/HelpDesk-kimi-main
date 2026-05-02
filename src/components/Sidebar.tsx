@@ -7,6 +7,7 @@ import { useRoleStore } from '@/stores/roleStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { NotificationPanel } from './NotificationPanel';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { UserAvatar } from './UserAvatar';
 
 interface SidebarProps {
   availableModules?: string[];
@@ -141,36 +142,47 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
         </nav>
       </div>
 
-      <div className="mt-auto p-4 border-t border-slate-200 dark:border-slate-700 overflow-hidden relative">
+      <div className="mt-auto p-4 border-t border-slate-200 dark:border-slate-700 relative">
         <button 
           onClick={toggleSidebar}
-          className="absolute right-2 bottom-2 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors z-10"
+          className="absolute right-2 bottom-2 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors z-20"
           title={isSidebarCollapsed ? "Развернуть" : "Свернуть"}
         >
           {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
+
         <div className={cn(
-          "flex items-center py-2",
-          isSidebarCollapsed ? "justify-center" : "gap-1.5 px-0.5"
+          "flex items-center transition-all duration-300",
+          isSidebarCollapsed ? "justify-center" : "gap-3 px-1"
         )}>
-          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-            <User className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-          </div>
-          {!isSidebarCollapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate leading-normal mb-1">
-                {user?.name || 'Пользователь'}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate mb-0.5">
-                {user?.position || 'Сотрудник'}
-              </p>
-              {user?.department && (
-                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium truncate mb-1.5 italic">
-                  Отдел: {user.department}
-                </p>
-              )}
+          <UserAvatar 
+            avatarUrl={user?.avatar} 
+            name={user?.name || ''} 
+            userRole={userRole || undefined} 
+            sizeClass="w-10 h-10" 
+            textClass="text-sm"
+          />
+          {user && !isSidebarCollapsed && (
+            <div className="flex flex-col min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-slate-800 dark:text-slate-100 truncate">
+                  {user.name}
+                </span>
+              </div>
+              <div className="flex flex-col -space-y-0.5">
+                {user.department && (
+                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium truncate italic">
+                    {user.department}
+                  </span>
+                )}
+                {user.position && (
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                    {user.position}
+                  </span>
+                )}
+              </div>
               {userRole && (
-                <div className="-mt-1">
+                <div className="mt-1">
                   <span 
                     className="inline-block text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider"
                     style={{ backgroundColor: userRole.color }}

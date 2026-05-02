@@ -22,6 +22,7 @@ dotenv.config();
 
 const fastify = Fastify({
   ignoreTrailingSlash: true,
+  bodyLimit: 10485760, // 10MB limit for base64 images
   logger: {
     transport: {
       target: 'pino-pretty',

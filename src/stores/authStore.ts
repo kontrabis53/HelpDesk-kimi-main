@@ -27,7 +27,13 @@ interface AuthState {
   deleteRequest: (id: string) => Promise<void>;
   initAutoLogout: () => void;
   updateUser: (data: Partial<User>) => void;
-  updateUserSettings: (settings: { notificationsEnabled?: boolean; showGreeting?: boolean; greetingText?: string }) => Promise<void>;
+  updateUserSettings: (settings: { 
+    notificationsEnabled?: boolean; 
+    showGreeting?: boolean; 
+    greetingText?: string;
+    avatar?: string | null;
+    avatarHistory?: string[];
+  }) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -257,14 +263,62 @@ export const useAuthStore = create<AuthState>()(
 
       updateUserSettings: async (settings) => {
         const { user } = get();
-        if (!user) return;
+        if (!user) {
+          console.error('Update user settings: No user in store');
+          return;
+        }
 
+        // Если обновляется аватар, обновляем историю
+        let finalSettings = { ...settings };
+        if (settings.avatar !== undefined && settings.avatar !== user.avatar) {
+          const currentAvatar = user.avatar;
+          const currentHistory = user.avatarHistory || [];
+          
+          let nextHistory = [...currentHistory];
+
+          // 1. Если текущий (старый) аватар — это пользовательское изображение, отправляем его в историю
+          const isCustomImage = (url: string | null | undefined) => 
+            url && url.length > 10 && !url.startsWith('monogram:');
+
+          if (isCustomImage(currentAvatar)) {
+            // Добавляем старый аватар в начало истории, удаляем дубликаты, оставляем 3
+            nextHistory = [currentAvatar!, ...currentHistory.filter(a => a !== currentAvatar)].slice(0, 3);
+          }
+
+          // 2. Если НОВЫЙ аватар — это пользовательское изображение, и оно уже есть в истории, 
+          // удаляем его оттуда (так как оно становится активным)
+          if (isCustomImage(settings.avatar)) {
+            nextHistory = nextHistory.filter(a => a !== settings.avatar);
+          }
+
+          // Обновляем настройки, если история изменилась
+          if (JSON.stringify(nextHistory) !== JSON.stringify(currentHistory)) {
+            finalSettings = { ...settings, avatarHistory: nextHistory };
+          }
+        }
+
+        console.log('Update user settings start:', { userId: user.id, settings: finalSettings });
         set({ isLoading: true });
         try {
-          const response = await apiClient.patch(`/users/${user.id}`, settings);
-          set({ user: response.data, isLoading: false });
+          const response = await apiClient.patch(`/users/${user.id}`, finalSettings);
+          const updatedUser = response.data;
+          console.log('Update user settings success. Response data:', updatedUser);
+          
+          set({ user: updatedUser, isLoading: false });
+          
+          // Синхронизируем с roleStore если он инициализирован
+          if (typeof window !== 'undefined' && (window as any).useRoleStore) {
+            const roleStore = (window as any).useRoleStore.getState();
+            if (roleStore && roleStore.users) {
+              const updatedUsers = roleStore.users.map((u: User) => 
+                u.id === updatedUser.id ? { ...u, ...updatedUser } : u
+              );
+              roleStore.setUsers(updatedUsers);
+              console.log('RoleStore synchronized');
+            }
+          }
         } catch (error: any) {
-          console.error('Update user settings error:', error);
+          console.error('Update user settings error:', error.response?.data || error.message);
           set({ isLoading: false });
           throw error;
         }

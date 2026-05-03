@@ -5,7 +5,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
 function NotificationItem({ notification }: { notification: Notification }) {
@@ -129,7 +128,7 @@ export function NotificationPanel() {
       
       <Separator />
       
-      <ScrollArea className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
         {notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
             <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3">
@@ -145,7 +144,7 @@ export function NotificationPanel() {
             ))}
           </div>
         )}
-      </ScrollArea>
+      </div>
       
       {notifications.length > 0 && (
         <>

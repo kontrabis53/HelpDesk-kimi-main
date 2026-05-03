@@ -245,9 +245,9 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
   const showCostFields = type === 'repair';
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-4 py-3 sticky top-0 z-20 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm shrink-0">
+      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-4 py-3 sticky top-0 z-20 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <button 
             onClick={onBack}
@@ -269,9 +269,8 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
         </button>
       </div>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto p-4 space-y-6 pb-32">
+      {/* Content */}
+      <div className="max-w-3xl mx-auto p-4 space-y-6 pb-32">
           {/* Main Info */}
           <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Основная информация</h2>
@@ -611,7 +610,6 @@ export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing 
             )}
           </Button>
         </div>
-      </div>
       </div>
     </div>
   );

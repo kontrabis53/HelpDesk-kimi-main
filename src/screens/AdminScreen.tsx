@@ -19,6 +19,11 @@ import {
   Building as BuildingIcon,
   Layers,
   Monitor,
+  Stethoscope,
+  FlaskConical,
+  Activity,
+  ClipboardList,
+  Search as SearchIcon,
   Loader2,
   ShieldAlert,
   Settings,
@@ -119,6 +124,8 @@ export function AdminScreen({
     id?: string;
     model?: string;
     cabinetId?: string;
+    icon?: string;
+    color?: string;
   }>({
     isOpen: false,
     type: 'building',
@@ -126,9 +133,35 @@ export function AdminScreen({
     title: '',
     model: '',
     cabinetId: '',
+    icon: 'Stethoscope',
+    color: '#10B981',
   });
 
-  const closeLocationDialog = () => setLocationDialog(prev => ({ ...prev, isOpen: false }));
+  const deptConfigs = [
+    { name: 'ЛКО', icon: 'Stethoscope', color: '#3B82F6', label: 'Лечебно-консультативное' },
+    { name: 'ДО', icon: 'Search', color: '#10B981', label: 'Диагностическое' },
+    { name: 'КДЛ', icon: 'FlaskConical', color: '#8B5CF6', label: 'Лаборатория' },
+    { name: 'АХО', icon: 'Building', color: '#6B7280', label: 'Хозяйственное' },
+    { name: 'Хирургия', icon: 'Activity', color: '#EF4444', label: 'Хирургия' },
+    { name: 'Клиника Live', icon: 'ClipboardList', color: '#F59E0B', label: 'Регистратура' },
+  ];
+
+  const getDeptIcon = (iconName?: string) => {
+    switch (iconName) {
+      case 'Stethoscope': return Stethoscope;
+      case 'Search': return SearchIcon;
+      case 'FlaskConical': return FlaskConical;
+      case 'Building': return BuildingIcon;
+      case 'Activity': return Activity;
+      case 'ClipboardList': return ClipboardList;
+      default: return Stethoscope;
+    }
+  };
+
+  const closeLocationDialog = () => {
+    setLocationDialog(prev => ({ ...prev, isOpen: false }));
+    setMasterPassword('');
+  };
 
   const { 
     buildings, 
@@ -150,20 +183,52 @@ export function AdminScreen({
     deleteEquipment
   } = useLocationStore();
 
+  const autoStyleDepartments = () => {
+    let count = 0;
+    departments.forEach(dept => {
+      const config = deptConfigs.find(c => 
+        dept.name.toLowerCase().includes(c.name.toLowerCase()) || 
+        (c.label && dept.name.toLowerCase().includes(c.label.toLowerCase()))
+      );
+      if (config && (!dept.icon || !dept.color)) {
+        updateDepartment(dept.id, { icon: config.icon, color: config.color });
+        count++;
+      }
+    });
+    if (count > 0) toast.success(`Стили применены к ${count} отделениям`);
+  };
+
   const handleLocationAction = () => {
-    const { type, mode, inputValue, buildingId, floorId, id, model, cabinetId } = locationDialog;
+    const { type, mode, inputValue, buildingId, floorId, id, model, cabinetId, icon, color } = locationDialog;
     
     if (mode === 'delete' && id) {
+      if (masterPassword !== 'root') {
+        toast.error('Неверный мастер-пароль');
+        return;
+      }
+
       if (type === 'building') {
+        const hasFloors = floors.some(f => f.buildingId === id);
+        if (hasFloors) {
+          toast.error('Нельзя удалить здание: в нем есть этажи');
+          return;
+        }
         deleteBuilding(id);
         toast.success('Здание удалено');
       } else if (type === 'department') {
+        const hasCabinets = cabinets.some(c => c.departmentId === id);
+        const hasUsers = users.some(u => u.departmentId === id);
+        if (hasCabinets || hasUsers) {
+          toast.error('Нельзя удалить отделение: за ним закреплены кабинеты или сотрудники');
+          return;
+        }
         deleteDepartment(id);
         toast.success('Отделение удалено');
       } else if (type === 'equipment') {
         deleteEquipment(id);
         toast.success('Оборудование удалено');
       }
+      setMasterPassword('');
       closeLocationDialog();
       return;
     }
@@ -178,8 +243,8 @@ export function AdminScreen({
       addFloor(buildingId, parseInt(inputValue));
       toast.success('Этаж добавлен');
     } else if (type === 'department') {
-      if (mode === 'add') addDepartment(inputValue);
-      else if (id) updateDepartment(id, inputValue);
+      if (mode === 'add') addDepartment(inputValue, undefined, icon, color);
+      else if (id) updateDepartment(id, { name: inputValue, icon, color });
       toast.success(mode === 'add' ? 'Отделение добавлено' : 'Отделение обновлено');
     } else if (type === 'cabinet' && buildingId && floorId) {
       addCabinet(buildingId, floorId, inputValue);
@@ -419,9 +484,9 @@ export function AdminScreen({
         {[
           { id: 'users', label: 'Пользователи', icon: Users },
           { id: 'roles', label: 'Роли и Права', icon: Shield },
-          { id: 'requests', label: 'Запросы', icon: UserPlus, count: requests.filter(r => r.status === 'pending').length },
           { id: 'locations', label: 'Реестр', icon: MapPin },
           { id: 'logs', label: 'Журнал', icon: ScrollText },
+          { id: 'requests', label: 'Запросы', icon: UserPlus, count: requests.filter(r => r.status === 'pending').length },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -736,14 +801,15 @@ export function AdminScreen({
         {activeTab === 'locations' && (
           <div className="space-y-6 w-full max-w-full animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-blue-500" />
-                  Реестр локаций и оборудования
-                </h2>
-                <p className="text-xs text-slate-500 mt-1 font-medium">Управление структурой зданий, этажей и медицинских отделений</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-6">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-blue-500" />
+                    Реестр локаций и оборудования
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">Управление структурой зданий, этажей и медицинских отделений</p>
+                </div>
+                
                 <div className="bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl flex gap-1 shadow-inner border border-slate-200/50 dark:border-slate-800">
                   <button
                     onClick={() => setLocationView('floors')}
@@ -754,7 +820,7 @@ export function AdminScreen({
                         : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                     )}
                   >
-                    <Layers className="w-3.5 h-3.5" />
+                    <BuildingIcon className="w-3.5 h-3.5" />
                     ЗДАНИЕ
                   </button>
                   <button
@@ -766,7 +832,7 @@ export function AdminScreen({
                         : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                     )}
                   >
-                    <Shield className="w-3.5 h-3.5" />
+                    <Stethoscope className="w-3.5 h-3.5" />
                     ОТДЕЛЕНИЯ
                   </button>
                   <button
@@ -782,6 +848,9 @@ export function AdminScreen({
                     ОБОРУДОВАНИЕ
                   </button>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-3">
                 <Separator orientation="vertical" className="h-8 hidden md:block" />
                 <Button onClick={() => {
                   if (locationView === 'floors') {
@@ -798,7 +867,9 @@ export function AdminScreen({
                       type: 'department',
                       mode: 'add',
                       title: 'Добавить новое отделение',
-                      inputValue: ''
+                      inputValue: '',
+                      icon: 'Stethoscope',
+                      color: '#10B981'
                     });
                   } else if (locationView === 'equipment') {
                     setLocationDialog({
@@ -886,7 +957,7 @@ export function AdminScreen({
                                   type: 'building',
                                   mode: 'delete',
                                   title: 'Удалить здание?',
-                                  description: `Вы уверены, что хотите удалить здание "${building.name}"? Это также удалит все связанные этажи, кабинеты и привязки к отделениям.`,
+                                  description: `Вы уверены, что хотите удалить здание "${building.name}"? Это действие нельзя отменить.`,
                                   id: building.id
                                 });
                               }}
@@ -947,18 +1018,27 @@ export function AdminScreen({
                                             >
                                               Без отделения
                                             </button>
-                                            {departments.map(dept => (
-                                              <button 
-                                                key={dept.id}
-                                                onClick={() => updateCabinet(cabinet.id, { departmentId: dept.id })}
-                                                className={cn(
-                                                  "w-full text-left px-2 py-1 text-xs rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
-                                                  cabinet.departmentId === dept.id && "text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20"
-                                                )}
-                                              >
-                                                {dept.name}
-                                              </button>
-                                            ))}
+                                            {departments.map(dept => {
+                                              const DeptIcon = getDeptIcon(dept.icon);
+                                              return (
+                                                <button 
+                                                  key={dept.id}
+                                                  onClick={() => updateCabinet(cabinet.id, { departmentId: dept.id })}
+                                                  className={cn(
+                                                    "w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2",
+                                                    cabinet.departmentId === dept.id && "text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20"
+                                                  )}
+                                                >
+                                                  <div 
+                                                    className="w-5 h-5 rounded flex items-center justify-center shrink-0"
+                                                    style={{ backgroundColor: `${dept.color || '#10B981'}20`, color: dept.color || '#10B981' }}
+                                                  >
+                                                    <DeptIcon className="w-3 h-3" />
+                                                  </div>
+                                                  <span className="truncate">{dept.name}</span>
+                                                </button>
+                                              );
+                                            })}
                                           </div>
                                         </PopoverContent>
                                       </Popover>
@@ -977,65 +1057,101 @@ export function AdminScreen({
                   <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
                       <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <Stethoscope className="w-4 h-4 text-emerald-500 shrink-0" />
                         <span className="font-bold text-slate-700 dark:text-slate-200">Все отделения (сквозные)</span>
                       </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={autoStyleDepartments}
+                        className="text-[10px] font-black uppercase tracking-wider h-7 bg-white dark:bg-slate-800"
+                      >
+                        Применить стили
+                      </Button>
                     </div>
                     <div className="p-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {departments.map(dept => (
-                          <div key={dept.id} className="bg-slate-50 dark:bg-slate-900/40 rounded-xl p-3 border border-slate-100 dark:border-slate-800/50">
-                            <div className="flex items-center justify-between mb-2 group">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
-                                    {editingDepartment === dept.id ? (
-                                      <div className="flex items-center gap-1 w-full">
-                                        <Input 
-                                          value={editName} 
-                                          onChange={(e) => setEditName(e.target.value)}
-                                          className="h-6 text-sm py-0"
-                                          autoFocus
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && editName) {
-                                              updateDepartment(dept.id, editName);
+                        {departments.map(dept => {
+                          const DeptIcon = getDeptIcon(dept.icon);
+                          return (
+                            <div key={dept.id} className="bg-slate-50 dark:bg-slate-900/40 rounded-xl p-3 border border-slate-100 dark:border-slate-800/50">
+                              <div className="flex items-center justify-between mb-2 group">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <div 
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm"
+                                        style={{ backgroundColor: `${dept.color || '#10B981'}20`, color: dept.color || '#10B981' }}
+                                      >
+                                        <DeptIcon className="w-4 h-4" />
+                                      </div>
+                                      {editingDepartment === dept.id ? (
+                                        <div className="flex items-center gap-1 w-full">
+                                          <Input 
+                                            value={editName} 
+                                            onChange={(e) => setEditName(e.target.value)}
+                                            className="h-6 text-sm py-0"
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter' && editName) {
+                                                updateDepartment(dept.id, { name: editName });
+                                                setEditingDepartment(null);
+                                              }
+                                              if (e.key === 'Escape') setEditingDepartment(null);
+                                            }}
+                                          />
+                                          <Button size="icon" variant="ghost" className="h-5 w-5 text-emerald-500" onClick={() => {
+                                            if (editName) {
+                                              updateDepartment(dept.id, { name: editName });
                                               setEditingDepartment(null);
                                             }
-                                            if (e.key === 'Escape') setEditingDepartment(null);
-                                          }}
-                                        />
-                                        <Button size="icon" variant="ghost" className="h-5 w-5 text-emerald-500" onClick={() => {
-                                          if (editName) {
-                                            updateDepartment(dept.id, editName);
-                                            setEditingDepartment(null);
-                                          }
-                                        }}><Check className="w-2.5 h-2.5" /></Button>
-                                      </div>
-                                    ) : (
-                                      <span 
-                                    className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-emerald-600 transition-colors"
-                                    onClick={() => {
-                                      setLocationDialog({
-                                        isOpen: true,
-                                        type: 'department',
-                                        mode: 'edit',
-                                        title: 'Редактировать отделение',
-                                        inputValue: dept.name,
-                                        id: dept.id
-                                      });
-                                    }}
-                                  >
-                                    {dept.name}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
+                                          }}><Check className="w-2.5 h-2.5" /></Button>
+                                        </div>
+                                      ) : (
+                                        <span 
+                                      className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-emerald-600 transition-colors"
+                                      onClick={() => {
+                                        setLocationDialog({
+                                          isOpen: true,
+                                          type: 'department',
+                                          mode: 'edit',
+                                          title: 'Редактировать отделение',
+                                          inputValue: dept.name,
+                                          id: dept.id,
+                                          icon: dept.icon,
+                                          color: dept.color
+                                        });
+                                      }}
+                                    >
+                                      {dept.name}
+                                    </span>
+                                  )}
+                                </div>
+                              <div className="flex items-center gap-1">
                                 <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
                                   {cabinets.filter(c => c.departmentId === dept.id).length} каб.
                                 </span>
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
-                                  className="h-6 w-6 text-red-400 hover:text-red-600"
+                                  className="h-6 w-6 text-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                  onClick={() => {
+                                    setLocationDialog({
+                                      isOpen: true,
+                                      type: 'department',
+                                      mode: 'edit',
+                                      title: 'Редактировать отделение',
+                                      inputValue: dept.name,
+                                      id: dept.id,
+                                      icon: dept.icon,
+                                      color: dept.color
+                                    });
+                                  }}
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                                   onClick={() => {
                                     setLocationDialog({
                                       isOpen: true,
@@ -1069,7 +1185,8 @@ export function AdminScreen({
                               )}
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1856,6 +1973,23 @@ export function AdminScreen({
           </div>
           
           <div className="p-6 space-y-4">
+            {locationDialog.mode === 'delete' && (
+              <div className="space-y-2">
+                <Label htmlFor="location-master-password" title="Мастер пароль" className="text-[10px] font-black uppercase tracking-widest text-white/70">
+                  Мастер-пароль
+                </Label>
+                <Input
+                  id="location-master-password"
+                  type="password"
+                  value={masterPassword}
+                  onChange={(e) => setMasterPassword(e.target.value)}
+                  placeholder="Введите мастер-пароль"
+                  className="bg-white/10 border-white/20 text-white placeholder:text-white/30 h-10 text-center font-mono tracking-widest focus:ring-white/50 focus:border-white/50"
+                  autoFocus
+                />
+              </div>
+            )}
+
             {locationDialog.mode !== 'delete' && (
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -1875,6 +2009,70 @@ export function AdminScreen({
                     }}
                   />
                 </div>
+
+                {locationDialog.type === 'department' && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Выберите иконку
+                      </Label>
+                      <div className="grid grid-cols-6 gap-2">
+                        {[
+                          { name: 'Stethoscope', icon: Stethoscope },
+                          { name: 'Search', icon: SearchIcon },
+                          { name: 'FlaskConical', icon: FlaskConical },
+                          { name: 'Building', icon: BuildingIcon },
+                          { name: 'Activity', icon: Activity },
+                          { name: 'ClipboardList', icon: ClipboardList },
+                        ].map((item) => (
+                          <button
+                            key={item.name}
+                            type="button"
+                            onClick={() => setLocationDialog(prev => ({ ...prev, icon: item.name }))}
+                            className={cn(
+                              "w-10 h-10 rounded-lg border-2 flex items-center justify-center transition-all",
+                              locationDialog.icon === item.name 
+                                ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20" 
+                                : "border-slate-100 dark:border-slate-800 text-slate-400 hover:border-slate-200"
+                            )}
+                          >
+                            <item.icon className="w-5 h-5" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Цвет отделения
+                      </Label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          '#3B82F6', // Blue
+                          '#10B981', // Emerald
+                          '#8B5CF6', // Violet
+                          '#EF4444', // Red
+                          '#F59E0B', // Amber
+                          '#6B7280', // Gray
+                          '#EC4899', // Pink
+                          '#06B6D4', // Cyan
+                        ].map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => setLocationDialog(prev => ({ ...prev, color }))}
+                            className={cn(
+                              "w-8 h-8 rounded-full border-2 transition-all",
+                              locationDialog.color === color 
+                                ? "border-white ring-2 ring-blue-500 scale-110" 
+                                : "border-transparent opacity-70 hover:opacity-100"
+                            )}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {locationDialog.type === 'equipment' && (
                   <>

@@ -83,6 +83,13 @@ export function SettingsScreen({ onBack, theme, onToggleTheme }: SettingsScreenP
                 </div>
               </div>
             </div>
+
+            <div className="bg-slate-100/50 dark:bg-slate-800/50 rounded-xl p-4 border border-dashed border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Версия системы</span>
+                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">v1.2.8</span>
+              </div>
+            </div>
           </div>
         )}
 

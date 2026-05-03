@@ -22,7 +22,7 @@ const mockUsers: UserWithRole[] = [
     email: 'maria@medin.ru',
     roleId: 'user',
     role: 'user',
-    department: 'Регистратура',
+    department: 'Клиника Live',
     isActive: true,
     createdAt: '2024-02-15T00:00:00',
     lastLogin: '2025-02-02T16:45:00',

@@ -17,8 +17,8 @@ interface LocationState {
   addFloor: (buildingId: string, number: number) => void;
   deleteFloor: (id: string) => void;
   
-  addDepartment: (name: string, buildingId?: string) => void;
-  updateDepartment: (id: string, name: string) => void;
+  addDepartment: (name: string, buildingId?: string, icon?: string, color?: string) => void;
+  updateDepartment: (id: string, data: Partial<Department>) => void;
   deleteDepartment: (id: string) => void;
   
   addCabinet: (buildingId: string, floorId: string, name: string, departmentId?: string) => void;
@@ -55,9 +55,12 @@ export const useLocationStore = create<LocationState>()(
         { id: 'f2-1', buildingId: 'b2', number: 1 }
       ],
       departments: [
-        { id: 'd1', buildingId: 'b1', name: 'Терапия' },
-        { id: 'd2', buildingId: 'b1', name: 'Кардиология' },
-        { id: 'd3', buildingId: 'b2', name: 'Операционный блок' }
+        { id: 'd1', name: 'ЛКО', icon: 'Stethoscope', color: '#3B82F6' },
+        { id: 'd2', name: 'ДО', icon: 'Search', color: '#10B981' },
+        { id: 'd3', name: 'КДЛ', icon: 'FlaskConical', color: '#8B5CF6' },
+        { id: 'd4', name: 'АХО', icon: 'Building', color: '#6B7280' },
+        { id: 'd5', name: 'Хирургия', icon: 'Activity', color: '#EF4444' },
+        { id: 'd6', name: 'Клиника Live', icon: 'ClipboardList', color: '#F59E0B' }
       ],
       cabinets: [
         { id: 'c1-101', buildingId: 'b1', floorId: 'f1-1', departmentId: 'd1', name: '101' },
@@ -99,12 +102,12 @@ export const useLocationStore = create<LocationState>()(
         cabinets: state.cabinets.filter(c => c.floorId !== id)
       })),
 
-      addDepartment: (name, buildingId) => set(state => ({
-        departments: [...state.departments, { id: `d-${Date.now()}`, name, buildingId }]
+      addDepartment: (name, buildingId, icon, color) => set(state => ({
+        departments: [...state.departments, { id: `d-${Date.now()}`, name, buildingId, icon, color }]
       })),
 
-      updateDepartment: (id, name) => set(state => ({
-        departments: state.departments.map(d => d.id === id ? { ...d, name } : d)
+      updateDepartment: (id, data) => set(state => ({
+        departments: state.departments.map(d => d.id === id ? { ...d, ...data } : d)
       })),
 
       deleteDepartment: (id) => set(state => ({

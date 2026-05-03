@@ -101,10 +101,10 @@ export function RootLayout() {
   const isParserPage = location.pathname.startsWith('/parser');
   const isGuidesPage = location.pathname.startsWith('/guides');
   const isDirectoryPage = location.pathname.startsWith('/directory');
-  const isDocumentsPage = location.pathname.startsWith('/documents');
+  const isDocumentsListPage = location.pathname === '/documents';
   const isSidebarCollapsed = useUIStore((state) => state.isSidebarCollapsed);
   
-  const isFullScreenPage = isChatPage || isParserPage || isDirectoryPage || isDocumentsPage || isGuidesPage;
+  const isFullScreenPage = isChatPage || isParserPage || isDirectoryPage || isDocumentsListPage || isGuidesPage;
   
   return (
     <div className={cn(

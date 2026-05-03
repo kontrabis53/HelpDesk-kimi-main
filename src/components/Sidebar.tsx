@@ -30,7 +30,7 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
     { id: 'documents' as const, label: 'Документы', icon: FileText, moduleId: 'documents', path: '/documents' },
     { id: 'inventory' as const, label: 'Склад', icon: Package, moduleId: 'inventory', path: '/inventory' },
     { id: 'directory' as const, label: 'Справочник', icon: Users, moduleId: 'directory', path: '/directory' },
-    { id: 'registry' as const, label: 'Регистратура', icon: ClipboardList, moduleId: 'registry', path: '#', disabled: true },
+    { id: 'registry' as const, label: 'Клиника Live', icon: ClipboardList, moduleId: 'registry', path: '#', disabled: true },
     { id: 'chat' as const, label: 'Чат', icon: MessageSquare, moduleId: 'chat', path: '/chat' },
     { id: 'parser' as const, label: 'Парсер', icon: Network, moduleId: 'parser', path: '/parser' },
     { id: 'admin' as const, label: 'Управление', icon: Shield, moduleId: 'admin', path: '/admin' },

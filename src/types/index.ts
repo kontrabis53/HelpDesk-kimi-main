@@ -105,6 +105,8 @@ export interface Department {
   id: string;
   name: string; // Например, "Терапия", "Хирургия"
   buildingId?: string; // Optional building
+  icon?: string; // Lucide icon name
+  color?: string; // Hex color
 }
 
 export interface Floor {

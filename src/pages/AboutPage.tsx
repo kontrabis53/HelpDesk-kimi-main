@@ -9,10 +9,24 @@ export function AboutPage() {
 
   const versions = [
     {
+      version: '1.2.8',
+      date: '3 мая 2026',
+      title: 'Клиника Live и улучшение UX',
+      isCurrent: true,
+      changes: [
+        'Модуль «Регистратура» официально переименован в «Клиника Live» (подготовка к запуску)',
+        'Обновлен реестр отделений: добавлены уникальные иконки и цветовое кодирование для ЛКО, ДО, КДЛ, АХО и Хирургии',
+        'Повышена безопасность: введена защита удаления зданий и отделений мастер-паролем',
+        'Реализована проверка зависимостей: система предупреждает, если нельзя удалить объект из-за связанных данных',
+        'Унификация дизайна: применены тонкие скроллбары в стиле iOS в панель уведомлений и модули редактирования',
+        'Оптимизация Документов: переработана прокрутка форм создания и редактирования для соответствия модулю Заявок',
+        'Обновлена информация о версии во всей системе, включая настройки и профиль'
+      ]
+    },
+    {
       version: '1.2.7',
       date: '3 мая 2026',
       title: 'Реестр 2.0 и управление оборудованием',
-      isCurrent: true,
       changes: [
         'Реорганизация модуля «Реестр»: оборудование вынесено в отдельный полноэкранный вид «ОБОРУДОВАНИЕ»',
         'Создана детальная таблица оборудования с отображением здания, этажа и кабинета',
@@ -297,7 +311,7 @@ export function AboutPage() {
         {/* App Info */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center relative overflow-hidden">
           <div className="absolute top-4 right-4 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-xs font-black border border-blue-100 dark:border-blue-800">
-            v1.2.7 Current
+            v1.2.8 Current
           </div>
           
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-blue-500/20">

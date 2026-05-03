@@ -18,6 +18,8 @@ const registerSchema = z.object({
   position: z.string().optional(),
   department: z.string().optional(),
   isActive: z.boolean().optional(),
+  notificationsEnabled: z.boolean().optional(),
+  aiEnabled: z.boolean().optional(),
   showGreeting: z.boolean().optional(),
   greetingText: z.string().optional(),
 });

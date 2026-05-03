@@ -1,5 +1,8 @@
-import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare, Network, ChevronLeft, ChevronRight, Book, Stethoscope, Bell, ClipboardList } from 'lucide-react';
+import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare, Network, ChevronLeft, ChevronRight, Book, Stethoscope, Bell, ClipboardList, Bot } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { AIChatPopup } from './AIChatPopup';
+import { AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -20,6 +23,7 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const { getRoleById } = useRoleStore();
   const { unreadCount, isPanelOpen, setPanelOpen } = useNotificationStore();
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   
   const userRole = user ? getRoleById(user.roleId) : null;
   
@@ -74,6 +78,41 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
       "hidden md:flex flex-col h-screen fixed left-0 top-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 z-50 transition-all duration-300",
       isSidebarCollapsed ? "w-20" : "w-64"
     )}>
+      {/* AI Bot Peeking - Показываем только если включено у пользователя */}
+      {user?.aiEnabled !== false && (
+        <>
+          <div 
+            className={cn(
+              "absolute left-0 bottom-32 z-50 transition-all duration-500 cursor-pointer group/ai",
+              isSidebarCollapsed ? "translate-x-[-15px] hover:translate-x-0" : "translate-x-[-20px] hover:translate-x-0",
+              isAIChatOpen && "translate-x-0"
+            )}
+            title="Спросить ИИ-помощника"
+            onClick={() => setIsAIChatOpen(true)}
+          >
+            <div className="relative flex items-center">
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/40 border-2 border-white dark:border-slate-800 animate-bounce-slow">
+                <Bot className="w-6 h-6 text-white" />
+              </div>
+              {!isSidebarCollapsed && (
+                <div className="ml-2 bg-blue-600 text-white text-[10px] font-black uppercase px-2 py-1 rounded-md opacity-0 group-hover/ai:opacity-100 transition-opacity whitespace-nowrap">
+                  Привет! Чем помочь?
+                </div>
+              )}
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {isAIChatOpen && (
+              <AIChatPopup 
+                isOpen={isAIChatOpen} 
+                onClose={() => setIsAIChatOpen(false)} 
+              />
+            )}
+          </AnimatePresence>
+        </>
+      )}
+
       <div className="flex-1 flex flex-col p-4">
         <div className="flex items-center justify-between mb-8 px-2">
           <NavLink to="/knowledge" className="flex items-center gap-3 hover:opacity-80 transition-opacity overflow-hidden group/logo">

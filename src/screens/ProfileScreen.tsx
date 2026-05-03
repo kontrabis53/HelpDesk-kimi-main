@@ -1,4 +1,4 @@
-import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight, Info, Loader2, Stethoscope, Camera, Trash2, X, Check, Image as ImageIcon, Smile, Type } from 'lucide-react';
+import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight, Info, Loader2, Stethoscope, Camera, Trash2, X, Check, Image as ImageIcon, Smile, Type, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { useState, useRef, useEffect } from 'react';
@@ -48,6 +48,7 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
   const updateUserSettings = useAuthStore((state) => state.updateUserSettings);
   
   const [isUpdatingNotifications, setIsUpdatingNotifications] = useState(false);
+  const [isUpdatingAI, setIsUpdatingAI] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [showAvatarEditor, setShowAvatarEditor] = useState(false);
   const [tempAvatar, setTempAvatar] = useState<string | null>(null);
@@ -73,6 +74,18 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
       toast.error('Не удалось обновить настройки уведомлений');
     } finally {
       setIsUpdatingNotifications(false);
+    }
+  };
+
+  const handleToggleAI = async (checked: boolean) => {
+    setIsUpdatingAI(true);
+    try {
+      await updateUserSettings({ aiEnabled: checked });
+      toast.success(checked ? 'ИИ-помощник включен' : 'ИИ-помощник выключен');
+    } catch (error) {
+      toast.error('Не удалось обновить настройки ИИ');
+    } finally {
+      setIsUpdatingAI(false);
     }
   };
 
@@ -474,6 +487,27 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
                 checked={user.notificationsEnabled || false} 
                 onCheckedChange={handleToggleNotifications}
                 disabled={isUpdatingNotifications}
+              />
+            </div>
+
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  {isUpdatingAI ? (
+                    <Loader2 className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin" />
+                  ) : (
+                    <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-slate-700 dark:text-slate-200">ИИ-помощник</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Персональный бот для подсказок по CRM</p>
+                </div>
+              </div>
+              <Switch 
+                checked={user.aiEnabled !== false} 
+                onCheckedChange={handleToggleAI}
+                disabled={isUpdatingAI}
               />
             </div>
 

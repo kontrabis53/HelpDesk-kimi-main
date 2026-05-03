@@ -19,6 +19,7 @@ export interface User {
   isActive?: boolean;
   isOnline?: boolean;
   notificationsEnabled?: boolean;
+  aiEnabled?: boolean;
   showGreeting?: boolean;
   greetingText?: string;
   createdAt?: string;
@@ -128,8 +129,10 @@ export interface Equipment {
   name: string; // Например, "Hamilton C3"
   model: string;
   serialNumber?: string;
+  inventoryNumber?: string; // Добавлено инвентарный номер
   cabinetId: string; // Текущее местоположение
   department: string;
+  cabinet?: Cabinet; // Добавлено связь с кабинетом
 }
 
 // ===== СПРАВОЧНИК =====

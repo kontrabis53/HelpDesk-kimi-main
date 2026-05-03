@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { Building, Floor, Cabinet, Equipment, Department } from '@/types';
+import apiClient from '@/api/client/apiClient';
 
 interface LocationState {
   buildings: Building[];
@@ -8,26 +8,30 @@ interface LocationState {
   departments: Department[];
   cabinets: Cabinet[];
   equipment: Equipment[];
+  isLoading: boolean;
+  error: string | null;
   
   // Actions
-  addBuilding: (name: string) => void;
-  updateBuilding: (id: string, name: string) => void;
-  deleteBuilding: (id: string) => void;
+  fetchData: () => Promise<void>;
   
-  addFloor: (buildingId: string, number: number) => void;
-  deleteFloor: (id: string) => void;
+  addBuilding: (name: string) => Promise<void>;
+  updateBuilding: (id: string, name: string) => Promise<void>;
+  deleteBuilding: (id: string) => Promise<void>;
   
-  addDepartment: (name: string, buildingId?: string, icon?: string, color?: string) => void;
-  updateDepartment: (id: string, data: Partial<Department>) => void;
-  deleteDepartment: (id: string) => void;
+  addFloor: (buildingId: string, number: number) => Promise<void>;
+  deleteFloor: (id: string) => Promise<void>;
   
-  addCabinet: (buildingId: string, floorId: string, name: string, departmentId?: string) => void;
-  updateCabinet: (id: string, data: Partial<Cabinet>) => void;
-  deleteCabinet: (id: string) => void;
+  addDepartment: (name: string, buildingId?: string, icon?: string, color?: string) => Promise<void>;
+  updateDepartment: (id: string, data: Partial<Department>) => Promise<void>;
+  deleteDepartment: (id: string) => Promise<void>;
   
-  addEquipment: (equipment: Omit<Equipment, 'id'>) => void;
-  updateEquipment: (id: string, data: Partial<Equipment>) => void;
-  deleteEquipment: (id: string) => void;
+  addCabinet: (buildingId: string, floorId: string, name: string, departmentId?: string) => Promise<void>;
+  updateCabinet: (id: string, data: Partial<Cabinet>) => Promise<void>;
+  deleteCabinet: (id: string) => Promise<void>;
+  
+  addEquipment: (equipment: Omit<Equipment, 'id'>) => Promise<void>;
+  updateEquipment: (id: string, data: Partial<Equipment>) => Promise<void>;
+  deleteEquipment: (id: string) => Promise<void>;
   
   // Selectors
   getBuildingById: (id: string) => Building | undefined;
@@ -42,119 +46,210 @@ interface LocationState {
   getCabinetsByDepartment: (departmentId: string) => Cabinet[];
 }
 
-export const useLocationStore = create<LocationState>()(
-  persist(
-    (set, get) => ({
-      buildings: [
-        { id: 'b1', name: 'Корпус А (Главный)' },
-        { id: 'b2', name: 'Корпус Б (Хирургия)' }
-      ],
-      floors: [
-        { id: 'f1-1', buildingId: 'b1', number: 1 },
-        { id: 'f1-2', buildingId: 'b1', number: 2 },
-        { id: 'f2-1', buildingId: 'b2', number: 1 }
-      ],
-      departments: [
-        { id: 'd1', name: 'ЛКО', icon: 'Stethoscope', color: '#3B82F6' },
-        { id: 'd2', name: 'ДО', icon: 'Search', color: '#10B981' },
-        { id: 'd3', name: 'КДЛ', icon: 'FlaskConical', color: '#8B5CF6' },
-        { id: 'd4', name: 'АХО', icon: 'Building', color: '#6B7280' },
-        { id: 'd5', name: 'Хирургия', icon: 'Activity', color: '#EF4444' },
-        { id: 'd6', name: 'Клиника Live', icon: 'ClipboardList', color: '#F59E0B' }
-      ],
-      cabinets: [
-        { id: 'c1-101', buildingId: 'b1', floorId: 'f1-1', departmentId: 'd1', name: '101' },
-        { id: 'c1-202', buildingId: 'b1', floorId: 'f1-2', departmentId: 'd2', name: '202' },
-        { id: 'c2-op1', buildingId: 'b2', floorId: 'f2-1', departmentId: 'd3', name: 'Операционная 1' }
-      ],
-      equipment: [
-        { 
-          id: 'e1', 
-          name: 'Hamilton C3', 
-          model: 'Hamilton C3', 
-          serialNumber: 'SN123456', 
-          cabinetId: 'c2-op1', 
-          department: 'Реанимация' 
-        }
-      ],
+export const useLocationStore = create<LocationState>((set, get) => ({
+  buildings: [],
+  floors: [],
+  departments: [],
+  cabinets: [],
+  equipment: [],
+  isLoading: false,
+  error: null,
 
-      addBuilding: (name) => set(state => ({
-        buildings: [...state.buildings, { id: `b-${Date.now()}`, name }]
-      })),
+  fetchData: async () => {
+    set({ isLoading: true, error: null });
+    console.log('Fetching registry data...');
+    try {
+      const testRes = await apiClient.get('/registry/test');
+      console.log('Registry API Test:', testRes.data);
 
-      updateBuilding: (id, name) => set(state => ({
-        buildings: state.buildings.map(b => b.id === id ? { ...b, name } : b)
-      })),
+      const [buildingsRes, cabinetsRes, departmentsRes, equipmentRes] = await Promise.all([
+        apiClient.get('/registry/buildings'),
+        apiClient.get('/registry/cabinets'),
+        apiClient.get('/registry/departments'),
+        apiClient.get('/registry/equipment'),
+      ]);
 
-      deleteBuilding: (id) => set(state => ({
+      console.log('Registry data received:', {
+        buildings: buildingsRes.data.length,
+        cabinets: cabinetsRes.data.length,
+        departments: departmentsRes.data.length,
+        equipment: equipmentRes.data.length
+      });
+
+      const buildings = buildingsRes.data;
+      const floors = buildings.flatMap((b: any) => b.floors || []);
+      
+      set({ 
+        buildings, 
+        floors,
+        cabinets: cabinetsRes.data,
+        departments: departmentsRes.data,
+        equipment: equipmentRes.data,
+        isLoading: false 
+      });
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+    }
+  },
+
+  addBuilding: async (name) => {
+    try {
+      const res = await apiClient.post('/registry/buildings', { name });
+      set(state => ({ buildings: [...state.buildings, res.data] }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  updateBuilding: async (id, name) => {
+    try {
+      const res = await apiClient.put(`/registry/buildings/${id}`, { name });
+      set(state => ({
+        buildings: state.buildings.map(b => b.id === id ? res.data : b)
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  deleteBuilding: async (id) => {
+    try {
+      await apiClient.delete(`/registry/buildings/${id}`);
+      set(state => ({
         buildings: state.buildings.filter(b => b.id !== id),
         floors: state.floors.filter(f => f.buildingId !== id),
-        departments: state.departments.filter(d => d.buildingId !== id),
         cabinets: state.cabinets.filter(c => c.buildingId !== id)
-      })),
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
 
-      addFloor: (buildingId, number) => set(state => ({
-        floors: [...state.floors, { id: `f-${Date.now()}`, buildingId, number }]
-      })),
+  addFloor: async (buildingId, number) => {
+    try {
+      const res = await apiClient.post('/registry/floors', { buildingId, number });
+      set(state => ({ floors: [...state.floors, res.data] }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
 
-      deleteFloor: (id) => set(state => ({
+  deleteFloor: async (id) => {
+    try {
+      await apiClient.delete(`/registry/floors/${id}`);
+      set(state => ({
         floors: state.floors.filter(f => f.id !== id),
         cabinets: state.cabinets.filter(c => c.floorId !== id)
-      })),
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
 
-      addDepartment: (name, buildingId, icon, color) => set(state => ({
-        departments: [...state.departments, { id: `d-${Date.now()}`, name, buildingId, icon, color }]
-      })),
+  addDepartment: async (name, buildingId, icon, color) => {
+    try {
+      const res = await apiClient.post('/registry/departments', { name, buildingId, icon, color });
+      set(state => ({ departments: [...state.departments, res.data] }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
 
-      updateDepartment: (id, data) => set(state => ({
-        departments: state.departments.map(d => d.id === id ? { ...d, ...data } : d)
-      })),
+  updateDepartment: async (id, data) => {
+    try {
+      const res = await apiClient.put(`/registry/departments/${id}`, data);
+      set(state => ({
+        departments: state.departments.map(d => d.id === id ? res.data : d)
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
 
-      deleteDepartment: (id) => set(state => ({
+  deleteDepartment: async (id) => {
+    try {
+      await apiClient.delete(`/registry/departments/${id}`);
+      set(state => ({
         departments: state.departments.filter(d => d.id !== id),
         cabinets: state.cabinets.map(c => c.departmentId === id ? { ...c, departmentId: undefined } : c)
-      })),
-
-      addCabinet: (buildingId, floorId, name, departmentId) => set(state => ({
-        cabinets: [...state.cabinets, { id: `c-${Date.now()}`, buildingId, floorId, name, departmentId }]
-      })),
-
-      updateCabinet: (id, data) => set(state => ({
-        cabinets: state.cabinets.map(c => c.id === id ? { ...c, ...data } : c)
-      })),
-
-      deleteCabinet: (id) => set(state => ({
-        cabinets: state.cabinets.filter(c => c.id !== id)
-      })),
-
-      addEquipment: (eq) => set(state => ({
-        equipment: [...state.equipment, { ...eq, id: `e-${Date.now()}` }]
-      })),
-
-      updateEquipment: (id, data) => set(state => ({
-        equipment: state.equipment.map(e => e.id === id ? { ...e, ...data } : e)
-      })),
-
-      deleteEquipment: (id) => set(state => ({
-        equipment: state.equipment.filter(e => e.id !== id)
-      })),
-
-      getBuildingById: (id) => get().buildings.find(b => b.id === id),
-      getFloorById: (id) => get().floors.find(f => f.id === id),
-      getDepartmentById: (id) => get().departments.find(d => d.id === id),
-      getCabinetById: (id) => get().cabinets.find(c => c.id === id),
-      getEquipmentById: (id) => get().equipment.find(e => e.id === id),
-      getEquipmentByModel: (model) => get().equipment.find(e => 
-        e.model.toLowerCase() === model.toLowerCase() || 
-        e.name.toLowerCase() === model.toLowerCase()
-      ),
-      getFloorsByBuilding: (buildingId) => get().floors.filter(f => f.buildingId === buildingId),
-      getDepartmentsByBuilding: (buildingId) => get().departments.filter(d => d.buildingId === buildingId),
-      getCabinetsByFloor: (floorId) => get().cabinets.filter(c => c.floorId === floorId),
-      getCabinetsByDepartment: (departmentId) => get().cabinets.filter(c => c.departmentId === departmentId)
-    }),
-    {
-      name: 'location-storage'
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
     }
-  )
-);
+  },
+
+  addCabinet: async (buildingId, floorId, name, departmentId) => {
+    try {
+      const res = await apiClient.post('/registry/cabinets', { buildingId, floorId, name, departmentId });
+      set(state => ({ cabinets: [...state.cabinets, res.data] }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  updateCabinet: async (id, data) => {
+    try {
+      const res = await apiClient.put(`/registry/cabinets/${id}`, data);
+      set(state => ({
+        cabinets: state.cabinets.map(c => c.id === id ? res.data : c)
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  deleteCabinet: async (id) => {
+    try {
+      await apiClient.delete(`/registry/cabinets/${id}`);
+      set(state => ({
+        cabinets: state.cabinets.filter(c => c.id !== id),
+        equipment: state.equipment.map(e => e.cabinetId === id ? { ...e, cabinetId: undefined } : e)
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  addEquipment: async (eq) => {
+    try {
+      const res = await apiClient.post('/registry/equipment', eq);
+      set(state => ({ equipment: [...state.equipment, res.data] }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  updateEquipment: async (id, data) => {
+    try {
+      const res = await apiClient.put(`/registry/equipment/${id}`, data);
+      set(state => ({
+        equipment: state.equipment.map(e => e.id === id ? res.data : e)
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  deleteEquipment: async (id) => {
+    try {
+      await apiClient.delete(`/registry/equipment/${id}`);
+      set(state => ({
+        equipment: state.equipment.filter(e => e.id !== id)
+      }));
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  // Selectors
+  getBuildingById: (id) => get().buildings.find(b => b.id === id),
+  getFloorById: (id) => get().floors.find(f => f.id === id),
+  getDepartmentById: (id) => get().departments.find(d => d.id === id),
+  getCabinetById: (id) => get().cabinets.find(c => c.id === id),
+  getEquipmentById: (id) => get().equipment.find(e => e.id === id),
+  getEquipmentByModel: (model) => get().equipment.find(e => e.model === model),
+  getFloorsByBuilding: (buildingId) => get().floors.filter(f => f.buildingId === buildingId),
+  getDepartmentsByBuilding: (buildingId) => get().departments.filter(d => d.buildingId === buildingId),
+  getCabinetsByFloor: (floorId) => get().cabinets.filter(c => c.floorId === floorId),
+  getCabinetsByDepartment: (departmentId) => get().cabinets.filter(c => c.departmentId === departmentId),
+}));

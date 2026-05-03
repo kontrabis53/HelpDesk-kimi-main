@@ -14,6 +14,7 @@ const userUpdateSchema = z.object({
   department: z.string().optional().nullable().or(z.literal('')),
   isActive: z.boolean().optional().nullable(),
   notificationsEnabled: z.boolean().optional().nullable(),
+  aiEnabled: z.boolean().optional().nullable(),
   showGreeting: z.boolean().optional().nullable(),
   greetingText: z.string().optional().nullable().or(z.literal('')),
   avatar: z.string().optional().nullable().or(z.literal('')),
@@ -41,6 +42,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
           isActive: true,
           isOnline: true,
           notificationsEnabled: true,
+          aiEnabled: true,
           showGreeting: true,
           greetingText: true,
           createdAt: true,
@@ -96,7 +98,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
           if (typeof value === 'string' && value.length >= 6) {
             updateData[key] = value;
           }
-        } else if (key === 'notificationsEnabled' || key === 'showGreeting' || key === 'isActive' || key === 'avatar' || key === 'avatarHistory') {
+        } else if (key === 'notificationsEnabled' || key === 'aiEnabled' || key === 'showGreeting' || key === 'isActive' || key === 'avatar' || key === 'avatarHistory') {
           // Boolean values and avatar should be included even if false or null
           if (value !== undefined) {
             updateData[key] = value;
@@ -130,6 +132,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
             isActive: true,
             isOnline: true,
             notificationsEnabled: true,
+            aiEnabled: true,
             showGreeting: true,
             greetingText: true,
             createdAt: true,
@@ -156,6 +159,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
           isActive: true,
           isOnline: true,
           notificationsEnabled: true,
+          aiEnabled: true,
           showGreeting: true,
           greetingText: true,
           createdAt: true,

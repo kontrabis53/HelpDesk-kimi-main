@@ -22,6 +22,7 @@ model User {
   isActive      Boolean  @default(true)
   isOnline      Boolean  @default(false)
   notificationsEnabled Boolean @default(false)
+  aiEnabled     Boolean  @default(true)
   showGreeting  Boolean  @default(false)
   greetingText  String   @default("Шо ты маленький, привет")
   avatarHistory String[] @default([])
@@ -36,6 +37,7 @@ model User {
   kbArticles      KBArticle[]
   sentMessages    ChatMessage[] @relation("SentMessages")
   receivedMessages ChatMessage[] @relation("ReceivedMessages")
+  aiHistory       AIHistory[]
   
   // Role Relation
   roleRelation    Role?    @relation(fields: [roleId], references: [id])
@@ -52,6 +54,44 @@ model Role {
   users       User[]
 }
 
+model Building {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  floors    Floor[]
+  cabinets  Cabinet[]
+  equipment Equipment[]
+}
+
+model Floor {
+  id         String    @id @default(uuid())
+  number     Int
+  buildingId String
+  building   Building  @relation(fields: [buildingId], references: [id])
+  cabinets   Cabinet[]
+  equipment  Equipment[]
+}
+
+model Equipment {
+  id              String   @id @default(uuid())
+  name            String
+  model           String
+  serialNumber    String?
+  inventoryNumber String?
+  status          String   @default("active") // active, repair, broken, retired
+  
+  cabinetId       String?
+  cabinet         Cabinet? @relation(fields: [cabinetId], references: [id])
+  buildingId      String?
+  building        Building? @relation(fields: [buildingId], references: [id])
+  floorId         String?
+  floor           Floor?    @relation(fields: [floorId], references: [id])
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
 model Department {
   id        String   @id @default(uuid())
   name      String   @unique
@@ -60,6 +100,7 @@ model Department {
   users     User[]
   entries   DirectoryEntry[]
   cabinets  Cabinet[]
+  equipment Equipment[]
 }
 
 model RegistrationRequest {
@@ -198,11 +239,22 @@ model SystemLog {
 }
 
 model Cabinet {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   name          String
   floorId       String?
+  floor         Floor?      @relation(fields: [floorId], references: [id])
   buildingId    String?
+  building      Building?   @relation(fields: [buildingId], references: [id])
   departmentId  String?
-  
   department    Department? @relation(fields: [departmentId], references: [id])
+  equipment     Equipment[]
+}
+
+model AIHistory {
+  id        String   @id @default(uuid())
+  message   String
+  reply     String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
 }

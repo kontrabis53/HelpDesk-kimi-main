@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import type { DocumentType, DocumentStatus } from '@/types';
 import { documentTypeLabels, documentStatusLabels } from '@/types';
 import { ArrowLeft, Calendar as CalendarIcon, MapPin, DollarSign, FileText, Upload, X, Hash, Book, ChevronRight, Info } from 'lucide-react';
@@ -62,8 +62,12 @@ const documentStatuses: { id: DocumentStatus; label: string }[] = [
 ];
 
 export function CreateDocumentScreen({ onBack, onSubmit, initialData, isEditing = false }: CreateDocumentScreenProps) {
-  const { getEquipmentByModel, getCabinetById, getBuildingById } = useLocationStore();
+  const { getEquipmentByModel, getCabinetById, getBuildingById, fetchData } = useLocationStore();
   const { guides: allTechnicalGuides } = useGuideStore();
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const [number, setNumber] = useState(initialData?.number || '');
   const [title, setTitle] = useState(initialData?.title || '');

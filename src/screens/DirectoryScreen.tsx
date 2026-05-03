@@ -178,7 +178,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 export function DirectoryScreen() {
   const { entries, fetchEntries, getTopStats, recordSearch, addEntry, updateEntry, deleteEntry } = useDirectoryStore();
-  const { departments } = useLocationStore();
+  const { departments, fetchData: fetchLocations } = useLocationStore();
   const hasPermission = useRoleStore((state) => state.hasPermission);
   const canManage = hasPermission('directory', 'edit');
 
@@ -192,7 +192,8 @@ export function DirectoryScreen() {
 
   useEffect(() => {
     fetchEntries();
-  }, [fetchEntries]);
+    fetchLocations();
+  }, [fetchEntries, fetchLocations]);
 
   // Form state
   const [formData, setFormData] = useState<Omit<DirectoryEntry, 'id'>>({

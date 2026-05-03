@@ -17,6 +17,8 @@ import directoryRoutes from './routes/directory.js';
 import documentRoutes from './routes/documents.js';
 import knowledgeRoutes from './routes/knowledge.js';
 import chatRoutes from './routes/chat.js';
+import aiRoutes from './routes/ai.js';
+import registryRoutes from './routes/registry.js';
 
 dotenv.config();
 
@@ -320,8 +322,9 @@ fastify.setErrorHandler(async (error: any, _request, reply) => {
 fastify.get('/api', async () => {
   return { 
     message: 'HelpDesk CRM API Server', 
-    version: '1.1.9',
+    version: '1.2.9-FINAL-FIX',
     status: 'running',
+    timestamp: new Date().toISOString(),
     changelog: {
       "1.1.9": "Исправлена ошибка дублирования уведомлений, оптимизирована работа сокетов, исправлен баг с бегунком в профиле и обновлен механизм seed.",
       "1.1.5": "Исправлена ошибка дублирования маршрута чата, улучшена обработка завершающих слешей в URL (ignoreTrailingSlash), исправлена типизация тестовых скриптов.",
@@ -342,6 +345,8 @@ fastify.register(directoryRoutes, { prefix: '/api/directory' });
 fastify.register(documentRoutes, { prefix: '/api/documents' });
 fastify.register(knowledgeRoutes, { prefix: '/api/knowledge' });
 fastify.register(chatRoutes, { prefix: '/api/chat', io });
+fastify.register(aiRoutes, { prefix: '/api/ai' });
+fastify.register(registryRoutes, { prefix: '/api/registry' });
 
 // Health check endpoint
 fastify.get('/health', async (_request, _reply) => {
@@ -975,6 +980,14 @@ async function resetUserStatus() {
     console.error('[System] Failed to reset user statuses:', err);
   }
 }
+
+// CRITICAL: Force clear terminal and log startup
+console.clear();
+console.log('=========================================');
+console.log('   HELPDESK CRM SERVER STARTING UP...    ');
+console.log('   VERSION: 1.2.9-FINAL-FIX              ');
+console.log('   AI LOGIC: 2.0 ENABLED                 ');
+console.log('=========================================');
 
 const start = async () => {
   try {

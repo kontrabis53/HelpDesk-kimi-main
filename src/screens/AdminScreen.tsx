@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Role, UserWithRole, ActivityLog, ModuleId, ModulePermission } from '@/types/roles';
 import type { RegistrationRequest } from '@/types';
 import { moduleLabels, actionLabels } from '@/types/roles';
@@ -169,6 +169,7 @@ export function AdminScreen({
     departments,
     cabinets, 
     equipment, 
+    fetchData,
     addBuilding, 
     updateBuilding,
     deleteBuilding,
@@ -183,22 +184,28 @@ export function AdminScreen({
     deleteEquipment
   } = useLocationStore();
 
-  const autoStyleDepartments = () => {
+  useEffect(() => {
+    if (activeTab === 'locations') {
+      fetchData();
+    }
+  }, [activeTab, fetchData]);
+
+  const autoStyleDepartments = async () => {
     let count = 0;
-    departments.forEach(dept => {
+    for (const dept of departments) {
       const config = deptConfigs.find(c => 
         dept.name.toLowerCase().includes(c.name.toLowerCase()) || 
         (c.label && dept.name.toLowerCase().includes(c.label.toLowerCase()))
       );
       if (config && (!dept.icon || !dept.color)) {
-        updateDepartment(dept.id, { icon: config.icon, color: config.color });
+        await updateDepartment(dept.id, { icon: config.icon, color: config.color });
         count++;
       }
-    });
+    }
     if (count > 0) toast.success(`Стили применены к ${count} отделениям`);
   };
 
-  const handleLocationAction = () => {
+  const handleLocationAction = async () => {
     const { type, mode, inputValue, buildingId, floorId, id, model, cabinetId, icon, color } = locationDialog;
     
     if (mode === 'delete' && id) {
@@ -213,7 +220,7 @@ export function AdminScreen({
           toast.error('Нельзя удалить здание: в нем есть этажи');
           return;
         }
-        deleteBuilding(id);
+        await deleteBuilding(id);
         toast.success('Здание удалено');
       } else if (type === 'department') {
         const hasCabinets = cabinets.some(c => c.departmentId === id);
@@ -222,10 +229,10 @@ export function AdminScreen({
           toast.error('Нельзя удалить отделение: за ним закреплены кабинеты или сотрудники');
           return;
         }
-        deleteDepartment(id);
+        await deleteDepartment(id);
         toast.success('Отделение удалено');
       } else if (type === 'equipment') {
-        deleteEquipment(id);
+        await deleteEquipment(id);
         toast.success('Оборудование удалено');
       }
       setMasterPassword('');
@@ -236,18 +243,18 @@ export function AdminScreen({
     if (!inputValue?.trim()) return;
 
     if (type === 'building') {
-      if (mode === 'add') addBuilding(inputValue);
-      else if (id) updateBuilding(id, inputValue);
+      if (mode === 'add') await addBuilding(inputValue);
+      else if (id) await updateBuilding(id, inputValue);
       toast.success(mode === 'add' ? 'Здание добавлено' : 'Здание обновлено');
     } else if (type === 'floor' && buildingId) {
-      addFloor(buildingId, parseInt(inputValue));
+      await addFloor(buildingId, parseInt(inputValue));
       toast.success('Этаж добавлен');
     } else if (type === 'department') {
-      if (mode === 'add') addDepartment(inputValue, undefined, icon, color);
-      else if (id) updateDepartment(id, { name: inputValue, icon, color });
+      if (mode === 'add') await addDepartment(inputValue, undefined, icon, color);
+      else if (id) await updateDepartment(id, { name: inputValue, icon, color });
       toast.success(mode === 'add' ? 'Отделение добавлено' : 'Отделение обновлено');
     } else if (type === 'cabinet' && buildingId && floorId) {
-      addCabinet(buildingId, floorId, inputValue);
+      await addCabinet(buildingId, floorId, inputValue);
       toast.success('Кабинет добавлен');
     } else if (type === 'equipment') {
       if (mode === 'add' || mode === 'edit') {
@@ -263,7 +270,7 @@ export function AdminScreen({
         const dept = departments.find(d => d.id === cab?.departmentId);
         
         if (mode === 'add') {
-          addEquipment({ 
+          await addEquipment({ 
             name: inputValue, 
             model, 
             cabinetId, 
@@ -271,7 +278,7 @@ export function AdminScreen({
           });
           toast.success('Оборудование добавлено');
         } else if (id) {
-          updateEquipment(id, {
+          await updateEquipment(id, {
             name: inputValue,
             model,
             cabinetId,

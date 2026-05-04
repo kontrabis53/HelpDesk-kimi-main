@@ -243,8 +243,8 @@ export const useLocationStore = create<LocationState>()(
       addBuilding: async (name) => {
         try {
           const maxOrder = Math.max(0, ...get().buildings.map(b => b.order || 0));
-          const res = await apiClient.post('/registry/buildings', { name, order: maxOrder + 1, width: 350 });
-          set(state => ({ buildings: [...state.buildings, res.data].sort((a, b) => (a.order || 0) - (b.order || 0)) }));
+          await apiClient.post('/registry/buildings', { name, order: maxOrder + 1, width: 350 });
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -252,10 +252,8 @@ export const useLocationStore = create<LocationState>()(
 
       updateBuilding: async (id, data) => {
         try {
-          const res = await apiClient.put(`/registry/buildings/${id}`, data);
-          set(state => ({
-            buildings: state.buildings.map(b => b.id === id ? res.data : b)
-          }));
+          await apiClient.put(`/registry/buildings/${id}`, data);
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -264,11 +262,7 @@ export const useLocationStore = create<LocationState>()(
       deleteBuilding: async (id) => {
         try {
           await apiClient.delete(`/registry/buildings/${id}`);
-          set(state => ({
-            buildings: state.buildings.filter(b => b.id !== id),
-            floors: state.floors.filter(f => f.buildingId !== id),
-            cabinets: state.cabinets.filter(c => c.buildingId !== id)
-          }));
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -276,8 +270,8 @@ export const useLocationStore = create<LocationState>()(
 
       addFloor: async (buildingId, number) => {
         try {
-          const res = await apiClient.post('/registry/floors', { buildingId, number });
-          set(state => ({ floors: [...state.floors, res.data] }));
+          await apiClient.post('/registry/floors', { buildingId, number });
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -285,10 +279,8 @@ export const useLocationStore = create<LocationState>()(
 
       updateFloor: async (id, number) => {
         try {
-          const res = await apiClient.put(`/registry/floors/${id}`, { number });
-          set(state => ({
-            floors: state.floors.map(f => f.id === id ? res.data : f)
-          }));
+          await apiClient.put(`/registry/floors/${id}`, { number });
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -297,10 +289,7 @@ export const useLocationStore = create<LocationState>()(
       deleteFloor: async (id) => {
         try {
           await apiClient.delete(`/registry/floors/${id}`);
-          set(state => ({
-            floors: state.floors.filter(f => f.id !== id),
-            cabinets: state.cabinets.filter(c => c.floorId !== id)
-          }));
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -308,8 +297,8 @@ export const useLocationStore = create<LocationState>()(
 
       addDepartment: async (name, buildingId, icon, color) => {
         try {
-          const res = await apiClient.post('/registry/departments', { name, buildingId, icon, color });
-          set(state => ({ departments: [...state.departments, res.data] }));
+          await apiClient.post('/registry/departments', { name, buildingId, icon, color });
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -317,10 +306,8 @@ export const useLocationStore = create<LocationState>()(
 
       updateDepartment: async (id, data) => {
         try {
-          const res = await apiClient.put(`/registry/departments/${id}`, data);
-          set(state => ({
-            departments: state.departments.map(d => d.id === id ? res.data : d)
-          }));
+          await apiClient.put(`/registry/departments/${id}`, data);
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -329,10 +316,7 @@ export const useLocationStore = create<LocationState>()(
       deleteDepartment: async (id) => {
         try {
           await apiClient.delete(`/registry/departments/${id}`);
-          set(state => ({
-            departments: state.departments.filter(d => d.id !== id),
-            cabinets: state.cabinets.map(c => c.departmentId === id ? { ...c, departmentId: undefined } : c)
-          }));
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -341,8 +325,8 @@ export const useLocationStore = create<LocationState>()(
       addCabinet: async (buildingId, floorId, name, departmentId) => {
         try {
           const maxOrder = Math.max(0, ...get().cabinets.filter(c => c.floorId === floorId).map(c => c.order || 0));
-          const res = await apiClient.post('/registry/cabinets', { buildingId, floorId, name, departmentId, order: maxOrder + 1 });
-          set(state => ({ cabinets: [...state.cabinets, res.data].sort((a, b) => (a.order || 0) - (b.order || 0)) }));
+          await apiClient.post('/registry/cabinets', { buildingId, floorId, name, departmentId, order: maxOrder + 1 });
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -350,10 +334,8 @@ export const useLocationStore = create<LocationState>()(
 
       updateCabinet: async (id, data) => {
         try {
-          const res = await apiClient.put(`/registry/cabinets/${id}`, data);
-          set(state => ({
-            cabinets: state.cabinets.map(c => c.id === id ? res.data : c)
-          }));
+          await apiClient.put(`/registry/cabinets/${id}`, data);
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -362,10 +344,7 @@ export const useLocationStore = create<LocationState>()(
       deleteCabinet: async (id) => {
         try {
           await apiClient.delete(`/registry/cabinets/${id}`);
-          set(state => ({
-            cabinets: state.cabinets.filter(c => c.id !== id),
-            equipment: state.equipment.map(e => e.cabinetId === id ? { ...e, cabinetId: '' } : e)
-          }));
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -375,15 +354,7 @@ export const useLocationStore = create<LocationState>()(
         try {
           console.log('[Store] Sending building reorder request:', orders);
           await apiClient.put('/registry/buildings/reorder', { orders });
-          
-          set(state => {
-            const newBuildings = state.buildings.map(b => {
-              const update = orders.find(o => o.id === b.id);
-              return update ? { ...b, order: Number(update.order) } : b;
-            }).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-            
-            return { buildings: newBuildings };
-          });
+          // No local set, rely on socket
         } catch (err: any) {
           console.error('[Store] Building reorder failed:', err);
           set({ error: err.message });
@@ -394,15 +365,7 @@ export const useLocationStore = create<LocationState>()(
         try {
           console.log('[Store] Sending cabinet reorder request:', orders);
           await apiClient.put('/registry/cabinets/reorder', { orders });
-          
-          set(state => {
-            const newCabinets = state.cabinets.map(c => {
-              const update = orders.find(o => o.id === c.id);
-              return update ? { ...c, order: Number(update.order) } : c;
-            }).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-            
-            return { cabinets: newCabinets };
-          });
+          // No local set, rely on socket
         } catch (err: any) {
           console.error('[Store] Cabinet reorder failed:', err);
           set({ error: err.message });
@@ -411,8 +374,8 @@ export const useLocationStore = create<LocationState>()(
 
       addEquipment: async (eq) => {
         try {
-          const res = await apiClient.post('/registry/equipment', eq);
-          set(state => ({ equipment: [...state.equipment, res.data] }));
+          await apiClient.post('/registry/equipment', eq);
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -420,10 +383,8 @@ export const useLocationStore = create<LocationState>()(
 
       updateEquipment: async (id, data) => {
         try {
-          const res = await apiClient.put(`/registry/equipment/${id}`, data);
-          set(state => ({
-            equipment: state.equipment.map(e => e.id === id ? res.data : e)
-          }));
+          await apiClient.put(`/registry/equipment/${id}`, data);
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }
@@ -432,9 +393,7 @@ export const useLocationStore = create<LocationState>()(
       deleteEquipment: async (id) => {
         try {
           await apiClient.delete(`/registry/equipment/${id}`);
-          set(state => ({
-            equipment: state.equipment.filter(e => e.id !== id)
-          }));
+          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
         }

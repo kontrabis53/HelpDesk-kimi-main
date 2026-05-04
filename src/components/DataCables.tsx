@@ -83,14 +83,10 @@ export const DataCables: React.FC<{ locationView?: string }> = ({ locationView =
   ];
 
   useEffect(() => {
-    // Only show in buildings view
-    if (locationView !== 'floors' || buildings.length === 0) {
-      setPaths([]);
-      return;
-    }
-
     const updatePaths = () => {
       const newPaths: any[] = [];
+      const containerEl = containerRef.current;
+      if (!containerEl) return;
       
       connections.forEach((conn, index) => {
         const fromBld = buildings.find(b => 
@@ -107,40 +103,40 @@ export const DataCables: React.FC<{ locationView?: string }> = ({ locationView =
           const toEl = document.getElementById(`building-${toBld.id}`);
 
           if (fromEl && toEl) {
-            const fromRect = fromEl.getBoundingClientRect();
-            const toRect = toEl.getBoundingClientRect();
-
-            const isFromLeft = fromRect.left < toRect.left;
+            const isFromLeft = fromEl.offsetLeft < toEl.offsetLeft;
             
-            // Apply vertical offset so cables don't overlap
-            const startX = (isFromLeft ? fromRect.right : fromRect.left) + window.scrollX;
-            const startY = fromRect.top + 30 + conn.offset + window.scrollY;
-            const endX = (isFromLeft ? toRect.left : toRect.right) + window.scrollX;
-            const endY = toRect.top + 30 + conn.offset + window.scrollY;
+            // Connection points relative to the parent container
+            // This is 100% stable during scroll because it uses static offsets
+            const startX = (isFromLeft ? fromEl.offsetLeft + fromEl.offsetWidth : fromEl.offsetLeft);
+            const startY = fromEl.offsetTop + 30 + conn.offset;
+            const endX = (isFromLeft ? toEl.offsetLeft : toEl.offsetLeft + toEl.offsetWidth);
+            const endY = toEl.offsetTop + 30 + conn.offset;
 
             const distance = Math.abs(endX - startX);
             
-            // Adjust sag based on distance and connection type
-            // If it's a long connection (Warehouse to ODC), arch it UPWARDS to avoid middle building's header
-            let sag = 15 + (index % 3) * 10;
+            // Industrial look: tighter cables, less "garland" sag
+            let sag = 5 + (index % 3) * 3; 
             
-            // Make the red cable (index 3 between General and ODC) sag more
             if (conn.dataColor === '#EF4444' && distance < 500) {
-              sag = 45; // Stronger sag for the red cable
+              sag = 15; 
             }
             
             if (distance > 500) {
-              // Long connection: arch UPWARDS (negative sag)
-              sag = -60 - (index % 2) * 20;
+              sag = -40 - (index % 2) * 10;
             }
             
-            const cp1x = startX + (isFromLeft ? distance * 0.2 : -distance * 0.2);
-            const cp2x = endX + (isFromLeft ? -distance * 0.2 : distance * 0.2);
+            const tension = 0.15;
+            const cp1x = startX + (isFromLeft ? distance * tension : -distance * tension);
+            const cp2x = endX + (isFromLeft ? -distance * tension : distance * tension);
             
             const d = `M ${startX} ${startY} C ${cp1x} ${startY + sag}, ${cp2x} ${endY + sag}, ${endX} ${endY}`;
             
             newPaths.push({
               d,
+              startX,
+              startY,
+              endX,
+              endY,
               color: conn.color,
               dataColor: conn.dataColor,
               bidirectional: conn.bidirectional,
@@ -150,63 +146,28 @@ export const DataCables: React.FC<{ locationView?: string }> = ({ locationView =
         }
       });
 
-      // Fallback: connect first available buildings by walls
-      if (newPaths.length === 0 && buildings.length >= 2) {
-        for (let i = 0; i < Math.min(buildings.length - 1, 2); i++) {
-          const b1 = buildings[i];
-          const b2 = buildings[i+1];
-          const el1 = document.getElementById(`building-${b1.id}`);
-          const el2 = document.getElementById(`building-${b2.id}`);
-          if (el1 && el2) {
-            const r1 = el1.getBoundingClientRect();
-            const r2 = el2.getBoundingClientRect();
-            
-            const is1Left = r1.left < r2.left;
-            const x1 = (is1Left ? r1.right : r1.left) + window.scrollX;
-            const y1 = r1.top + 30 + window.scrollY;
-            const x2 = (is1Left ? r2.left : r2.right) + window.scrollX;
-            const y2 = r2.top + 30 + window.scrollY;
-            
-            const dist = Math.abs(x2 - x1);
-            const d = `M ${x1} ${y1} C ${x1 + (is1Left ? dist * 0.2 : -dist * 0.2)} ${y1 + 15}, ${x2 + (is1Left ? -dist * 0.2 : dist * 0.2)} ${y2 + 15}, ${x2} ${y2}`;
-            newPaths.push({ d, color: 'rgba(59, 130, 246, 0.3)', dataColor: '#3B82F6', bidirectional: true, id: `fallback-${i}` });
-          }
-        }
-      }
-
       setPaths(newPaths);
     };
 
-    // Run immediately and then on interval
+    // Update on resize and re-render
     updatePaths();
-    const interval = setInterval(updatePaths, 1000);
     window.addEventListener('resize', updatePaths);
-    window.addEventListener('scroll', updatePaths);
+    
+    // Check for changes periodically (e.g. after animation/drag finishes)
+    const interval = setInterval(updatePaths, 500);
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener('resize', updatePaths);
-      window.removeEventListener('scroll', updatePaths);
+      clearInterval(interval);
     };
-  }, [buildings, locationView]);
-
-  if (locationView !== 'floors') return null;
+  }, [buildings]);
 
   return (
-    <div 
-      className="fixed inset-0 pointer-events-none" 
-      style={{ 
-        zIndex: 50, // High z-index to be above everything
-        width: '100vw',
-        height: '100vh',
-        overflow: 'visible'
-      }}
-    >
+    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
       <svg 
         ref={containerRef}
         className="w-full h-full overflow-visible"
-        viewBox={`0 0 ${window.innerWidth} ${window.innerHeight}`}
-        style={{ filter: 'drop-shadow(0 0 5px rgba(0,0,0,0.1))' }}
+        style={{ minWidth: '100%', minHeight: '100%' }}
       >
         <defs>
           {paths.map((p, i) => (
@@ -222,6 +183,24 @@ export const DataCables: React.FC<{ locationView?: string }> = ({ locationView =
         
         {paths.map((p) => (
           <React.Fragment key={p.id}>
+            {/* Connection Points (Sockets) */}
+            <circle
+              cx={p.startX}
+              cy={p.startY}
+              r="3"
+              fill={p.dataColor}
+              className="opacity-80"
+              filter={`url(#glow-${p.id})`}
+            />
+            <circle
+              cx={p.endX}
+              cy={p.endY}
+              r="3"
+              fill={p.dataColor}
+              className="opacity-80"
+              filter={`url(#glow-${p.id})`}
+            />
+
             {/* Main Cable */}
             <path
               d={p.d}

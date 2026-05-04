@@ -1123,11 +1123,11 @@ export function AdminScreen({
             </div>
 
             <div className="w-full relative">
-              <DataCables locationView={locationView} />
               {/* Main Panel */}
               <div className="space-y-4">
                 {locationView === 'floors' ? (
-                  <div className="flex flex-wrap justify-between gap-y-10 gap-x-6 w-full px-4">
+                  <div className="flex flex-wrap justify-between gap-y-10 gap-x-6 w-full px-4 relative">
+                    <DataCables locationView={locationView} />
                     {[...buildings]
                       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                       .map((building, index, sortedBuildings) => (
@@ -1181,13 +1181,13 @@ export function AdminScreen({
                           }
                         }}
                         className={cn(
-                          "bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full group/bld relative transition-all duration-300 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700",
+                          "bg-slate-50 dark:bg-slate-900/60 rounded-xl border-2 border-slate-300 dark:border-slate-600 overflow-hidden shadow-md flex flex-col h-full group/bld relative transition-all duration-300 hover:shadow-lg hover:border-blue-500 dark:hover:border-blue-400",
                           !isLocked && "cursor-move active:cursor-grabbing"
                         )}
                       >
                         {/* Building Roof */}
-                        <div className="absolute -top-[7px] left-1/2 -translate-x-1/2 w-10 h-10 bg-slate-50 dark:bg-slate-900/40 border-l-2 border-t-2 border-slate-200 dark:border-slate-700 rotate-45 -z-10 group-hover/bld:border-blue-300 dark:group-hover/bld:border-blue-700 transition-colors" />
-                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600 z-10" />
+                        <div className="absolute -top-[7px] left-1/2 -translate-x-1/2 w-10 h-10 bg-slate-100 dark:bg-slate-800 border-l-2 border-t-2 border-slate-300 dark:border-slate-600 rotate-45 -z-10 group-hover/bld:border-blue-500 dark:group-hover/bld:border-blue-400 transition-colors shadow-sm" />
+                        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-700 via-blue-500 to-blue-700 z-10 shadow-[0_1px_3px_rgba(0,0,0,0.2)]" />
                         
                         {/* Resize Handle */}
                         {!isLocked && (
@@ -1268,7 +1268,10 @@ export function AdminScreen({
                             ) : (
                               <span 
                                 className={cn(
-                                  "text-lg font-bold text-slate-700 dark:text-slate-200 truncate transition-colors",
+                                  "text-lg font-bold truncate transition-colors flex items-center gap-1",
+                                  building.name.toLowerCase().includes('odc') || building.name.toLowerCase().includes('дети') 
+                                    ? "text-slate-700 dark:text-slate-200" 
+                                    : "text-slate-700 dark:text-slate-200",
                                   !isLocked && "cursor-pointer hover:text-blue-600"
                                 )}
                                 onClick={() => {
@@ -1278,7 +1281,32 @@ export function AdminScreen({
                                 }}
                                 title={isLocked ? "" : "Нажмите, чтобы переименовать"}
                               >
-                                {building.name}
+                                {building.name.toLowerCase().includes('odc') || building.name.toLowerCase().includes('дети') ? (
+                                  <>
+                                    <span className="flex gap-[1px]">
+                                      {['M', 'e', 'd', 'i', 'n', ' ', 'O', 'D', 'C'].map((char, i) => (
+                                        <span key={i} style={{ 
+                                          color: ['#FF5F5F', '#FFBD44', '#00CA4E', '#3B82F6', '#A78BFA'][i % 5],
+                                          textShadow: '0 0 1px rgba(0,0,0,0.1)'
+                                        }}>
+                                          {char}
+                                        </span>
+                                      ))}
+                                    </span>
+                                    <span className="flex gap-[1px] ml-1">
+                                      {['(', 'Д', 'е', 'т', 'и', ')'].map((char, i) => (
+                                        <span key={i} style={{ 
+                                          color: ['#3B82F6', '#00CA4E', '#FFBD44', '#FF5F5F', '#A78BFA', '#3B82F6'][i % 6],
+                                          textShadow: '0 0 1px rgba(0,0,0,0.1)'
+                                        }}>
+                                          {char}
+                                        </span>
+                                      ))}
+                                    </span>
+                                  </>
+                                ) : (
+                                  building.name
+                                )}
                               </span>
                             )}
                           </div>
@@ -1463,9 +1491,19 @@ export function AdminScreen({
                                         <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg shrink-0">
                                           <MapPin className="w-3.5 h-3.5 text-blue-500" />
                                         </div>
-                                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate">
-                                          {cabinet.name}
-                                        </span>
+                                        <div className="flex flex-col min-w-0">
+                                          <span className={cn(
+                                            "text-xs font-black truncate",
+                                            (building.name.toLowerCase().includes('odc') || building.name.toLowerCase().includes('дети'))
+                                              ? "bg-gradient-to-r from-red-500 via-yellow-500 via-green-500 to-blue-500 bg-clip-text text-transparent"
+                                              : "text-slate-700 dark:text-slate-200"
+                                          )}>
+                                            {cabinet.name}
+                                          </span>
+                                          <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
+                                            {building.name.toLowerCase().includes('odc') || building.name.toLowerCase().includes('дети') ? 'Дети' : 'Главный'}
+                                          </span>
+                                        </div>
                                       </div>
                                       {!isLocked && (
                                         <div className="flex items-center gap-0.5 opacity-0 group-hover/cab:opacity-100 transition-all shrink-0">

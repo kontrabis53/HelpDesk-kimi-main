@@ -12,7 +12,14 @@ const apiClient = axios.create({
 // Interceptor to add JWT token to every request
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    // Try to get token from localStorage first (for speed)
+    let token = localStorage.getItem('auth_token');
+    
+    // Fallback to Zustand store if not in localStorage or for extra safety
+    if (!token && typeof window !== 'undefined' && (window as any).useAuthStore) {
+      token = (window as any).useAuthStore.getState().token;
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,8 +37,12 @@ apiClient.interceptors.response.use(
     const isDeactivated = error.response?.status === 403 && error.response?.data?.code === 'USER_DEACTIVATED';
     
     if (error.response?.status === 401 || isDeactivated) {
-      // Clear token and redirect to login if session expired or user deactivated
-      localStorage.removeItem('auth_token');
+      // Clear token and update store state if possible
+      if (typeof window !== 'undefined' && (window as any).useAuthStore) {
+        (window as any).useAuthStore.getState().logout();
+      } else {
+        localStorage.removeItem('auth_token');
+      }
       
       const searchParams = isDeactivated ? '?error=deactivated' : '';
       if (window.location.pathname !== '/login') {

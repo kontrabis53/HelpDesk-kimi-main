@@ -57,6 +57,8 @@ model Role {
 model Building {
   id        String    @id @default(uuid())
   name      String    @unique
+  order     Int       @default(0)
+  width     Int?      @default(0) // Width in percentage or specific unit, 0 means auto
   floors    Floor[]
   cabinets  Cabinet[]
   equipment Equipment[]
@@ -241,6 +243,7 @@ model SystemLog {
 model Cabinet {
   id            String      @id @default(uuid())
   name          String
+  order         Int         @default(0)
   floorId       String?
   floor         Floor?      @relation(fields: [floorId], references: [id])
   buildingId    String?

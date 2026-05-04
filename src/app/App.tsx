@@ -4,8 +4,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useRoleStore } from '@/stores/roleStore';
+import { useLocationStore } from '@/stores/locationStore';
 import { WelcomeSplash } from '@/components/ui/WelcomeSplash';
 import './App.css';
+
+// Expose stores to window for inter-store communication
+(window as any).useAuthStore = useAuthStore;
+(window as any).useChatStore = useChatStore;
+(window as any).useLocationStore = useLocationStore;
 
 function App() {
   const checkAuth = useAuthStore(state => state.checkAuth);
@@ -14,6 +20,7 @@ function App() {
   const fetchRoles = useRoleStore(state => state.fetchRoles);
   const fetchUsers = useRoleStore(state => state.fetchUsers);
   const initStatusListener = useRoleStore(state => state.initStatusListener);
+  const initLocationSocket = useLocationStore(state => state.initSocketListeners);
 
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const user = useAuthStore(state => state.user);
@@ -62,9 +69,16 @@ function App() {
       // Initialize real-time chat
       initSocket();
       // Listen for status updates
-      return initStatusListener();
+      const cleanupStatus = initStatusListener();
+      // Listen for registry updates
+      const cleanupLocation = initLocationSocket();
+
+      return () => {
+        cleanupStatus();
+        cleanupLocation();
+      };
     }
-  }, [isAuthenticated, user, initSocket, fetchRoles, fetchUsers, initStatusListener]);
+  }, [isAuthenticated, user, initSocket, fetchRoles, fetchUsers, initStatusListener, initLocationSocket]);
 
   if (isInitializing) {
     return (

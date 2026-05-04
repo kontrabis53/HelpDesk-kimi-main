@@ -12,6 +12,7 @@ import {
   Trash2, 
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
   UserPlus,
   Check,
   X,
@@ -28,7 +29,9 @@ import {
   ShieldAlert,
   Settings,
   EyeOff,
-  Eye
+  Eye,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { useLocationStore } from '@/stores/locationStore';
 import { Button } from '@/components/ui/button';
@@ -41,6 +44,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -56,6 +61,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { UserAvatar } from '@/components/UserAvatar';
+import { DataCables } from '@/components/DataCables';
 
 type AdminTab = 'users' | 'roles' | 'requests' | 'locations' | 'logs';
 
@@ -119,6 +125,7 @@ export function AdminScreen({
     title: string;
     description?: string;
     inputValue?: string;
+    inputDescription?: string;
     buildingId?: string;
     floorId?: string;
     id?: string;
@@ -166,23 +173,55 @@ export function AdminScreen({
   const { 
     buildings, 
     floors, 
-    departments,
+    departments, 
     cabinets, 
     equipment, 
-    fetchData,
+    isLoading: isLocationsLoading,
+    fetchData, 
     addBuilding, 
-    updateBuilding,
+    updateBuilding, 
     deleteBuilding,
+    reorderBuildings,
+    reorderCabinets,
     addFloor, 
+    updateFloor,
+    deleteFloor,
     addDepartment,
     updateDepartment,
     deleteDepartment,
     addCabinet, 
     updateCabinet,
+    deleteCabinet,
     addEquipment,
     updateEquipment,
-    deleteEquipment
+    deleteEquipment,
+    isLocked,
+    setIsLocked
   } = useLocationStore();
+
+  const [lockDialog, setLockDialog] = useState({
+    isOpen: false,
+    password: ''
+  });
+
+  const handleToggleLock = () => {
+    if (!isLocked) {
+      setIsLocked(true);
+      toast.success('Позиции заблокированы');
+    } else {
+      setLockDialog({ isOpen: true, password: '' });
+    }
+  };
+
+  const confirmUnlock = () => {
+    if (lockDialog.password === 'root') {
+      setIsLocked(false);
+      setLockDialog({ isOpen: false, password: '' });
+      toast.success('Позиции разблокированы');
+    } else {
+      toast.error('Неверный мастер-пароль');
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'locations') {
@@ -205,15 +244,128 @@ export function AdminScreen({
     if (count > 0) toast.success(`Стили применены к ${count} отделениям`);
   };
 
-  const handleLocationAction = async () => {
-    const { type, mode, inputValue, buildingId, floorId, id, model, cabinetId, icon, color } = locationDialog;
-    
-    if (mode === 'delete' && id) {
-      if (masterPassword !== 'root') {
-        toast.error('Неверный мастер-пароль');
-        return;
+  const [confirmMove, setConfirmMove] = useState<{
+    isOpen: boolean;
+    type: 'building' | 'cabinet';
+    id: string;
+    direction: 'up' | 'down';
+    targetName: string;
+    itemName: string;
+  }>({
+    isOpen: false,
+    type: 'building',
+    id: '',
+    direction: 'up',
+    targetName: '',
+    itemName: ''
+  });
+
+  const [resizingBuilding, setResizingBuilding] = useState<{ id: string, startX: number, startWidth: number } | null>(null);
+
+  useEffect(() => {
+    if (!resizingBuilding) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - resizingBuilding.startX;
+      const newWidth = Math.max(250, resizingBuilding.startWidth + deltaX);
+      const buildingEl = document.getElementById(`building-${resizingBuilding.id}`);
+      if (buildingEl) buildingEl.style.width = `${newWidth}px`;
+    };
+
+    const handleMouseUp = async (e: MouseEvent) => {
+      const deltaX = e.clientX - resizingBuilding.startX;
+      const finalWidth = Math.max(250, resizingBuilding.startWidth + deltaX);
+      await updateBuilding(resizingBuilding.id, { width: finalWidth });
+      setResizingBuilding(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingBuilding, updateBuilding]);
+
+  const handleConfirmedMove = async () => {
+    const { type, id, direction } = confirmMove;
+    if (type === 'building') {
+      const sortedBuildings = [...buildings].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const index = sortedBuildings.findIndex(b => b.id === id);
+      let newIndex: number;
+
+      const dropTargetId = (window as any)._dropBuildingTargetId;
+      if (dropTargetId) {
+        newIndex = sortedBuildings.findIndex(b => b.id === dropTargetId);
+        delete (window as any)._dropBuildingTargetId;
+      } else {
+        newIndex = direction === 'up' ? index - 1 : index + 1;
       }
 
+      if (newIndex < 0) newIndex = 0;
+      if (newIndex >= sortedBuildings.length) newIndex = sortedBuildings.length - 1;
+
+      const updatedBuildings = [...sortedBuildings];
+      const [moved] = updatedBuildings.splice(index, 1);
+      updatedBuildings.splice(newIndex, 0, moved);
+      
+      const orders = updatedBuildings.map((b, i) => ({ id: b.id, order: i }));
+      console.log('[DND] Reordering buildings:', orders);
+      await reorderBuildings(orders);
+    } else {
+      const cabinet = cabinets.find(c => c.id === id);
+      if (!cabinet) return;
+      const floorCabinets = cabinets
+        .filter(c => c.floorId === cabinet.floorId)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+        
+      const index = floorCabinets.findIndex(c => c.id === id);
+      let newIndex: number;
+
+      // Check if this was a drop action
+      const dropTargetId = (window as any)._dropTargetId;
+      if (dropTargetId) {
+        newIndex = floorCabinets.findIndex(c => c.id === dropTargetId);
+        delete (window as any)._dropTargetId;
+      } else {
+        newIndex = direction === 'up' ? index - 1 : index + 1;
+      }
+
+      // Safeguard for index bounds
+      if (newIndex < 0) newIndex = 0;
+      if (newIndex >= floorCabinets.length) newIndex = floorCabinets.length - 1;
+
+      const updatedFloorCabinets = [...floorCabinets];
+      const [moved] = updatedFloorCabinets.splice(index, 1);
+      updatedFloorCabinets.splice(newIndex, 0, moved);
+      
+      // Map new order based on current floor context only
+      const orders = updatedFloorCabinets.map((c, i) => ({ id: c.id, order: i }));
+      
+      console.log('[DND] Reordering cabinets:', orders);
+      await reorderCabinets(orders);
+    }
+    setConfirmMove(prev => ({ ...prev, isOpen: false }));
+    toast.success('Порядок изменен');
+  };
+
+  const handleLocationAction = async () => {
+    const { type, mode, inputValue, inputDescription, buildingId, floorId, id, model, cabinetId, icon, color } = locationDialog;
+    
+    // Special case for unlocking with master password
+    if (mode === 'delete' && !id && type === 'building' && locationDialog.title === 'Разблокировать реестр') {
+      if (masterPassword === 'root') {
+        setIsLocked(false);
+        toast.success('Доступ разрешен');
+        setMasterPassword('');
+        closeLocationDialog();
+      } else {
+        toast.error('Неверный мастер-пароль');
+      }
+      return;
+    }
+
+    if (mode === 'delete' && id) {
       if (type === 'building') {
         const hasFloors = floors.some(f => f.buildingId === id);
         if (hasFloors) {
@@ -222,6 +374,22 @@ export function AdminScreen({
         }
         await deleteBuilding(id);
         toast.success('Здание удалено');
+      } else if (type === 'floor') {
+        const hasCabinets = cabinets.some(c => c.floorId === id);
+        if (hasCabinets) {
+          toast.error('Нельзя удалить этаж: на нем есть кабинеты');
+          return;
+        }
+        await deleteFloor(id);
+        toast.success('Этаж удален');
+      } else if (type === 'cabinet') {
+        const hasEquipment = equipment.some(e => e.cabinetId === id);
+        if (hasEquipment) {
+          toast.error('Нельзя удалить кабинет: в нем есть оборудование');
+          return;
+        }
+        await deleteCabinet(id);
+        toast.success('Кабинет удален');
       } else if (type === 'department') {
         const hasCabinets = cabinets.some(c => c.departmentId === id);
         const hasUsers = users.some(u => u.departmentId === id);
@@ -235,27 +403,58 @@ export function AdminScreen({
         await deleteEquipment(id);
         toast.success('Оборудование удалено');
       }
-      setMasterPassword('');
       closeLocationDialog();
       return;
     }
 
-    if (!inputValue?.trim()) return;
+    if (!inputValue?.trim() && locationDialog.mode !== 'delete') return;
+    const val = inputValue || '';
 
     if (type === 'building') {
-      if (mode === 'add') await addBuilding(inputValue);
-      else if (id) await updateBuilding(id, inputValue);
+      if (mode === 'add') await addBuilding(val);
+      else if (id) await updateBuilding(id, { name: val });
       toast.success(mode === 'add' ? 'Здание добавлено' : 'Здание обновлено');
-    } else if (type === 'floor' && buildingId) {
-      await addFloor(buildingId, parseInt(inputValue));
-      toast.success('Этаж добавлен');
+    } else if (type === 'floor') {
+      // Extract number from input (e.g., "этаж 3" -> 3, "4" -> 4)
+      const numMatch = val.match(/\d+/);
+      if (!numMatch) {
+        toast.error('Введите номер этажа (цифру)');
+        return;
+      }
+      const floorNumber = parseInt(numMatch[0]);
+      
+      if (mode === 'add' && buildingId) {
+        await addFloor(buildingId, floorNumber);
+        toast.success('Этаж добавлен');
+      } else if (mode === 'edit' && id) {
+        await updateFloor(id, floorNumber);
+        toast.success('Этаж обновлен');
+      }
     } else if (type === 'department') {
-      if (mode === 'add') await addDepartment(inputValue, undefined, icon, color);
-      else if (id) await updateDepartment(id, { name: inputValue, icon, color });
+      if (mode === 'add') await addDepartment(val, undefined, icon, color);
+      else if (id) await updateDepartment(id, { name: val, icon, color });
       toast.success(mode === 'add' ? 'Отделение добавлено' : 'Отделение обновлено');
     } else if (type === 'cabinet' && buildingId && floorId) {
-      await addCabinet(buildingId, floorId, inputValue);
-      toast.success('Кабинет добавлен');
+      if (mode === 'add' || mode === 'edit') {
+        // Extract only numbers from the "number" field
+        const numMatch = val.match(/\d+/);
+        if (!numMatch) {
+          toast.error('Введите номер кабинета (цифру)');
+          return;
+        }
+        const cabinetNum = numMatch[0];
+        const fullCabinetName = inputDescription?.trim() 
+          ? `Каб. ${cabinetNum}. ${inputDescription.trim()}`
+          : `Каб. ${cabinetNum}`;
+
+        if (mode === 'add') {
+          await addCabinet(buildingId, floorId, fullCabinetName);
+          toast.success('Кабинет добавлен');
+        } else if (mode === 'edit' && id) {
+          await updateCabinet(id, { name: fullCabinetName });
+          toast.success('Кабинет обновлен');
+        }
+      }
     } else if (type === 'equipment') {
       if (mode === 'add' || mode === 'edit') {
         if (!model?.trim()) {
@@ -271,7 +470,7 @@ export function AdminScreen({
         
         if (mode === 'add') {
           await addEquipment({ 
-            name: inputValue, 
+            name: val, 
             model, 
             cabinetId, 
             department: dept?.name || 'Общий' 
@@ -279,7 +478,7 @@ export function AdminScreen({
           toast.success('Оборудование добавлено');
         } else if (id) {
           await updateEquipment(id, {
-            name: inputValue,
+            name: val,
             model,
             cabinetId,
             department: dept?.name || 'Общий'
@@ -807,7 +1006,12 @@ export function AdminScreen({
         {/* Locations Tab */}
         {activeTab === 'locations' && (
           <div className="space-y-6 w-full max-w-full animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+              {isLocationsLoading && (
+                <div className="absolute inset-0 bg-white/50 dark:bg-slate-800/50 backdrop-blur-[1px] flex items-center justify-center z-10">
+                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-6">
                 <div>
                   <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -858,52 +1062,186 @@ export function AdminScreen({
               </div>
 
               <div className="flex items-center gap-3">
-                <Separator orientation="vertical" className="h-8 hidden md:block" />
-                <Button onClick={() => {
-                  if (locationView === 'floors') {
-                    setLocationDialog({
-                      isOpen: true,
-                      type: 'building',
-                      mode: 'add',
-                      title: 'Добавить новое здание',
-                      inputValue: ''
-                    });
-                  } else if (locationView === 'departments') {
-                    setLocationDialog({
-                      isOpen: true,
-                      type: 'department',
-                      mode: 'add',
-                      title: 'Добавить новое отделение',
-                      inputValue: '',
-                      icon: 'Stethoscope',
-                      color: '#10B981'
-                    });
-                  } else if (locationView === 'equipment') {
-                    setLocationDialog({
-                      isOpen: true,
-                      type: 'equipment',
-                      mode: 'add',
-                      title: 'Добавить новое оборудование',
-                      inputValue: '',
-                      model: '',
-                      cabinetId: ''
-                    });
-                  }
-                }} size="sm" variant="default" className="h-9 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
-                  <Plus className="w-4 h-4 mr-1" /> {locationView === 'floors' ? 'Здание' : locationView === 'departments' ? 'Отделение' : 'Оборудование'}
+                <Button 
+                  onClick={handleToggleLock} 
+                  variant={isLocked ? "destructive" : "outline"} 
+                  size="sm" 
+                  className={cn(
+                    "h-9 px-3 gap-2",
+                    !isLocked && "border-blue-200 text-blue-600 hover:bg-blue-50"
+                  )}
+                >
+                  {isLocked ? (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      Заблокировано
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="w-4 h-4" />
+                      Свободно
+                    </>
+                  )}
                 </Button>
+                <Separator orientation="vertical" className="h-8 hidden md:block" />
+                {!isLocked && (
+                  <Button onClick={() => {
+                    if (locationView === 'floors') {
+                      setLocationDialog({
+                        isOpen: true,
+                        type: 'building',
+                        mode: 'add',
+                        title: 'Добавить новое здание',
+                        inputValue: ''
+                      });
+                    } else if (locationView === 'departments') {
+                      setLocationDialog({
+                        isOpen: true,
+                        type: 'department',
+                        mode: 'add',
+                        title: 'Добавить новое отделение',
+                        inputValue: '',
+                        icon: 'Stethoscope',
+                        color: '#10B981'
+                      });
+                    } else if (locationView === 'equipment') {
+                      setLocationDialog({
+                        isOpen: true,
+                        type: 'equipment',
+                        mode: 'add',
+                        title: 'Добавить новое оборудование',
+                        inputValue: '',
+                        model: '',
+                        cabinetId: ''
+                      });
+                    }
+                  }} size="sm" variant="default" className="h-9 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
+                    <Plus className="w-4 h-4 mr-1" /> {locationView === 'floors' ? 'Здание' : locationView === 'departments' ? 'Отделение' : 'Оборудование'}
+                  </Button>
+                )}
               </div>
             </div>
 
-            <div className="w-full">
+            <div className="w-full relative">
+              <DataCables locationView={locationView} />
               {/* Main Panel */}
               <div className="space-y-4">
                 {locationView === 'floors' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {buildings.map(building => (
-                      <div key={building.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full">
-                        <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+                  <div className="flex flex-wrap justify-between gap-y-10 gap-x-6 w-full px-4">
+                    {[...buildings]
+                      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                      .map((building, index, sortedBuildings) => (
+                      <div 
+                        key={building.id} 
+                        id={`building-${building.id}`}
+                        draggable={!resizingBuilding && !isLocked}
+                        style={{ 
+                          width: building.width && building.width > 0 ? `${building.width}px` : '350px',
+                          maxWidth: 'calc(100vw - 48px)',
+                          minWidth: '280px'
+                        }}
+                        onDragStart={(e) => {
+                          if (resizingBuilding || isLocked) {
+                            e.preventDefault();
+                            return;
+                          }
+                          e.dataTransfer.setData('buildingId', building.id);
+                          e.currentTarget.classList.add('opacity-50');
+                        }}
+                        onDragEnd={(e) => {
+                          e.currentTarget.classList.remove('opacity-50');
+                        }}
+                        onDragOver={(e) => {
+                          if (isLocked) return;
+                          e.preventDefault();
+                          e.currentTarget.classList.add('ring-2', 'ring-blue-500', 'ring-offset-4');
+                        }}
+                        onDragLeave={(e) => {
+                          e.currentTarget.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-4');
+                        }}
+                        onDrop={async (e) => {
+                          if (isLocked) return;
+                          e.preventDefault();
+                          e.currentTarget.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-4');
+                          const draggedId = e.dataTransfer.getData('buildingId');
+                          
+                          if (draggedId && draggedId !== building.id) {
+                            const draggedBld = buildings.find(b => b.id === draggedId);
+                            if (draggedBld) {
+                              setConfirmMove({
+                                isOpen: true,
+                                type: 'building',
+                                id: draggedId,
+                                direction: 'down',
+                                itemName: draggedBld.name,
+                                targetName: building.name
+                              });
+                              (window as any)._dropBuildingTargetId = building.id;
+                            }
+                          }
+                        }}
+                        className={cn(
+                          "bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col h-full group/bld relative transition-all duration-300 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700",
+                          !isLocked && "cursor-move active:cursor-grabbing"
+                        )}
+                      >
+                        {/* Building Roof */}
+                        <div className="absolute -top-[7px] left-1/2 -translate-x-1/2 w-10 h-10 bg-slate-50 dark:bg-slate-900/40 border-l-2 border-t-2 border-slate-200 dark:border-slate-700 rotate-45 -z-10 group-hover/bld:border-blue-300 dark:group-hover/bld:border-blue-700 transition-colors" />
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600 z-10" />
+                        
+                        {/* Resize Handle */}
+                        {!isLocked && (
+                          <div 
+                            className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500 transition-colors z-20"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const el = document.getElementById(`building-${building.id}`);
+                              setResizingBuilding({
+                                id: building.id,
+                                startX: e.clientX,
+                                startWidth: el?.offsetWidth || 350
+                              });
+                            }}
+                          />
+                        )}
+
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-700 h-14">
                           <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                            {!isLocked && (
+                              <div className="flex flex-col gap-0.5 opacity-0 group-hover/bld:opacity-100 transition-opacity">
+                                {index > 0 && (
+                                  <button 
+                                    onClick={() => setConfirmMove({
+                                      isOpen: true,
+                                      type: 'building',
+                                      id: building.id,
+                                      direction: 'up',
+                                      itemName: building.name,
+                                      targetName: sortedBuildings[index - 1].name
+                                    })}
+                                    className="text-slate-400 hover:text-blue-500 transition-colors"
+                                  >
+                                    <ChevronUp className="w-3 h-3" />
+                                  </button>
+                                )}
+                                {index < sortedBuildings.length - 1 && (
+                                  <button 
+                                    onClick={() => setConfirmMove({
+                                      isOpen: true,
+                                      type: 'building',
+                                      id: building.id,
+                                      direction: 'down',
+                                      itemName: building.name,
+                                      targetName: sortedBuildings[index + 1].name
+                                    })}
+                                    className="text-slate-400 hover:text-blue-500 transition-colors"
+                                  >
+                                    <ChevronDown className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
                             <BuildingIcon className="w-4 h-4 text-blue-500 shrink-0" />
                             {editingBuilding === building.id ? (
                               <div className="flex items-center gap-1 w-full">
@@ -914,7 +1252,7 @@ export function AdminScreen({
                                   autoFocus
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' && editName) {
-                                      updateBuilding(building.id, editName);
+                                      updateBuilding(building.id, { name: editName });
                                       setEditingBuilding(null);
                                     }
                                     if (e.key === 'Escape') setEditingBuilding(null);
@@ -922,56 +1260,62 @@ export function AdminScreen({
                                 />
                                 <Button size="icon" variant="ghost" className="h-6 w-6 text-emerald-500" onClick={() => {
                                   if (editName) {
-                                    updateBuilding(building.id, editName);
+                                    updateBuilding(building.id, { name: editName });
                                     setEditingBuilding(null);
                                   }
                                 }}><Check className="w-3 h-3" /></Button>
                               </div>
                             ) : (
                               <span 
-                                className="text-lg font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-blue-600 transition-colors"
+                                className={cn(
+                                  "text-lg font-bold text-slate-700 dark:text-slate-200 truncate transition-colors",
+                                  !isLocked && "cursor-pointer hover:text-blue-600"
+                                )}
                                 onClick={() => {
+                                  if (isLocked) return;
                                   setEditingBuilding(building.id);
                                   setEditName(building.name);
                                 }}
-                                title="Нажмите, чтобы переименовать"
+                                title={isLocked ? "" : "Нажмите, чтобы переименовать"}
                               >
                                 {building.name}
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title="Добавить этаж" onClick={() => {
-                              setLocationDialog({
-                                isOpen: true,
-                                type: 'floor',
-                                mode: 'add',
-                                title: `Добавить этаж в "${building.name}"`,
-                                inputValue: '',
-                                buildingId: building.id
-                              });
-                            }}>
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" 
-                              title="Удалить здание" 
-                              onClick={() => {
+                          {!isLocked && (
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title="Добавить этаж" onClick={() => {
                                 setLocationDialog({
                                   isOpen: true,
-                                  type: 'building',
-                                  mode: 'delete',
-                                  title: 'Удалить здание?',
-                                  description: `Вы уверены, что хотите удалить здание "${building.name}"? Это действие нельзя отменить.`,
-                                  id: building.id
+                                  type: 'floor',
+                                  mode: 'add',
+                                  title: `Добавить этаж в "${building.name}"`,
+                                  inputValue: '',
+                                  buildingId: building.id
                                 });
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
+                              }}>
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" 
+                                title="Удалить здание" 
+                                onClick={() => {
+                                  setLocationDialog({
+                                    isOpen: true,
+                                    type: 'building',
+                                    mode: 'delete',
+                                    title: 'Удалить здание?',
+                                    description: `Вы уверены, что хотите удалить здание "${building.name}"? Это действие нельзя отменить.`,
+                                    id: building.id
+                                  });
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
 
                         <div className="p-3 flex-1">
@@ -983,72 +1327,232 @@ export function AdminScreen({
                                     <Layers className="w-4 h-4 text-slate-400" />
                                     <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Этаж {floor.number}</span>
                                   </div>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                                    setLocationDialog({
-                                      isOpen: true,
-                                      type: 'cabinet',
-                                      mode: 'add',
-                                      title: `Добавить кабинет на ${floor.number} этаж`,
-                                      inputValue: '',
-                                      buildingId: building.id,
-                                      floorId: floor.id
-                                    });
-                                  }}>
-                                    <Plus className="w-3 h-3" />
-                                  </Button>
+                                  {!isLocked && (
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-blue-500" title="Редактировать этаж" onClick={() => {
+                                        setLocationDialog({
+                                          isOpen: true,
+                                          type: 'floor',
+                                          mode: 'edit',
+                                          title: 'Редактировать этаж',
+                                          inputValue: floor.number.toString(),
+                                          id: floor.id
+                                        });
+                                      }}>
+                                        <Edit2 className="w-3 h-3" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500" title="Удалить этаж" onClick={() => {
+                                        setLocationDialog({
+                                          isOpen: true,
+                                          type: 'floor',
+                                          mode: 'delete',
+                                          title: 'Удалить этаж?',
+                                          description: `Вы уверены, что хотите удалить этаж ${floor.number}?`,
+                                          id: floor.id
+                                        });
+                                      }}>
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-500" title="Добавить кабинет" onClick={() => {
+                                        setLocationDialog({
+                                          isOpen: true,
+                                          type: 'cabinet',
+                                          mode: 'add',
+                                          title: `Добавить кабинет на ${floor.number} этаж`,
+                                          inputValue: '',
+                                          buildingId: building.id,
+                                          floorId: floor.id
+                                        });
+                                      }}>
+                                        <Plus className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                                  {cabinets.filter(c => c.floorId === floor.id).map(cabinet => (
+                                <div className="grid grid-cols-1 gap-2">
+                                  {cabinets
+                                    .filter(c => c.floorId === floor.id)
+                                    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                                    .map((cabinet, cabIdx, filteredCabs) => (
                                     <div 
                                       key={cabinet.id} 
-                                      className="px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg shadow-sm flex items-center justify-between group/cab"
+                                      draggable={!isLocked}
+                                      onDragStart={(e) => {
+                                        if (isLocked) {
+                                          e.preventDefault();
+                                          return;
+                                        }
+                                        e.dataTransfer.setData('cabinetId', cabinet.id);
+                                        e.dataTransfer.setData('floorId', floor.id);
+                                        e.currentTarget.classList.add('opacity-50');
+                                      }}
+                                      onDragEnd={(e) => {
+                                        e.currentTarget.classList.remove('opacity-50');
+                                      }}
+                                      onDragOver={(e) => {
+                                        if (isLocked) return;
+                                        e.preventDefault();
+                                        e.currentTarget.classList.add('border-blue-500', 'bg-blue-50/50');
+                                      }}
+                                      onDragLeave={(e) => {
+                                        e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50/50');
+                                      }}
+                                      onDrop={async (e) => {
+                                        if (isLocked) return;
+                                        e.preventDefault();
+                                        e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50/50');
+                                        const draggedId = e.dataTransfer.getData('cabinetId');
+                                        const draggedFloorId = e.dataTransfer.getData('floorId');
+                                        
+                                        if (draggedId && draggedId !== cabinet.id && draggedFloorId === floor.id) {
+                                          const draggedCab = cabinets.find(c => c.id === draggedId);
+                                          if (draggedCab) {
+                                            setConfirmMove({
+                                              isOpen: true,
+                                              type: 'cabinet',
+                                              id: draggedId,
+                                              direction: 'down', // Direction doesn't matter for the logic but required for the state
+                                              itemName: draggedCab.name,
+                                              targetName: cabinet.name
+                                            });
+                                            // Special flag to handle drop-based reordering
+                                            (window as any)._dropTargetId = cabinet.id;
+                                          }
+                                        }
+                                      }}
+                                      className={cn(
+                                        "px-3 py-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-sm flex items-center gap-3 group/cab hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all",
+                                        !isLocked && "cursor-move active:cursor-grabbing"
+                                      )}
                                     >
-                                      <div className="flex items-center gap-1.5 min-w-0">
-                                        <MapPin className="w-3 h-3 text-blue-400 shrink-0" />
-                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{cabinet.name}</span>
-                                      </div>
-                                      <Popover>
-                                        <PopoverTrigger asChild>
-                                          <button className="opacity-0 group-hover/cab:opacity-100 p-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 transition-all">
-                                            <Settings className="w-2.5 h-2.5" />
-                                          </button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-48 p-2">
-                                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 px-1">Назначить отделение</p>
-                                          <div className="space-y-1">
+                                      {!isLocked && (
+                                        <div className="flex flex-col gap-0.5 opacity-0 group-hover/cab:opacity-100 transition-opacity shrink-0">
+                                          {cabIdx > 0 && (
                                             <button 
-                                              onClick={() => updateCabinet(cabinet.id, { departmentId: undefined })}
-                                              className={cn(
-                                                "w-full text-left px-2 py-1 text-xs rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
-                                                !cabinet.departmentId && "text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20"
-                                              )}
+                                              onClick={() => setConfirmMove({
+                                                isOpen: true,
+                                                type: 'cabinet',
+                                                id: cabinet.id,
+                                                direction: 'up',
+                                                itemName: cabinet.name,
+                                                targetName: filteredCabs[cabIdx - 1].name
+                                              })}
+                                              className="text-slate-400 hover:text-blue-500 transition-colors"
                                             >
-                                              Без отделения
+                                              <ChevronUp className="w-2.5 h-2.5" />
                                             </button>
-                                            {departments.map(dept => {
-                                              const DeptIcon = getDeptIcon(dept.icon);
-                                              return (
-                                                <button 
-                                                  key={dept.id}
-                                                  onClick={() => updateCabinet(cabinet.id, { departmentId: dept.id })}
-                                                  className={cn(
-                                                    "w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2",
-                                                    cabinet.departmentId === dept.id && "text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20"
-                                                  )}
-                                                >
-                                                  <div 
-                                                    className="w-5 h-5 rounded flex items-center justify-center shrink-0"
-                                                    style={{ backgroundColor: `${dept.color || '#10B981'}20`, color: dept.color || '#10B981' }}
+                                          )}
+                                          {cabIdx < filteredCabs.length - 1 && (
+                                            <button 
+                                              onClick={() => setConfirmMove({
+                                                isOpen: true,
+                                                type: 'cabinet',
+                                                id: cabinet.id,
+                                                direction: 'down',
+                                                itemName: cabinet.name,
+                                                targetName: filteredCabs[cabIdx + 1].name
+                                              })}
+                                              className="text-slate-400 hover:text-blue-500 transition-colors"
+                                            >
+                                              <ChevronDown className="w-2.5 h-2.5" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg shrink-0">
+                                          <MapPin className="w-3.5 h-3.5 text-blue-500" />
+                                        </div>
+                                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate">
+                                          {cabinet.name}
+                                        </span>
+                                      </div>
+                                      {!isLocked && (
+                                        <div className="flex items-center gap-0.5 opacity-0 group-hover/cab:opacity-100 transition-all shrink-0">
+                                          <button 
+                                            onClick={() => {
+                                              // Parse name like "Каб. 4. Маммография" -> number "4", desc "Маммография"
+                                              const nameMatch = cabinet.name.match(/Каб\.\s*(\d+)(?:\.\s*(.*))?/);
+                                              const cabNum = nameMatch ? nameMatch[1] : cabinet.name;
+                                              const cabDesc = nameMatch ? (nameMatch[2] || '') : '';
+
+                                              setLocationDialog({
+                                                isOpen: true,
+                                                type: 'cabinet',
+                                                mode: 'edit',
+                                                title: 'Редактировать кабинет',
+                                                inputValue: cabNum,
+                                                inputDescription: cabDesc,
+                                                id: cabinet.id,
+                                                buildingId: building.id,
+                                                floorId: floor.id
+                                              });
+                                            }}
+                                            className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-blue-500"
+                                            title="Редактировать кабинет"
+                                          >
+                                            <Edit2 className="w-2.5 h-2.5" />
+                                          </button>
+                                          <button 
+                                            onClick={() => {
+                                              setLocationDialog({
+                                                isOpen: true,
+                                                type: 'cabinet',
+                                                mode: 'delete',
+                                                title: 'Удалить кабинет?',
+                                                description: `Вы уверены, что хотите удалить кабинет "${cabinet.name}"?`,
+                                                id: cabinet.id
+                                              });
+                                            }}
+                                            className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-red-500"
+                                            title="Удалить кабинет"
+                                          >
+                                            <Trash2 className="w-2.5 h-2.5" />
+                                          </button>
+                                          <Popover>
+                                            <PopoverTrigger asChild>
+                                              <button className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 transition-all" title="Настройки">
+                                                <Settings className="w-2.5 h-2.5" />
+                                              </button>
+                                            </PopoverTrigger>
+                                          <PopoverContent className="w-48 p-2">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 px-1">Назначить отделение</p>
+                                            <div className="space-y-1">
+                                              <button 
+                                                onClick={() => updateCabinet(cabinet.id, { departmentId: undefined })}
+                                                className={cn(
+                                                  "w-full text-left px-2 py-1 text-xs rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
+                                                  !cabinet.departmentId && "text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20"
+                                                )}
+                                              >
+                                                Без отделения
+                                              </button>
+                                              {departments.map(dept => {
+                                                const DeptIcon = getDeptIcon(dept.icon);
+                                                return (
+                                                  <button 
+                                                    key={dept.id}
+                                                    onClick={() => updateCabinet(cabinet.id, { departmentId: dept.id })}
+                                                    className={cn(
+                                                      "w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2",
+                                                      cabinet.departmentId === dept.id && "text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20"
+                                                    )}
                                                   >
-                                                    <DeptIcon className="w-3 h-3" />
-                                                  </div>
-                                                  <span className="truncate">{dept.name}</span>
-                                                </button>
-                                              );
-                                            })}
-                                          </div>
-                                        </PopoverContent>
-                                      </Popover>
+                                                    <div 
+                                                      className="w-5 h-5 rounded flex items-center justify-center shrink-0"
+                                                      style={{ backgroundColor: `${dept.color || '#10B981'}20`, color: dept.color || '#10B981' }}
+                                                    >
+                                                      <DeptIcon className="w-3 h-3" />
+                                                    </div>
+                                                    <span className="truncate">{dept.name}</span>
+                                                  </button>
+                                                );
+                                              })}
+                                            </div>
+                                          </PopoverContent>
+                                          </Popover>
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -1067,14 +1571,16 @@ export function AdminScreen({
                         <Stethoscope className="w-4 h-4 text-emerald-500 shrink-0" />
                         <span className="font-bold text-slate-700 dark:text-slate-200">Все отделения (сквозные)</span>
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={autoStyleDepartments}
-                        className="text-[10px] font-black uppercase tracking-wider h-7 bg-white dark:bg-slate-800"
-                      >
-                        Применить стили
-                      </Button>
+                      {!isLocked && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={autoStyleDepartments}
+                          className="text-[10px] font-black uppercase tracking-wider h-7 bg-white dark:bg-slate-800"
+                        >
+                          Применить стили
+                        </Button>
+                      )}
                     </div>
                     <div className="p-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1114,68 +1620,80 @@ export function AdminScreen({
                                         </div>
                                       ) : (
                                         <span 
-                                      className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-emerald-600 transition-colors"
-                                      onClick={() => {
-                                        setLocationDialog({
-                                          isOpen: true,
-                                          type: 'department',
-                                          mode: 'edit',
-                                          title: 'Редактировать отделение',
-                                          inputValue: dept.name,
-                                          id: dept.id,
-                                          icon: dept.icon,
-                                          color: dept.color
-                                        });
-                                      }}
-                                    >
-                                      {dept.name}
+                                          className={cn(
+                                            "text-sm font-bold text-slate-700 dark:text-slate-200 truncate transition-colors",
+                                            !isLocked && "cursor-pointer hover:text-emerald-600"
+                                          )}
+                                          onClick={() => {
+                                            if (isLocked) return;
+                                            setLocationDialog({
+                                              isOpen: true,
+                                              type: 'department',
+                                              mode: 'edit',
+                                              title: 'Редактировать отделение',
+                                              inputValue: dept.name,
+                                              id: dept.id,
+                                              icon: dept.icon,
+                                              color: dept.color
+                                            });
+                                          }}
+                                          title={isLocked ? "" : "Нажмите, чтобы редактировать"}
+                                        >
+                                          {dept.name}
+                                        </span>
+                                      )}
+                                    </div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
+                                      {cabinets.filter(c => c.departmentId === dept.id).length} каб.
                                     </span>
-                                  )}
-                                </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
-                                  {cabinets.filter(c => c.departmentId === dept.id).length} каб.
-                                </span>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-6 w-6 text-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                  onClick={() => {
-                                    setLocationDialog({
-                                      isOpen: true,
-                                      type: 'department',
-                                      mode: 'edit',
-                                      title: 'Редактировать отделение',
-                                      inputValue: dept.name,
-                                      id: dept.id,
-                                      icon: dept.icon,
-                                      color: dept.color
-                                    });
-                                  }}
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                  onClick={() => {
-                                    setLocationDialog({
-                                      isOpen: true,
-                                      type: 'department',
-                                      mode: 'delete',
-                                      title: 'Удалить отделение?',
-                                      description: `Вы уверены, что хотите удалить отделение "${dept.name}"? Это действие нельзя отменить.`,
-                                      id: dept.id
-                                    });
-                                  }}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </div>
+                                    {!isLocked && (
+                                      <>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon" 
+                                          className="h-6 w-6 text-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                          onClick={() => {
+                                            setLocationDialog({
+                                              isOpen: true,
+                                              type: 'department',
+                                              mode: 'edit',
+                                              title: 'Редактировать отделение',
+                                              inputValue: dept.name,
+                                              id: dept.id,
+                                              icon: dept.icon,
+                                              color: dept.color
+                                            });
+                                          }}
+                                        >
+                                          <Edit2 className="w-3 h-3" />
+                                        </Button>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon" 
+                                          className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                          onClick={() => {
+                                            setLocationDialog({
+                                              isOpen: true,
+                                              type: 'department',
+                                              mode: 'delete',
+                                              title: 'Удалить отделение?',
+                                              description: `Вы уверены, что хотите удалить отделение "${dept.name}"? Это действие нельзя отменить.`,
+                                              id: dept.id
+                                            });
+                                          }}
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
-                              {cabinets.filter(c => c.departmentId === dept.id).map(cabinet => {
+                              {cabinets
+                                .filter(c => c.departmentId === dept.id)
+                                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                                .map(cabinet => {
                                 const floor = floors.find(f => f.id === cabinet.floorId);
                                 const bld = buildings.find(b => b.id === cabinet.buildingId);
                                 return (
@@ -1980,9 +2498,9 @@ export function AdminScreen({
           </div>
           
           <div className="p-6 space-y-4">
-            {locationDialog.mode === 'delete' && (
+            {locationDialog.mode === 'delete' && locationDialog.title === 'Разблокировать реестр' && (
               <div className="space-y-2">
-                <Label htmlFor="location-master-password" title="Мастер пароль" className="text-[10px] font-black uppercase tracking-widest text-white/70">
+                <Label htmlFor="location-master-password" title="Мастер пароль" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                   Мастер-пароль
                 </Label>
                 <Input
@@ -1991,8 +2509,12 @@ export function AdminScreen({
                   value={masterPassword}
                   onChange={(e) => setMasterPassword(e.target.value)}
                   placeholder="Введите мастер-пароль"
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/30 h-10 text-center font-mono tracking-widest focus:ring-white/50 focus:border-white/50"
+                  className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10 text-center font-mono tracking-widest focus:ring-blue-500"
                   autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleLocationAction();
+                    if (e.key === 'Escape') closeLocationDialog();
+                  }}
                 />
               </div>
             )}
@@ -2001,21 +2523,40 @@ export function AdminScreen({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="location-input" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    {locationDialog.type === 'floor' ? 'Номер этажа' : 'Название'}
+                    {locationDialog.type === 'floor' ? 'Номер этажа' : (locationDialog.type === 'cabinet' ? 'Номер кабинета' : 'Название')}
                   </Label>
                   <Input
                     id="location-input"
                     value={locationDialog.inputValue}
                     onChange={(e) => setLocationDialog(prev => ({ ...prev, inputValue: e.target.value }))}
-                    placeholder={locationDialog.type === 'floor' ? 'Например: 1' : 'Введите название...'}
+                    placeholder={locationDialog.type === 'floor' ? 'Например: 1' : (locationDialog.type === 'cabinet' ? 'Например: 4' : 'Введите название...')}
                     className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10"
                     autoFocus
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && locationDialog.type !== 'equipment') handleLocationAction();
+                      if (e.key === 'Enter' && locationDialog.type !== 'equipment' && locationDialog.type !== 'cabinet') handleLocationAction();
                       if (e.key === 'Escape') closeLocationDialog();
                     }}
                   />
                 </div>
+
+                {locationDialog.type === 'cabinet' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="location-desc" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Описание кабинета
+                    </Label>
+                    <Input
+                      id="location-desc"
+                      value={locationDialog.inputDescription}
+                      onChange={(e) => setLocationDialog(prev => ({ ...prev, inputDescription: e.target.value }))}
+                      placeholder="Например: Маммография"
+                      className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleLocationAction();
+                        if (e.key === 'Escape') closeLocationDialog();
+                      }}
+                    />
+                  </div>
+                )}
 
                 {locationDialog.type === 'department' && (
                   <div className="space-y-4">
@@ -2149,6 +2690,59 @@ export function AdminScreen({
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lock Password Dialog */}
+      <Dialog open={lockDialog.isOpen} onOpenChange={(open) => !open && setLockDialog(prev => ({ ...prev, isOpen: false }))}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-blue-500" />
+              Разблокировка позиций
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-xs">
+              Введите мастер-пароль для разрешения изменения размеров и порядка зданий и кабинетов.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="master-pass" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Мастер-пароль
+            </Label>
+            <Input
+              id="master-pass"
+              type="password"
+              value={lockDialog.password}
+              onChange={(e) => setLockDialog(prev => ({ ...prev, password: e.target.value }))}
+              placeholder="••••••••"
+              className="mt-1 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && confirmUnlock()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLockDialog(prev => ({ ...prev, isOpen: false }))}>Отмена</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" onClick={confirmUnlock}>Разблокировать</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reorder Confirmation Dialog */}
+      <Dialog open={confirmMove.isOpen} onOpenChange={(open) => !open && setConfirmMove(prev => ({ ...prev, isOpen: false }))}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowUpDown className="w-5 h-5 text-blue-500" />
+              Подтвердите перемещение
+            </DialogTitle>
+            <DialogDescription className="pt-4">
+              Вы уверены, что хотите переместить <strong>{confirmMove.itemName}</strong> {confirmMove.direction === 'up' ? 'выше' : 'ниже'} <strong>{confirmMove.targetName}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setConfirmMove(prev => ({ ...prev, isOpen: false }))}>Отмена</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleConfirmedMove}>Подтвердить</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

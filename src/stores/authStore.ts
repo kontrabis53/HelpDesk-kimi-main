@@ -33,6 +33,7 @@ interface AuthState {
     greetingText?: string;
     avatar?: string | null;
     avatarHistory?: string[];
+    aiEnabled?: boolean;
   }) => Promise<void>;
 }
 
@@ -161,6 +162,8 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await apiClient.get('/auth/me');
           const user = response.data;
+          // Ensure both localStorage and store are in sync
+          localStorage.setItem('auth_token', token);
           set({ user, token, isAuthenticated: true, isLoading: false });
           
           // Fetch requests if admin
@@ -169,8 +172,13 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch (error: any) {
           console.error('Check auth error:', error);
-          localStorage.removeItem('auth_token');
-          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+          // If 401 happened, apiClient interceptor will call logout()
+          // but we also handle it here for safety
+          if (error.response?.status === 401) {
+            get().logout();
+          } else {
+            set({ isLoading: false });
+          }
         }
       },
 

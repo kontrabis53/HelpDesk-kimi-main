@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, User, Sparkles, Loader2, Maximize2, Minimize2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Bot, X, Send, User, Loader2, Maximize2, Minimize2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface Message {
   role: 'user' | 'assistant';

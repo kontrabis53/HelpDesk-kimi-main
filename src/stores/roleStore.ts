@@ -30,7 +30,7 @@ interface RoleStore {
   // Actions
   fetchRoles: () => Promise<void>;
   fetchUsers: () => Promise<void>,
-  initStatusListener: () => void;
+  initStatusListener: () => () => void;
   setRoles: (roles: Role[]) => void;
   setUsers: (users: User[]) => void;
   setSettings: (settings: SystemSettings) => void;

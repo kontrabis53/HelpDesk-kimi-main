@@ -147,50 +147,29 @@ export function DocumentDetailPage() {
         </div>
 
         {/* Attached Files */}
-        {((document.files && document.files.length > 0) || document.fileUrl) && (
+        {document.files && document.files.length > 0 && (
           <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
             <h3 className="text-lg font-semibold mb-4">Прикрепленные файлы</h3>
             <div className="space-y-3">
-              {document.files && document.files.length > 0 ? (
-                document.files.map((file, index) => (
-                  <div key={index} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <FileText className="w-8 h-8 text-blue-600" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-slate-900 dark:text-slate-100 truncate">
-                        {file.name}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {file.size ? (file.size / 1024 / 1024).toFixed(2) + ' MB' : 'Файл'}
-                      </p>
-                    </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={file.url} download={file.name} target="_blank" rel="noopener noreferrer">
-                        <Download className="w-4 h-4 mr-2" />
-                        Скачать
-                      </a>
-                    </Button>
-                  </div>
-                ))
-              ) : (
-                // Fallback for old single-file documents
-                <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+              {document.files.map((file, index) => (
+                <div key={index} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
                   <FileText className="w-8 h-8 text-blue-600" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-slate-900 dark:text-slate-100 truncate">
-                      {document.fileName || 'Документ'}
+                      {file.name}
                     </p>
                     <p className="text-xs text-slate-500">
-                      Прикреплен {formatDate(document.createdAt)}
+                      {file.size ? (file.size / 1024 / 1024).toFixed(2) + ' MB' : 'Файл'}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" asChild>
-                    <a href={document.fileUrl} download={document.fileName} target="_blank" rel="noopener noreferrer">
+                    <a href={file.url} download={file.name} target="_blank" rel="noopener noreferrer">
                       <Download className="w-4 h-4 mr-2" />
                       Скачать
                     </a>
                   </Button>
                 </div>
-              )}
+              ))}
             </div>
           </div>
         )}

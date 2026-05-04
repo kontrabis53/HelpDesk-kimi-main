@@ -100,6 +100,8 @@ export interface Document {
 export interface Building {
   id: string;
   name: string; // Например, "Корпус А", "Корпус Б"
+  order?: number;
+  width?: number;
 }
 
 export interface Department {
@@ -122,6 +124,7 @@ export interface Cabinet {
   floorId: string;
   departmentId?: string; // Связь с отделением
   name: string; // Номер или название кабинета
+  order?: number;
 }
 
 export interface Equipment {

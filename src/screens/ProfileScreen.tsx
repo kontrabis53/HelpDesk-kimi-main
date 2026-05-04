@@ -1,8 +1,7 @@
-import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight, Info, Loader2, Stethoscope, Camera, Trash2, X, Check, Image as ImageIcon, Smile, Type, Bot } from 'lucide-react';
+import { Mail, Building2, LogOut, Settings, Bell, Moon, Sun, ChevronRight, Loader2, Stethoscope, Camera, Trash2, X, Check, Image as ImageIcon, Smile, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { UserAvatar } from '@/components/UserAvatar';
 import { 
@@ -52,7 +51,6 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [showAvatarEditor, setShowAvatarEditor] = useState(false);
   const [tempAvatar, setTempAvatar] = useState<string | null>(null);
-  const [isEmojiMode, setIsEmojiMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const memojis = ['👦', '👧', '👨‍💻', '👩‍💻', '🦸', '🦹', '🐱', '🐶', '🦊', '🦁', '🐸', '🐨'];
@@ -111,20 +109,17 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
     reader.onloadend = () => {
       const base64 = reader.result as string;
       setTempAvatar(base64);
-      setIsEmojiMode(false);
     };
     reader.readAsDataURL(file);
   };
 
   const handleSelectEmoji = (emoji: string) => {
     setTempAvatar(emoji);
-    setIsEmojiMode(true);
   };
 
   const handleSelectMonogram = (colorClass: string) => {
     // We'll store monogram as a special string "monogram:colorClass"
     setTempAvatar(`monogram:${colorClass}`);
-    setIsEmojiMode(false);
   };
 
   const handleSaveAvatar = async () => {
@@ -572,7 +567,7 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
 
         <div className="pt-8 text-center pb-8">
           <p className="text-xs font-bold text-slate-300 dark:text-slate-700 uppercase tracking-widest">
-            Медин v1.2.7 Current
+            Медин v1.3.0 Current
           </p>
         </div>
       </div>

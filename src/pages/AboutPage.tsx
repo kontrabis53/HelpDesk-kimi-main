@@ -9,10 +9,25 @@ export function AboutPage() {
 
   const versions = [
     {
+      version: '1.3.0',
+      date: '4 мая 2026',
+      title: 'Интеллектуальный реестр и живая инфраструктура',
+      isCurrent: true,
+      changes: [
+        'Внедрена визуализация кабельных сетей: анимированные шнуры данных между Medin General, Medin ODC и Складом',
+        'Индивидуальная безопасность: мастер-пароль теперь разблокирует реестр персонально для пользователя (состояние сохраняется после перезагрузки)',
+        'Динамическая геометрия: шнуры автоматически огибают препятствия и подключаются к боковым стенам зданий',
+        'Цветовое кодирование потоков: Синий/Желтый (General -> ODC), Зеленый/Красный (ODC -> General), Красный/Зеленый (Warehouse -> ODC)',
+        'Улучшен дизайн зданий: добавлен эффект объема, "мини-крыши" и более контрастный фон',
+        'Синхронизация в реальном времени: любые изменения ширины зданий или состава отделений мгновенно видны всем администраторам',
+        'Исправлены критические ошибки типизации и синхронизации данных в модуле реестра',
+        'Оптимизирована производительность отрисовки SVG-графики на больших экранах'
+      ]
+    },
+    {
       version: '1.2.8',
       date: '3 мая 2026',
       title: 'Клиника Live и улучшение UX',
-      isCurrent: true,
       changes: [
         'Модуль «Регистратура» официально переименован в «Клиника Live» (подготовка к запуску)',
         'Обновлен реестр отделений: добавлены уникальные иконки и цветовое кодирование для ЛКО, ДО, КДЛ, АХО и Хирургии',
@@ -316,7 +331,7 @@ export function AboutPage() {
         {/* App Info */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center relative overflow-hidden">
           <div className="absolute top-4 right-4 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-xs font-black border border-blue-100 dark:border-blue-800">
-            v1.2.8 Current
+            v1.3.0 Current
           </div>
           
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-blue-500/20">

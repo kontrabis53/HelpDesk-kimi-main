@@ -133,8 +133,14 @@ export interface Equipment {
   model: string;
   serialNumber?: string;
   inventoryNumber?: string; // Добавлено инвентарный номер
+  tag?: string;
+  comment?: string;
+  fileUrl?: string;
+  status: string;
   cabinetId: string; // Текущее местоположение
-  department: string;
+  buildingId?: string;
+  floorId?: string;
+  departmentId?: string;
   cabinet?: Cabinet; // Добавлено связь с кабинетом
 }
 

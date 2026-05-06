@@ -88,9 +88,21 @@ export default async function roleRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ message: 'Только администратор может удалять роли' });
       }
 
-      const role = await prisma.role.findUnique({ where: { id } });
-      if (role?.isSystem) {
+      const role = await prisma.role.findUnique({ 
+        where: { id },
+        include: { _count: { select: { users: true } } }
+      });
+
+      if (!role) {
+        return reply.status(404).send({ message: 'Роль не найдена' });
+      }
+
+      if (role.isSystem) {
         return reply.status(400).send({ message: 'Системные роли нельзя удалять' });
+      }
+
+      if (role._count.users > 0) {
+        return reply.status(400).send({ message: `Нельзя удалить роль, так как она назначена пользователям (${role._count.users})` });
       }
 
       await prisma.role.delete({

@@ -79,6 +79,9 @@ model Equipment {
   model           String
   serialNumber    String?
   inventoryNumber String?
+  tag             String?
+  comment         String?
+  fileUrl         String?
   status          String   @default("active") // active, repair, broken, retired
   
   cabinetId       String?

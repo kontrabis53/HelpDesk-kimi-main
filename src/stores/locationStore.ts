@@ -215,6 +215,27 @@ export const useLocationStore = create<LocationState>()(
                 cabinets: state.cabinets.map(c => c.departmentId === id ? { ...c, departmentId: undefined } : c)
               }));
             });
+
+            socket.on('registry:equipment_created', (eq: Equipment) => {
+              console.log('[Socket] Equipment created:', eq.id);
+              set(state => ({
+                equipment: [...state.equipment, eq]
+              }));
+            });
+
+            socket.on('registry:equipment_updated', (eq: Equipment) => {
+              console.log('[Socket] Equipment updated:', eq.id);
+              set(state => ({
+                equipment: state.equipment.map(e => e.id === eq.id ? eq : e)
+              }));
+            });
+
+            socket.on('registry:equipment_deleted', ({ id }: { id: string }) => {
+              console.log('[Socket] Equipment deleted:', id);
+              set(state => ({
+                equipment: state.equipment.filter(e => e.id !== id)
+              }));
+            });
           }
         }, 1000);
 
@@ -235,6 +256,9 @@ export const useLocationStore = create<LocationState>()(
             socket.off('registry:department_created');
             socket.off('registry:department_updated');
             socket.off('registry:department_deleted');
+            socket.off('registry:equipment_created');
+            socket.off('registry:equipment_updated');
+            socket.off('registry:equipment_deleted');
           }
           clearInterval(checkSocket);
         };
@@ -375,27 +399,27 @@ export const useLocationStore = create<LocationState>()(
       addEquipment: async (eq) => {
         try {
           await apiClient.post('/registry/equipment', eq);
-          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
+          throw err;
         }
       },
 
       updateEquipment: async (id, data) => {
         try {
           await apiClient.put(`/registry/equipment/${id}`, data);
-          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
+          throw err;
         }
       },
 
       deleteEquipment: async (id) => {
         try {
           await apiClient.delete(`/registry/equipment/${id}`);
-          // No local set, rely on socket
         } catch (err: any) {
           set({ error: err.message });
+          throw err;
         }
       },
 

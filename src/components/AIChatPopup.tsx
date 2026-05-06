@@ -48,7 +48,7 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
                 { role: 'assistant', content: '--- Новая сессия ---' },
                 { 
                   role: 'assistant', 
-                  content: `С возвращением, ${user?.name?.split(' ')[0] || 'пользователь'}! Я восстановил историю нашего общения. О чем хочешь узнать сейчас?` 
+                  content: `С возвращением, ${user?.name?.split(' ')[1] || user?.name?.split(' ')[0] || 'пользователь'}! Я восстановил историю нашего общения. О чем хочешь узнать сейчас?` 
                 }
               ]);
             } else {
@@ -56,7 +56,7 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
               setMessages([
                 { 
                   role: 'assistant', 
-                  content: `Привет, ${user?.name?.split(' ')[0] || 'пользователь'}! Я твой персональный ИИ-помощник по системе MEDIN (Логика v2.0). Я знаю всё о заявках, оборудовании и регламентах нашей клиники. Чем могу помочь?` 
+                  content: `Привет, ${user?.name?.split(' ')[1] || user?.name?.split(' ')[0] || 'пользователь'}! Я твой персональный ИИ-помощник Medini (Логика v2.0). Я знаю всё о заявках, оборудовании и регламентах нашей клиники. Чем могу помочь?` 
                 }
               ]);
             }
@@ -124,29 +124,31 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
       )}
     >
       {/* Header */}
-      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-blue-600 rounded-t-2xl">
-        <div className="flex items-center gap-3 text-white">
-          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
-            <Bot className="w-5 h-5" />
+      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 rounded-t-2xl shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 via-purple-500 to-pink-500 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20">
+            <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-bold leading-none">ИИ-Помощник MEDIN</h3>
-            <div className="flex items-center gap-1 mt-1">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="text-[10px] font-medium text-blue-100">Локальная модель</span>
+            <h3 className="text-base font-medium tracking-tight bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent font-sans">
+              Medini
+            </h3>
+            <div className="flex items-center gap-1">
+              <span className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" />
+              <span className="text-[10px] font-medium text-slate-400 tracking-wide">Advanced AI</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-1">
           <button 
             onClick={() => setIsMaximized(!isMaximized)}
-            className="p-1.5 hover:bg-white/10 rounded-lg text-white transition-colors"
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-colors"
           >
             {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
           <button 
             onClick={onClose}
-            className="p-1.5 hover:bg-white/10 rounded-lg text-white transition-colors"
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -167,55 +169,64 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
             )}
           >
             <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
+              "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
               msg.role === 'user' 
-                ? "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700" 
-                : "bg-blue-50 dark:bg-blue-900/30 border-blue-100 dark:border-blue-800"
+                ? "bg-slate-100 dark:bg-slate-800" 
+                : "bg-gradient-to-tr from-blue-100 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/20"
             )}>
               {msg.role === 'user' ? <User className="w-4 h-4 text-slate-500" /> : <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
             </div>
             <div className={cn(
-              "p-3 rounded-2xl text-sm shadow-sm",
+              "p-3 rounded-2xl text-sm leading-relaxed tracking-tight",
               msg.role === 'user' 
-                ? "bg-blue-600 text-white rounded-tr-none" 
-                : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-tl-none"
+                ? "bg-blue-600 text-white rounded-tr-none shadow-md" 
+                : "bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-800 rounded-tl-none font-sans"
             )}>
               {msg.content}
             </div>
           </div>
         ))}
         {isLoading && (
-          <div className="flex gap-3 mr-auto max-w-[85%]">
-            <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-800">
+          <div className="flex gap-3 mr-auto max-w-[85%] animate-pulse">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-100 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/20 flex items-center justify-center shrink-0">
               <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
-            <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl rounded-tl-none border border-slate-100 dark:border-slate-700">
-              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl rounded-tl-none border border-slate-100 dark:border-slate-800">
+              <div className="flex gap-1">
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce" />
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-        <div className="relative">
+      <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-b-2xl">
+        <div className="relative flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-400/10 transition-all">
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Спросите что-нибудь..."
-            className="pr-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+            placeholder="Спросите Medini..."
+            className="border-none bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm placeholder:text-slate-400"
           />
           <button 
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center disabled:opacity-50 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-500/20"
+            className={cn(
+              "p-2 rounded-lg transition-all",
+              input.trim() && !isLoading 
+                ? "bg-blue-600 text-white shadow-md shadow-blue-500/20" 
+                : "text-slate-300 cursor-not-allowed"
+            )}
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
-        <p className="mt-2 text-[10px] text-center text-slate-400">
-          ИИ может ошибаться. Проверяйте важную информацию.
+        <p className="text-[9px] text-center text-slate-400 mt-2 font-medium tracking-wide">
+          Medini может ошибаться. Проверяйте важную информацию.
         </p>
       </div>
     </motion.div>

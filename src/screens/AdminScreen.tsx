@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Role, UserWithRole, ActivityLog, ModuleId, ModulePermission } from '@/types/roles';
 import type { RegistrationRequest } from '@/types';
 import { moduleLabels, actionLabels } from '@/types/roles';
@@ -24,6 +24,7 @@ import {
   FlaskConical,
   Activity,
   ClipboardList,
+  FileText,
   Search as SearchIcon,
   Loader2,
   ShieldAlert,
@@ -101,6 +102,7 @@ export function AdminScreen({
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [showUserForm, setShowUserForm] = useState(false);
@@ -116,6 +118,33 @@ export function AdminScreen({
   const [editName, setEditName] = useState('');
   const [userToBlock, setUserToBlock] = useState<UserWithRole | null>(null);
   const [isBlocking, setIsBlocking] = useState(false);
+  const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
+  const [expandedEquipmentId, setExpandedEquipmentId] = useState<string | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleLongPress = (id: string) => {
+    setSelectedEquipmentIds(prev => 
+      prev.includes(id) 
+        ? prev.filter(i => i !== id) 
+        : [...prev, id]
+    );
+  };
+
+  const handleTouchStart = (id: string) => {
+    longPressTimer.current = setTimeout(() => {
+      handleLongPress(id);
+      longPressTimer.current = null;
+      // Vibration feedback if supported
+      if ('vibrate' in navigator) window.navigator.vibrate(50);
+    }, 700);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   // Custom Dialog States for Locations Registry
   const [locationDialog, setLocationDialog] = useState<{
@@ -130,6 +159,10 @@ export function AdminScreen({
     floorId?: string;
     id?: string;
     model?: string;
+    serialNumber?: string;
+    tag?: string;
+    comment?: string;
+    fileUrl?: string;
     cabinetId?: string;
     icon?: string;
     color?: string;
@@ -139,6 +172,10 @@ export function AdminScreen({
     mode: 'add',
     title: '',
     model: '',
+    serialNumber: '',
+    tag: '',
+    comment: '',
+    fileUrl: '',
     cabinetId: '',
     icon: 'Stethoscope',
     color: '#10B981',
@@ -466,14 +503,20 @@ export function AdminScreen({
           return;
         }
         const cab = cabinets.find(c => c.id === cabinetId);
-        const dept = departments.find(d => d.id === cab?.departmentId);
         
         if (mode === 'add') {
           await addEquipment({ 
             name: val, 
             model, 
             cabinetId, 
-            department: dept?.name || 'Общий' 
+            departmentId: cab?.departmentId,
+            buildingId: cab?.buildingId,
+            floorId: cab?.floorId,
+            serialNumber: locationDialog.serialNumber,
+            tag: locationDialog.tag,
+            comment: locationDialog.comment,
+            fileUrl: locationDialog.fileUrl,
+            status: 'active'
           });
           toast.success('Оборудование добавлено');
         } else if (id) {
@@ -481,10 +524,21 @@ export function AdminScreen({
             name: val,
             model,
             cabinetId,
-            department: dept?.name || 'Общий'
+            departmentId: cab?.departmentId,
+            buildingId: cab?.buildingId,
+            floorId: cab?.floorId,
+            serialNumber: locationDialog.serialNumber,
+            tag: locationDialog.tag,
+            comment: locationDialog.comment,
+            fileUrl: locationDialog.fileUrl
           });
           toast.success('Оборудование обновлено');
         }
+        
+        // Manual refresh fallback
+        setTimeout(() => {
+          fetchData();
+        }, 500);
       }
     }
 
@@ -931,7 +985,7 @@ export function AdminScreen({
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => onDeleteRole(role.id)}
+                        onClick={() => setRoleToDelete(role)}
                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-400 hover:text-red-500 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1062,29 +1116,50 @@ export function AdminScreen({
               </div>
 
               <div className="flex items-center gap-3">
-                <Button 
-                  onClick={handleToggleLock} 
-                  variant={isLocked ? "destructive" : "outline"} 
-                  size="sm" 
-                  className={cn(
-                    "h-9 px-3 gap-2",
-                    !isLocked && "border-blue-200 text-blue-600 hover:bg-blue-50"
-                  )}
-                >
-                  {isLocked ? (
-                    <>
-                      <Lock className="w-4 h-4" />
-                      Заблокировано
-                    </>
-                  ) : (
-                    <>
-                      <Unlock className="w-4 h-4" />
-                      Свободно
-                    </>
-                  )}
-                </Button>
+                {locationView === 'equipment' ? (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className={cn(
+                      "h-9 px-3 gap-2 border-blue-200 text-blue-600 transition-all",
+                      selectedEquipmentIds.length > 0 ? "bg-blue-600 text-white border-blue-600" : "hover:bg-blue-50"
+                    )}
+                    onClick={() => {
+                      if (selectedEquipmentIds.length > 0) {
+                        toast.success(`Выбрано ${selectedEquipmentIds.length} ед. оборудования`);
+                      } else {
+                        toast.info('Выберите оборудование из списка');
+                      }
+                    }}
+                  >
+                    <Check className="w-4 h-4" />
+                    {selectedEquipmentIds.length > 0 ? `Выбрано: ${selectedEquipmentIds.length}` : 'Выбрать'}
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleToggleLock} 
+                    variant={isLocked ? "destructive" : "outline"} 
+                    size="sm" 
+                    className={cn(
+                      "h-9 px-3 gap-2",
+                      !isLocked && "border-blue-200 text-blue-600 hover:bg-blue-50"
+                    )}
+                  >
+                    {isLocked ? (
+                      <>
+                        <Lock className="w-4 h-4" />
+                        Заблокировано
+                      </>
+                    ) : (
+                      <>
+                        <Unlock className="w-4 h-4" />
+                        Свободно
+                      </>
+                    )}
+                  </Button>
+                )}
                 <Separator orientation="vertical" className="h-8 hidden md:block" />
-                {!isLocked && (
+                {(locationView === 'equipment' || !isLocked) && (
                   <Button onClick={() => {
                     if (locationView === 'floors') {
                       setLocationDialog({
@@ -1112,6 +1187,10 @@ export function AdminScreen({
                         title: 'Добавить новое оборудование',
                         inputValue: '',
                         model: '',
+                        serialNumber: '',
+                        tag: '',
+                        comment: '',
+                        fileUrl: '',
                         cabinetId: ''
                       });
                     }
@@ -1127,7 +1206,7 @@ export function AdminScreen({
               <div className="space-y-4">
                 {locationView === 'floors' ? (
                   <div className="flex flex-wrap justify-between gap-y-10 gap-x-6 w-full px-4 relative">
-                    <DataCables locationView={locationView} />
+                    <DataCables />
                     {[...buildings]
                       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                       .map((building, index, sortedBuildings) => (
@@ -1625,14 +1704,27 @@ export function AdminScreen({
                         {departments.map(dept => {
                           const DeptIcon = getDeptIcon(dept.icon);
                           return (
-                            <div key={dept.id} className="bg-slate-50 dark:bg-slate-900/40 rounded-xl p-3 border border-slate-100 dark:border-slate-800/50">
-                              <div className="flex items-center justify-between mb-2 group">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <div 
+                              key={dept.id} 
+                              className="relative rounded-xl p-4 border transition-all duration-300 hover:shadow-md group/dept overflow-hidden"
+                              style={{ 
+                                backgroundColor: dept.color ? `${dept.color}08` : undefined,
+                                borderColor: dept.color ? `${dept.color}30` : undefined,
+                              }}
+                            >
+                              {/* Color Accent Bar */}
+                              <div 
+                                className="absolute top-0 left-0 right-0 h-1.5 opacity-70 group-hover/dept:opacity-100 transition-opacity"
+                                style={{ backgroundColor: dept.color || '#10B981' }}
+                              />
+
+                              <div className="flex items-center justify-between mb-3 group">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
                                       <div 
-                                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm"
+                                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-white/50 dark:border-slate-700/50"
                                         style={{ backgroundColor: `${dept.color || '#10B981'}20`, color: dept.color || '#10B981' }}
                                       >
-                                        <DeptIcon className="w-4 h-4" />
+                                        <DeptIcon className="w-5 h-5" />
                                       </div>
                                       {editingDepartment === dept.id ? (
                                         <div className="flex items-center gap-1 w-full">
@@ -1659,7 +1751,7 @@ export function AdminScreen({
                                       ) : (
                                         <span 
                                           className={cn(
-                                            "text-sm font-bold text-slate-700 dark:text-slate-200 truncate transition-colors",
+                                            "text-base font-bold text-slate-800 dark:text-slate-100 truncate transition-colors",
                                             !isLocked && "cursor-pointer hover:text-emerald-600"
                                           )}
                                           onClick={() => {
@@ -1760,96 +1852,227 @@ export function AdminScreen({
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Оборудование</th>
-                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Модель</th>
-                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Локация</th>
-                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Отделение</th>
-                            <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400 text-right">Действия</th>
+                            {selectedEquipmentIds.length > 0 && (
+                              <th className="px-2 py-4 w-[40px] text-center">
+                                <div className="flex justify-center">
+                                  <div className="w-4 h-4 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800" />
+                                </div>
+                              </th>
+                            )}
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400 min-w-[220px]">Наименование</th>
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400">Серийник</th>
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400">Тег</th>
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400 min-w-[280px]">Комментарий</th>
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400">Файл</th>
+                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400 w-[100px]">Статус</th>
+                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400 text-right w-[80px]">Действия</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                           {equipment.map(item => {
+                            const isSelected = selectedEquipmentIds.includes(item.id);
+                            const isExpanded = expandedEquipmentId === item.id;
                             const cab = cabinets.find(c => c.id === item.cabinetId);
                             const floor = floors.find(f => f.id === cab?.floorId);
                             const bld = buildings.find(b => b.id === cab?.buildingId);
                             const dept = departments.find(d => d.id === cab?.departmentId);
+
                             return (
-                              <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors group">
-                                <td className="px-6 py-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-                                      <Monitor className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                    </div>
-                                    <span className="font-bold text-slate-800 dark:text-slate-100">{item.name}</span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <Badge variant="secondary" className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-none font-bold">
-                                    {item.model}
-                                  </Badge>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{bld?.name}</span>
-                                    <span className="text-xs text-slate-400">Этаж {floor?.number}, Каб. {cab?.name || '?'}</span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                  {dept ? (
-                                    <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/5 font-bold">
-                                      <Shield className="w-3 h-3 mr-1" />
-                                      {dept.name}
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-slate-400 italic text-xs">Не назначено</span>
+                              <React.Fragment key={item.id}>
+                                <tr 
+                                  className={cn(
+                                    "hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors group cursor-pointer select-none",
+                                    isSelected && "bg-blue-50/50 dark:bg-blue-900/10",
+                                    isExpanded && "bg-slate-50 dark:bg-slate-900/40"
                                   )}
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                  <div className="flex justify-end gap-2">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-8 w-8 text-slate-400 hover:text-blue-600"
-                                      onClick={() => {
-                                        setLocationDialog({
-                                          isOpen: true,
-                                          type: 'equipment',
-                                          mode: 'edit',
-                                          title: 'Редактировать оборудование',
-                                          inputValue: item.name,
-                                          model: item.model,
-                                          cabinetId: item.cabinetId,
-                                          id: item.id
-                                        });
-                                      }}
+                                  onClick={() => setExpandedEquipmentId(isExpanded ? null : item.id)}
+                                  onMouseDown={(e) => {
+                                    if (e.button === 0) handleTouchStart(item.id);
+                                  }}
+                                  onMouseUp={handleTouchEnd}
+                                  onMouseLeave={handleTouchEnd}
+                                  onTouchStart={() => handleTouchStart(item.id)}
+                                  onTouchEnd={handleTouchEnd}
+                                >
+                                  {selectedEquipmentIds.length > 0 && (
+                                    <td className="px-2 py-3 w-[40px]" onClick={(e) => e.stopPropagation()}>
+                                      <div className="flex justify-center">
+                                        <button 
+                                          onClick={() => handleLongPress(item.id)}
+                                          className={cn(
+                                            "w-4 h-4 rounded border flex items-center justify-center transition-all shrink-0",
+                                            isSelected 
+                                              ? "bg-blue-600 border-blue-600 text-white shadow-sm" 
+                                              : "border-slate-300 dark:border-slate-600 hover:border-blue-500 bg-white dark:bg-slate-800"
+                                          )}
+                                        >
+                                          {isSelected && <Check className="w-2.5 h-2.5 stroke-[4]" />}
+                                        </button>
+                                      </div>
+                                    </td>
+                                  )}
+                                  <td className="px-6 py-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className={cn(
+                                        "p-1.5 rounded-lg transition-colors shrink-0",
+                                        isSelected ? "bg-blue-600 text-white" : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                                      )}>
+                                        <Monitor className="w-4 h-4" />
+                                      </div>
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate">{item.name}</span>
+                                        <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest truncate">{item.model}</span>
+                                      </div>
+                                      <ChevronDown className={cn(
+                                        "w-3 h-3 text-slate-300 ml-auto transition-transform group-hover:text-slate-400",
+                                        isExpanded && "rotate-180"
+                                      )} />
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-3 text-xs font-mono text-slate-600 dark:text-slate-400">
+                                    {item.serialNumber || '—'}
+                                  </td>
+                                  <td className="px-6 py-3">
+                                    {item.tag ? (
+                                      <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800 font-bold text-[9px] h-5">
+                                        {item.tag}
+                                      </Badge>
+                                    ) : '—'}
+                                  </td>
+                                  <td className="px-6 py-3">
+                                    <span className="text-xs text-slate-500 dark:text-slate-400 max-w-[260px] truncate block leading-tight" title={item.comment || ''}>
+                                      {item.comment || '—'}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-3">
+                                    {item.fileUrl ? (
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" onClick={(e) => e.stopPropagation()}>
+                                        <FileText className="w-3.5 h-3.5" />
+                                      </Button>
+                                    ) : '—'}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <Badge 
+                                      variant="secondary" 
+                                      className={cn(
+                                        "font-bold uppercase text-[9px] tracking-wider h-5 whitespace-nowrap",
+                                        item.status === 'active' ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30" :
+                                        item.status === 'repair' ? "bg-amber-50 text-amber-600 dark:bg-amber-900/30" :
+                                        "bg-red-50 text-red-600 dark:bg-red-900/30"
+                                      )}
                                     >
-                                      <Edit2 className="w-4 h-4" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-8 w-8 text-slate-400 hover:text-red-600"
-                                      onClick={() => {
-                                        setLocationDialog({
-                                          isOpen: true,
-                                          type: 'equipment',
-                                          mode: 'delete',
-                                          title: 'Удалить оборудование?',
-                                          description: `Вы уверены, что хотите удалить "${item.name}" (${item.model})?`,
-                                          id: item.id
-                                        });
-                                      }}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
+                                      {item.status === 'active' ? 'Работает' : 
+                                       item.status === 'repair' ? 'В ремонте' : 'Списано'}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex justify-end gap-1">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-7 w-7 text-slate-400 hover:text-blue-600"
+                                        onClick={() => {
+                                          setLocationDialog({
+                                            isOpen: true,
+                                            type: 'equipment',
+                                            mode: 'edit',
+                                            title: 'Редактировать оборудование',
+                                            inputValue: item.name,
+                                            model: item.model,
+                                            serialNumber: item.serialNumber,
+                                            tag: item.tag,
+                                            comment: item.comment,
+                                            fileUrl: item.fileUrl,
+                                            cabinetId: item.cabinetId,
+                                            id: item.id
+                                          });
+                                        }}
+                                      >
+                                        <Edit2 className="w-4 h-4" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 text-slate-400 hover:text-red-600"
+                                        onClick={() => {
+                                          setLocationDialog({
+                                            isOpen: true,
+                                            type: 'equipment',
+                                            mode: 'delete',
+                                            title: 'Удалить оборудование?',
+                                            description: `Вы уверены, что хотите удалить "${item.name}" (${item.model})?`,
+                                            id: item.id
+                                          });
+                                        }}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                                {isExpanded && (
+                                  <tr className="bg-slate-50/80 dark:bg-slate-900/40 border-b border-slate-100 dark:border-slate-800">
+                                    <td colSpan={selectedEquipmentIds.length > 0 ? 9 : 8} className="px-12 py-6">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        {/* Basic Info */}
+                                        <div className="space-y-4">
+                                          <div className="flex flex-col">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Местоположение</span>
+                                            <div className="flex items-center gap-2">
+                                              <BuildingIcon className="w-3.5 h-3.5 text-blue-500" />
+                                              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{bld?.name || '—'}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-1">
+                                              <span className="text-xs text-slate-500">Этаж {floor?.number || '—'}, Каб. {cab?.name || '—'}</span>
+                                            </div>
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Отделение</span>
+                                            <div className="flex items-center gap-2">
+                                              <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/5 text-emerald-600 font-bold">
+                                                <Stethoscope className="w-3 h-3 mr-1" />
+                                                {dept?.name || 'Не назначено'}
+                                              </Badge>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Technical Info */}
+                                        <div className="space-y-4">
+                                          <div className="flex flex-col">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Идентификаторы</span>
+                                            <div className="grid grid-cols-1 gap-2">
+                                              <div className="flex items-center justify-between text-xs p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                                                <span className="text-slate-400">Серийник:</span>
+                                                <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{item.serialNumber || '—'}</span>
+                                              </div>
+                                              <div className="flex items-center justify-between text-xs p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                                                <span className="text-slate-400">Тег:</span>
+                                                <span className="font-bold text-amber-600">{item.tag || '—'}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Comments */}
+                                        <div className="space-y-4 lg:col-span-2">
+                                          <div className="flex flex-col h-full">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Полный комментарий</span>
+                                            <div className="flex-1 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 italic leading-relaxed">
+                                              {item.comment || 'Комментарий отсутствует'}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           })}
                           {equipment.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 italic">
+                              <td colSpan={8} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 italic">
                                 Список оборудования пуст
                               </td>
                             </tr>
@@ -2482,6 +2705,69 @@ export function AdminScreen({
         </DialogContent>
       </Dialog>
 
+      {/* Delete Role Confirmation Dialog */}
+      <Dialog open={!!roleToDelete} onOpenChange={(open) => {
+        if (!open) {
+          setRoleToDelete(null);
+        }
+      }}>
+        <DialogContent className="max-w-[320px] p-0 overflow-hidden border-none bg-white dark:bg-slate-900 shadow-2xl">
+          <div className="p-6 flex flex-col items-center text-center text-white bg-red-500">
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-4 animate-pulse">
+              <ShieldAlert className="w-6 h-6 text-white" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Удалить роль?</h3>
+            <p className="text-sm text-white/90 opacity-90 leading-relaxed">
+              Вы собираетесь безвозвратно удалить роль:
+              <span className="block text-white font-black text-base mt-1 underline decoration-white/30">{roleToDelete?.name}</span>
+              Это действие нельзя отменить.
+            </p>
+          </div>
+          
+          <div className="p-6 space-y-4">
+            <div className="flex flex-col gap-2">
+              <Button
+                onClick={async () => {
+                  if (!roleToDelete) return;
+                  
+                  setIsDeleting(true);
+                  try {
+                    await onDeleteRole(roleToDelete.id);
+                    toast.success('Роль успешно удалена');
+                    setRoleToDelete(null);
+                  } catch (error: any) {
+                    const responseData = error.response?.data;
+                    const serverMessage = responseData?.message || error.message || 'Ошибка при удалении роли';
+                    toast.error(serverMessage);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                disabled={isDeleting}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-10 shadow-lg shadow-red-500/20"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Trash2 className="w-4 h-4 mr-2" />
+                )}
+                УДАЛИТЬ РОЛЬ
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setRoleToDelete(null);
+                }}
+                disabled={isDeleting}
+                className="w-full text-slate-500 dark:text-slate-400 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Отмена
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Block User Confirmation Dialog */}
       <Dialog open={!!userToBlock} onOpenChange={(open) => !open && setUserToBlock(null)}>
         <DialogContent className="max-w-[400px] p-0 overflow-hidden border-none bg-white dark:bg-slate-900 shadow-2xl">
@@ -2672,6 +2958,45 @@ export function AdminScreen({
                         onChange={(e) => setLocationDialog(prev => ({ ...prev, model: e.target.value }))}
                         placeholder="Например: Hamilton C3"
                         className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="equipment-sn" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          Серийный номер
+                        </Label>
+                        <Input
+                          id="equipment-sn"
+                          value={locationDialog.serialNumber}
+                          onChange={(e) => setLocationDialog(prev => ({ ...prev, serialNumber: e.target.value }))}
+                          placeholder="S/N 12345"
+                          className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="equipment-tag" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          Тег / Инв. №
+                        </Label>
+                        <Input
+                          id="equipment-tag"
+                          value={locationDialog.tag}
+                          onChange={(e) => setLocationDialog(prev => ({ ...prev, tag: e.target.value }))}
+                          placeholder="TAG-001"
+                          className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 h-10"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="equipment-comment" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Комментарий
+                      </Label>
+                      <Textarea
+                        id="equipment-comment"
+                        value={locationDialog.comment}
+                        onChange={(e) => setLocationDialog(prev => ({ ...prev, comment: e.target.value }))}
+                        placeholder="Дополнительная информация..."
+                        className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                        rows={2}
                       />
                     </div>
                     <div className="space-y-2">

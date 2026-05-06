@@ -11,7 +11,7 @@ interface Cable {
   altTo?: string;
 }
 
-export const DataCables: React.FC<{ locationView?: string }> = ({ locationView = 'floors' }) => {
+export const DataCables: React.FC = () => {
   const { buildings } = useLocationStore();
   const [paths, setPaths] = useState<any[]>([]);
   const containerRef = useRef<SVGSVGElement>(null);

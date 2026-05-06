@@ -208,19 +208,41 @@ export default async function registryRoutes(fastify: FastifyInstance) {
   fastify.post('/equipment', async (request) => {
     console.log('[API] Creating equipment:', request.body);
     const data = request.body as any;
-    return (prisma as any).equipment.create({ data });
+    const equipment = await (prisma as any).equipment.create({ 
+      data,
+      include: { cabinet: true, department: true }
+    });
+    
+    // Broadcast creation
+    (fastify as any).io.emit('registry:equipment_created', equipment);
+    
+    return equipment;
   });
 
   fastify.put('/equipment/:id', async (request) => {
     console.log('[API] Updating equipment:', request.params, request.body);
     const { id } = request.params as { id: string };
     const data = request.body as any;
-    return (prisma as any).equipment.update({ where: { id }, data });
+    const equipment = await (prisma as any).equipment.update({ 
+      where: { id }, 
+      data,
+      include: { cabinet: true, department: true }
+    });
+    
+    // Broadcast update
+    (fastify as any).io.emit('registry:equipment_updated', equipment);
+    
+    return equipment;
   });
 
   fastify.delete('/equipment/:id', async (request) => {
     console.log('[API] Deleting equipment:', request.params);
     const { id } = request.params as { id: string };
-    return (prisma as any).equipment.delete({ where: { id } });
+    const result = await (prisma as any).equipment.delete({ where: { id } });
+    
+    // Broadcast deletion
+    (fastify as any).io.emit('registry:equipment_deleted', { id });
+    
+    return result;
   });
 }

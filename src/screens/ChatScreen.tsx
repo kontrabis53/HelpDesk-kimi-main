@@ -28,7 +28,8 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeText } from '@/lib/utils';
+import { UserAvatar } from '@/components/UserAvatar';
 import { useChatStore } from '@/stores/chatStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -58,8 +59,6 @@ import {
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import { toast } from 'sonner';
-
-import { sanitizeText } from '@/lib/utils';
 
 export function ChatScreen() {
   const { 
@@ -102,24 +101,48 @@ export function ChatScreen() {
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const activeChat = (chats || []).find(c => c.id === activeChatId);
   const chatMessages = (messages || []).filter(m => m.chatId === activeChatId);
+
+  // Handle marking as read on scroll
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !activeChatId || chatMessages.length === 0) return;
+
+    const handleScroll = () => {
+      // If we are near the bottom (within 100px), clear unread
+      const isNearBottom = 
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
+      
+      if (isNearBottom) {
+        clearUnread(activeChatId);
+      }
+    };
+
+    viewport.addEventListener('scroll', handleScroll);
+    // Initial check
+    handleScroll();
+
+    return () => viewport.removeEventListener('scroll', handleScroll);
+  }, [activeChatId, chatMessages.length, clearUnread]);
 
   // Find directory info and online status for active chat participant if it's a direct chat
   const activeChatInfo = useMemo(() => {
     if (!activeChat || activeChat.type !== 'direct') return { directory: null, isOnline: false };
     
     // 1. Find ID of other person
-    const otherId = activeChat.participants.find(p => p !== currentUser?.id && p !== 'current-user');
+    const otherId = activeChat.participants.find(p => p !== currentUser?.id);
     
     // 2. Find user in RoleStore for online status
-    const registeredUser = users.find(u => u.id === otherId || u.name === activeChat.name);
+    const registeredUser = users.find(u => u.id === otherId || (u.name && activeChat.name && u.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase()));
     
     // 3. Search directory by ID or Name
-    const directory = directoryEntries.find(e => 
-      e.id === otherId || 
-      e.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase()
-    );
+    const directory = directoryEntries.find(e => {
+      if (!e.name || !activeChat.name) return e.id === otherId;
+      return e.id === otherId || 
+             e.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase();
+    });
 
     return {
       directory,
@@ -133,22 +156,25 @@ export function ChatScreen() {
   useEffect(() => {
     // Scroll to bottom whenever messages change or a new chat is selected
     if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      scrollRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
     }
-  }, [chatMessages, activeChatId]);
+  }, [chatMessages.length, activeChatId]);
 
+  // Remove the old clearUnread on activeChatId change as we now do it on scroll
+  /*
   useEffect(() => {
     if (activeChatId) {
       clearUnread(activeChatId);
     }
   }, [activeChatId, clearUnread]);
+  */
 
   const handleSendMessage = (textOverride?: string) => {
     const textToSend = textOverride || newMessage;
     if (!textToSend.trim() || !activeChatId || !currentUser) return;
     
     // Find recipient info for better message handling if needed
-    const otherParticipantId = activeChat?.participants.find(p => p !== currentUser.id && p !== 'current-user');
+    const otherParticipantId = activeChat?.participants.find(p => p !== currentUser.id);
 
     // Send message with both Role Name and Real Name
     sendMessage(
@@ -365,28 +391,21 @@ export function ChatScreen() {
                      )}
                    >
                      <div className="relative flex-shrink-0">
-                       <div className={cn(
-                         "w-12 h-12 rounded-full flex items-center justify-center border transition-colors relative",
-                         activeChatId === chat.id
-                           ? "bg-white/20 border-white/30"
-                           : chat.type === 'group' 
-                             ? "bg-amber-100 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" 
-                             : "bg-blue-100 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                       )}>
-                         {chat.type === 'group' 
-                           ? <Users className={cn("w-6 h-6", activeChatId === chat.id ? "text-white" : "text-amber-600")} /> 
-                           : <UserIcon className={cn("w-6 h-6", activeChatId === chat.id ? "text-white" : "text-blue-600")} />
-                         }
-                         
-                         {chat.type === 'direct' && (
+                       <UserAvatar 
+                         avatarUrl={users.find(u => u.id === chat.participants.find(p => p !== currentUser?.id) || (u.name && chat.name && u.name.trim().toLowerCase() === chat.name.trim().toLowerCase()))?.avatar} 
+                         name={chat.name} 
+                         sizeClass="w-12 h-12" 
+                         textClass="text-xs" 
+                       />
+                       
+                       {chat.type === 'direct' && (
                            <div className={cn(
                              "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800",
-                             users.find(u => u.id === chat.participants.find(p => p !== currentUser?.id && p !== 'current-user') || u.name === chat.name)?.isOnline 
+                             users.find(u => u.id === chat.participants.find(p => p !== currentUser?.id) || (u.name && chat.name && u.name.trim().toLowerCase() === chat.name.trim().toLowerCase()))?.isOnline 
                                ? "bg-emerald-500" 
                                : "bg-red-500"
                            )} />
                          )}
-                       </div>
                        {chat.unreadCount > 0 && (
                          <span className={cn(
                            "absolute -top-1 -right-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2",
@@ -412,15 +431,25 @@ export function ChatScreen() {
                        <div className="flex justify-between items-start mb-0.5">
                          <span className={cn(
                            "font-bold text-sm truncate pr-2 flex items-center gap-1",
-                           activeChatId === chat.id ? "text-white" : "text-slate-900 dark:text-slate-100"
+                           activeChatId === chat.id ? "text-white" : "text-slate-900 dark:text-slate-100",
+                           chat.unreadCount > 0 && activeChatId !== chat.id && "font-black"
                          )}>
                            {chat.name}
                            {chat.isMuted && <BellOff className={cn("w-3 h-3", activeChatId === chat.id ? "text-white/70" : "text-slate-400")} />}
+                           
+                           {chat.unreadCount > 0 && activeChatId !== chat.id && (
+                             <span className={cn(
+                               "ml-auto flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full text-[10px] font-bold bg-blue-600 text-white shadow-sm"
+                             )}>
+                               {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                             </span>
+                           )}
                          </span>
                          {chat.lastMessageTime && (
                            <span className={cn(
-                             "text-[10px] whitespace-nowrap",
-                             activeChatId === chat.id ? "text-white/80" : "text-slate-400"
+                             "text-[10px] whitespace-nowrap ml-2",
+                             activeChatId === chat.id ? "text-white/80" : "text-slate-400",
+                             chat.unreadCount > 0 && activeChatId !== chat.id && "text-blue-600 dark:text-blue-400 font-bold"
                            )}>
                              {format(new Date(chat.lastMessageTime), 'HH:mm')}
                            </span>
@@ -428,7 +457,8 @@ export function ChatScreen() {
                        </div>
                        <p className={cn(
                          "text-xs truncate leading-tight",
-                         activeChatId === chat.id ? "text-white/90 font-medium" : "text-slate-500 dark:text-slate-400"
+                         activeChatId === chat.id ? "text-white/90 font-medium" : "text-slate-500 dark:text-slate-400",
+                         chat.unreadCount > 0 && activeChatId !== chat.id && "text-slate-900 dark:text-slate-100 font-bold"
                        )}>
                          {chat.lastMessage || 'Нет сообщений'}
                        </p>
@@ -496,7 +526,12 @@ export function ChatScreen() {
                   "w-10 h-10 rounded-full flex items-center justify-center",
                   activeChat.type === 'group' ? "bg-amber-100 dark:bg-amber-900/20" : "bg-blue-100 dark:bg-blue-900/20"
                 )}>
-                  {activeChat.type === 'group' ? <Users className="w-5 h-5 text-amber-600" /> : <UserIcon className="w-5 h-5 text-blue-600" />}
+                  <UserAvatar 
+                    avatarUrl={users.find(u => u.id === activeChat.participants.find(p => p !== currentUser?.id) || (u.name && activeChat.name && u.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase()))?.avatar} 
+                    name={activeChat.name} 
+                    sizeClass="w-10 h-10" 
+                    textClass="text-[10px]" 
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className="font-bold text-slate-800 dark:text-slate-100 leading-none truncate">{activeChat.name}</h2>
@@ -526,39 +561,57 @@ export function ChatScreen() {
 
             <div className="flex-1 flex overflow-hidden">
               {/* Messages Area */}
-              <ScrollArea className="flex-1 px-4">
+              <ScrollArea className="flex-1 px-4" viewportRef={viewportRef}>
                 <div className="py-4 space-y-4">
                   {chatMessages.map((msg, i) => {
                     const isMe = msg.senderId === currentUser?.id;
                     const prevMsg = chatMessages[i - 1];
                     const showSender = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
+                    
+                    // Resolve sender info from message object or role store
+                    const senderFromMsg = msg.senderId === currentUser?.id ? currentUser : (msg.sender || users.find(u => u.id === msg.senderId));
+                    const senderName = msg.senderName || senderFromMsg?.name || 'Пользователь';
+                    const senderAvatar = senderFromMsg?.avatar;
 
                     return (
                       <div key={msg.id} className={cn(
-                        "flex flex-col",
-                        isMe ? "items-end" : "items-start"
+                        "flex gap-3 mb-4",
+                        isMe ? "flex-row-reverse items-end" : "flex-row items-end"
                       )}>
-                        {showSender && (
-                          <div className="flex items-center gap-2 ml-1 mb-1">
-                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{msg.senderName}</span>
-                            {msg.senderRealName && (
-                              <span className="text-[10px] text-slate-400 italic">({msg.senderRealName})</span>
-                            )}
-                          </div>
-                        )}
+                        <div className="shrink-0 mb-1">
+                          <UserAvatar 
+                            avatarUrl={senderAvatar} 
+                            name={senderName} 
+                            sizeClass="w-9 h-9" 
+                            textClass="text-[10px]" 
+                          />
+                        </div>
+                        
                         <div className={cn(
-                          "max-w-[85%] md:max-w-[70%] px-4 py-2.5 rounded-2xl text-sm relative shadow-sm break-words",
-                          isMe 
-                            ? "bg-blue-600 text-white rounded-tr-none" 
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700"
+                          "flex flex-col max-w-[75%] md:max-w-[65%]",
+                          isMe ? "items-end" : "items-start"
                         )}>
-                          {sanitizeText(msg.text)}
-                          <span className={cn(
-                            "text-[9px] mt-1 block opacity-60",
-                            isMe ? "text-right" : "text-left"
+                          {showSender && (
+                            <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">
+                              {senderName}
+                            </span>
+                          )}
+                          <div className={cn(
+                            "px-4 py-2.5 rounded-2xl text-sm shadow-sm break-words w-fit",
+                            isMe 
+                              ? "bg-blue-600 text-white rounded-br-none" 
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700"
                           )}>
-                            {format(new Date(msg.timestamp || msg.createdAt), 'HH:mm')}
-                          </span>
+                            <p className="whitespace-pre-wrap leading-relaxed">
+                              {sanitizeText(msg.text)}
+                            </p>
+                            <span className={cn(
+                              "text-[9px] mt-1 block opacity-60",
+                              isMe ? "text-right" : "text-left"
+                            )}>
+                              {format(new Date(msg.timestamp || msg.createdAt), 'HH:mm')}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
@@ -695,6 +748,7 @@ export function ChatScreen() {
                   placeholder="Напишите сообщение..."
                   className="flex-1 bg-transparent border-0 focus:ring-0 resize-none py-2 text-sm max-h-32 min-h-[40px] text-slate-800 dark:text-slate-100"
                   value={newMessage}
+                  maxLength={4096}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -704,13 +758,28 @@ export function ChatScreen() {
                   }}
                   rows={1}
                 />
-                <Button 
-                  onClick={() => handleSendMessage()}
-                  disabled={!newMessage.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 w-10 p-0 shrink-0 shadow-lg shadow-blue-500/20 transition-all active:scale-95"
-                >
-                  <Send className="w-5 h-5" />
-                </Button>
+                <div className="flex flex-col items-end gap-1">
+                  {newMessage.length > 3000 && (
+                    <span className={cn(
+                      "text-[10px] font-bold mr-2 mb-1",
+                      newMessage.length > 4000 ? "text-red-500" : "text-slate-400"
+                    )}>
+                      {newMessage.length}/4096
+                    </span>
+                  )}
+                  <button 
+                    className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg",
+                      newMessage.trim() 
+                        ? "bg-blue-600 text-white shadow-blue-500/30 scale-100 opacity-100" 
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-400 shadow-none scale-90 opacity-50 cursor-not-allowed"
+                    )}
+                    onClick={() => handleSendMessage()}
+                    disabled={!newMessage.trim()}
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
           </>

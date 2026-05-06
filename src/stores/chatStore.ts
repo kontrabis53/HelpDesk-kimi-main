@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { io, Socket } from 'socket.io-client';
 import { chatService } from '@/api/chat';
 import { sanitizeText, isZalgo } from '@/lib/utils';
-import { toast } from 'sonner';
+import { toast as sonnerToast } from 'sonner';
 
 import { useNotificationStore } from './notificationStore';
 
@@ -55,8 +55,6 @@ interface ChatStore {
   setShowHiddenChats: (show: boolean) => void;
 }
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
-
 export const useChatStore = create<ChatStore>()(
   persist(
     (set, get) => ({
@@ -72,14 +70,30 @@ export const useChatStore = create<ChatStore>()(
       return;
     }
 
-    console.log('Connecting to socket at:', SOCKET_URL);
-    const socket = io(SOCKET_URL, {
-      transports: ['websocket'],
-      upgrade: false,
+    // NUCLEAR OPTION: Ignore .env and use browser location for everything
+    const currentHost = window.location.hostname;
+    const socketUrl = `http://${currentHost}:3000`;
+
+    console.log('[Socket] NUCLEAR CONNECT:', socketUrl);
+    const socket = io(socketUrl, {
+      transports: ['polling', 'websocket'],
+      upgrade: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      timeout: 20000,
+      forceNew: true,
+      autoConnect: true
     });
+
+    // Debug globally
+    (window as any).chatSocket = socket;
+    (window as any).testNotification = () => {
+      sonnerToast('Тестовое уведомление', {
+        description: 'Если вы это видите, уведомления работают!',
+        position: 'bottom-right',
+      });
+    };
 
     // Re-authenticate on every connection/reconnection
     socket.on('connect', () => {
@@ -91,9 +105,13 @@ export const useChatStore = create<ChatStore>()(
     });
 
     socket.on('chat:message', async (message: ChatMessage) => {
+      console.log('[Socket] New message received:', message);
       // Check if message is for us or from us
       const currentUser = (window as any).useAuthStore?.getState()?.user;
-      if (!currentUser) return;
+      if (!currentUser) {
+        console.log('[Socket] No current user found, skipping message');
+        return;
+      }
 
       // Sanitize incoming message content to prevent UI issues
       const sanitizedMessage = {
@@ -106,57 +124,53 @@ export const useChatStore = create<ChatStore>()(
       
       // If it's a direct message (has receiverId), use consistent chatId
       const msgReceiverId = (sanitizedMessage as any).receiverId;
-      if (msgReceiverId || sanitizedMessage.chatId.startsWith('chat-')) {
-        const participantId = sanitizedMessage.senderId === currentUser.id ? msgReceiverId : sanitizedMessage.senderId;
+      const participantId = sanitizedMessage.senderId === currentUser.id ? msgReceiverId : sanitizedMessage.senderId;
+
+      if (msgReceiverId || sanitizedMessage.chatId.startsWith('chat_')) {
         if (participantId) {
-          targetChatId = `chat-${[currentUser.id, participantId].sort().join('-')}`;
-          
-          // Ensure chat exists in sidebar
-          const existingChat = get().chats.find(c => c.id === targetChatId);
-          if (!existingChat) {
-            const newChat: Chat = {
-              id: targetChatId,
-              name: sanitizedMessage.senderName,
-              type: 'direct',
-              participants: ['current-user', participantId],
-              unreadCount: 1
-            };
-            set(state => ({ chats: [newChat, ...state.chats] }));
-            // Refresh to get full history if needed
-            await get().fetchMessages();
-          }
+          targetChatId = `chat_${[currentUser.id, participantId].sort().join('_')}`;
         }
       }
 
+      // Add message to state (this now handles chat creation and unread counting)
       get().addMessage({ ...sanitizedMessage, chatId: targetChatId });
       
       // Add notification for new message if it's from someone else AND not the active chat
       if (sanitizedMessage.senderId !== currentUser.id && get().activeChatId !== targetChatId) {
-        // Teams-style notification using sonner
-        import('sonner').then(({ toast }) => {
-          toast(sanitizedMessage.senderName, {
-            description: sanitizedMessage.text,
-            duration: 5000,
-            action: {
-              label: 'Ответить',
-              onClick: () => {
-                // First navigate, then set active chat to ensure UI is ready
-                if (window.location.pathname !== '/chat') {
-                  window.location.href = `/chat?activeChatId=${targetChatId}`;
-                } else {
-                  get().setActiveChat(targetChatId);
-                }
+        console.log('[Socket] Triggering notification for:', sanitizedMessage.senderName);
+        
+        sonnerToast(sanitizedMessage.senderName || 'Новое сообщение', {
+          description: sanitizedMessage.text,
+          duration: 5000,
+          position: 'bottom-right',
+          action: {
+            label: 'Ответить',
+            onClick: () => {
+              if (window.location.pathname !== '/chat') {
+                window.location.href = `/chat?activeChatId=${targetChatId}`;
+              } else {
+                get().setActiveChat(targetChatId);
               }
             }
-          });
-        });
-
-        useNotificationStore.getState().addNotification({
-          title: `Новое сообщение от ${sanitizedMessage.senderName}`,
-          message: sanitizedMessage.text,
-          type: 'info',
+          }
         });
       }
+    });
+
+    socket.on('chat:deleted', ({ chatId }: { chatId: string }) => {
+      console.log(`[Socket] Received chat:deleted event for ${chatId}`);
+      set(state => {
+        const isActive = state.activeChatId === chatId;
+        return {
+          chats: state.chats.filter(c => c && c.id !== chatId),
+          messages: state.messages.filter(m => m.chatId !== chatId),
+          activeChatId: isActive ? null : state.activeChatId
+        };
+      });
+
+      sonnerToast.info('Чат удален', {
+        description: 'Собеседник удалил этот чат.'
+      });
     });
 
     socket.on('user_deactivated', ({ userId }: { userId: string }) => {
@@ -172,11 +186,9 @@ export const useChatStore = create<ChatStore>()(
           });
 
           // Показываем уведомление перед разлогином
-          import('sonner').then(({ toast }) => {
-            toast.error('Доступ к системе ограничен', {
-              description: 'Ваша учетная запись деактивирована администратором.',
-              duration: 5000,
-            });
+          sonnerToast.error('Доступ к системе ограничен', {
+            description: 'Ваша учетная запись деактивирована администратором.',
+            duration: 5000,
           });
 
           // Небольшая задержка, чтобы пользователь успел прочитать
@@ -279,11 +291,9 @@ export const useChatStore = create<ChatStore>()(
         });
         
         // Also show a toast for immediate feedback
-        import('sonner').then(({ toast }) => {
-          toast.warning('Заканчивается товар', {
-            description: `${item.name}: осталось ${item.quantity}`,
-            duration: 5000,
-          });
+        sonnerToast.warning('Заканчивается товар', {
+          description: `${item.name}: осталось ${item.quantity}`,
+          duration: 5000,
         });
       }
     });
@@ -334,19 +344,96 @@ export const useChatStore = create<ChatStore>()(
             return;
           }
 
+          const existingChats = get().chats;
+          const newChatsMap = new Map<string, any>();
+
           // Map raw messages to include chatId
           const messages = rawMessages.map((m: any) => {
-            let chatId = m.chatId;
-            if (!chatId && m.receiverId) {
-              // For direct messages, find the existing chat or create a consistent ID
-              const participantId = m.senderId === currentUser.id ? m.receiverId : m.senderId;
-              const existingChat = get().chats.find(c => 
-                c.type === 'direct' && c.participants.includes(participantId)
-              );
-              chatId = existingChat ? existingChat.id : `chat-${[m.senderId, m.receiverId].sort().join('-')}`;
+            // A message belongs to a direct chat ONLY if it has a receiverId
+            const participantId = m.senderId === currentUser.id ? m.receiverId : (m.receiverId ? m.senderId : null);
+            
+            let chatId = m.chatId || 'public';
+            if (participantId) {
+              chatId = `chat_${[currentUser.id, participantId].sort().join('_')}`;
+            } else if (!m.chatId || m.chatId === 'public') {
+              chatId = 'public';
             }
+
+            // Resolve name
+            let chatName = 'Чат';
+            if (participantId) {
+              if (m.senderId !== currentUser.id) {
+                chatName = m.senderName || m.sender?.name || 'Пользователь';
+              } else {
+                // If we are sender, try to find receiver name from backend-provided receiver object
+                chatName = m.receiver?.name || m.receiverName || 'Пользователь';
+                
+                // Fallback to directory/role store if still missing
+                if (chatName === 'Пользователь') {
+                  const receiver = (window as any).useRoleStore?.getState()?.users.find((u: any) => u.id === m.receiverId);
+                  chatName = receiver?.name || 'Чат';
+                }
+              }
+
+              const lastMessageTime = m.timestamp || m.createdAt;
+
+              // Update newChatsMap with the LATEST data for this chatId
+              const existingChatInState = get().chats.find(c => c.id === chatId);
+              const existingChatInMap = newChatsMap.get(chatId);
+              
+              if (!existingChatInMap || new Date(lastMessageTime) > new Date(existingChatInMap.lastMessageTime)) {
+                newChatsMap.set(chatId, {
+                  id: chatId,
+                  name: chatName,
+                  type: 'direct',
+                  participants: [currentUser.id, participantId],
+                  // Preserve unread count from state if it exists, otherwise 0
+                  unreadCount: existingChatInState?.unreadCount || 0,
+                  lastMessage: m.text,
+                  lastMessageTime: lastMessageTime
+                });
+              }
+            } else if (chatId === 'public') {
+              const lastMessageTime = m.timestamp || m.createdAt;
+              const existingChatInState = get().chats.find(c => c.id === 'public');
+              const existingChatInMap = newChatsMap.get('public');
+              
+              if (!existingChatInMap || new Date(lastMessageTime) > new Date(existingChatInMap.lastMessageTime)) {
+                newChatsMap.set('public', {
+                  id: 'public',
+                  name: 'Общий чат',
+                  type: 'group',
+                  participants: [],
+                  // Preserve unread count from state
+                  unreadCount: existingChatInState?.unreadCount || 0,
+                  lastMessage: m.text,
+                  lastMessageTime: lastMessageTime
+                });
+              }
+            }
+
             return { ...m, chatId };
           });
+
+          // Filter out old chat- formats from existing chats to prevent duplicates
+          const cleanedExistingChats = existingChats.filter(c => c && c.id && !c.id.startsWith('chat-'));
+
+          // Merge new chats into state
+          if (newChatsMap.size > 0) {
+            const updatedChats = [...cleanedExistingChats];
+            newChatsMap.forEach((newChat, id) => {
+              const idx = updatedChats.findIndex(c => c && c.id === id);
+              if (idx !== -1) {
+                updatedChats[idx] = { ...updatedChats[idx], ...newChat };
+              } else {
+                updatedChats.unshift(newChat);
+              }
+            });
+            set({ chats: updatedChats });
+          } else {
+            // Even if no new chats from messages, keep cleaned list
+            set({ chats: cleanedExistingChats });
+          }
 
           set({ messages, isLoading: false });
         } catch (error: any) {
@@ -359,9 +446,20 @@ export const useChatStore = create<ChatStore>()(
 
   sendMessage: async (chatId, text, senderId, _senderName, _recipientName) => {
         try {
+          const trimmedText = text.trim();
+          if (!trimmedText) return;
+
+          // Enforce max length limit (4096 characters like Telegram)
+          if (trimmedText.length > 4096) {
+            sonnerToast.error('Сообщение слишком длинное', {
+              description: `Максимальная длина — 4096 символов. Сейчас: ${trimmedText.length}`
+            });
+            return;
+          }
+
           // Prevent sending Zalgo text
-          if (isZalgo(text)) {
-            toast.error('Обнаружены недопустимые символы', {
+          if (isZalgo(trimmedText)) {
+            sonnerToast.error('Обнаружены недопустимые символы', {
               description: 'Сообщение содержит вредоносный текст и было заблокировано.'
             });
             return;
@@ -373,7 +471,7 @@ export const useChatStore = create<ChatStore>()(
           let receiverId: string | undefined;
           const chat = get().chats.find(c => c.id === chatId);
           if (chat && chat.type === 'direct') {
-            receiverId = chat.participants.find(p => p !== 'current-user' && p !== senderId);
+            receiverId = chat.participants.find(p => p !== senderId);
           }
 
           // We no longer add a mock message here because it will be received 
@@ -399,12 +497,12 @@ export const useChatStore = create<ChatStore>()(
           return existingChat.id;
         }
 
-        const consistentId = `chat-${[currentUser.id, participantId].sort().join('-')}`;
+        const consistentId = `chat_${[currentUser.id, participantId].sort().join('_')}`;
         const newChat: Chat = {
           id: consistentId,
           name,
           type: 'direct',
-          participants: ['current-user', participantId],
+          participants: [currentUser.id, participantId],
           unreadCount: 0
         };
 
@@ -417,15 +515,75 @@ export const useChatStore = create<ChatStore>()(
       },
 
   addMessage: (message: ChatMessage) => {
-        set((state) => ({
-          messages: [...state.messages, message],
-          chats: state.chats.map(c => c.id === message.chatId ? {
-            ...c,
-            lastMessage: message.text,
-            lastMessageTime: message.timestamp || message.createdAt,
-            unreadCount: state.activeChatId === message.chatId ? 0 : (c.unreadCount || 0) + 1
-          } : c)
-        }));
+        set((state) => {
+          // Prevent duplicates
+          if (state.messages.some(m => m.id === message.id)) {
+            return state;
+          }
+
+          // Force update chatId format for direct messages if they come with old '-' format
+          let effectiveChatId = message.chatId;
+          if (effectiveChatId.startsWith('chat-')) {
+            const parts = effectiveChatId.split('-');
+            if (parts.length >= 11) {
+              const id1 = parts.slice(1, 6).join('-');
+              const id2 = parts.slice(6, 11).join('-');
+              effectiveChatId = `chat_${[id1, id2].sort().join('_')}`;
+            }
+          }
+          
+          const msgWithFixedId = { ...message, chatId: effectiveChatId };
+
+          // 1. Ensure the chat exists in the list
+          let chatExists = state.chats.some(c => c && c.id === effectiveChatId);
+          let updatedChats = [...state.chats];
+
+          if (!chatExists) {
+            const currentUser = (window as any).useAuthStore?.getState()?.user;
+            const otherId = (message as any).receiverId === currentUser?.id ? message.senderId : (message as any).receiverId;
+            
+            updatedChats.unshift({
+              id: effectiveChatId,
+              name: message.senderName || 'Чат',
+              type: (message as any).receiverId ? 'direct' : 'group',
+              participants: currentUser ? [currentUser.id, otherId].filter(Boolean) : [],
+              unreadCount: 0, // Will be incremented below
+              lastMessage: message.text,
+              lastMessageTime: message.timestamp || message.createdAt
+            });
+          }
+
+          // 2. Update the chat data and increment unread if needed
+          updatedChats = updatedChats.map(c => {
+            if (c && c.id === effectiveChatId) {
+              const isUnread = state.activeChatId !== effectiveChatId;
+              
+              // Debug log to see if this is triggered
+              console.log(`[ChatStore] Message for ${c.name}, isUnread: ${isUnread}, current: ${c.unreadCount}`);
+
+              return {
+                ...c,
+                name: (!c.name || c.name === 'Чат' || c.name === 'Пользователь') ? message.senderName : c.name,
+                lastMessage: message.text,
+                lastMessageTime: message.timestamp || message.createdAt,
+                unreadCount: isUnread ? (c.unreadCount || 0) + 1 : 0
+              };
+            }
+            return c;
+          });
+
+          // Sort messages by creation time
+          const newMessages = [...state.messages, msgWithFixedId].sort((a, b) => {
+            const timeA = new Date(a.timestamp || a.createdAt).getTime();
+            const timeB = new Date(b.timestamp || b.createdAt).getTime();
+            return timeA - timeB;
+          });
+
+          return {
+            messages: newMessages,
+            chats: updatedChats
+          };
+        });
       },
 
   clearUnread: (chatId) => {
@@ -452,12 +610,35 @@ export const useChatStore = create<ChatStore>()(
     }));
   },
 
-  deleteChat: (chatId) => {
-    set(state => ({
-      chats: state.chats.filter(c => c.id !== chatId),
-      activeChatId: state.activeChatId === chatId ? null : state.activeChatId
-    }));
-  },
+  deleteChat: async (chatId) => {
+        const { socket, chats } = get();
+        const chatToDelete = chats.find(c => c.id === chatId);
+        const currentUser = (window as any).useAuthStore?.getState()?.user;
+        const otherParticipantId = chatToDelete?.participants.find(p => p !== currentUser?.id);
+        
+        console.log(`[Chat] Deleting chat ${chatId}, otherParticipantId: ${otherParticipantId}`);
+
+        // Immediate local UI update
+        set(state => ({
+          chats: state.chats.filter(c => c.id !== chatId),
+          messages: state.messages.filter(m => m.chatId !== chatId),
+          activeChatId: state.activeChatId === chatId ? null : state.activeChatId
+        }));
+
+        try {
+          // 1. Delete messages from backend - execute immediately
+          await chatService.deleteChatMessages(chatId, otherParticipantId || 'unknown');
+
+          // 2. Notify other participants via socket
+          if (socket && chatToDelete && otherParticipantId) {
+            console.log(`[Socket] Sending delete notification for ${chatId} to ${otherParticipantId}`);
+            socket.emit('chat:delete', { chatId, receiverId: otherParticipantId });
+          }
+        } catch (error) {
+          console.error('Failed to delete chat on server:', error);
+          sonnerToast.error('Не удалось полностью удалить чат на сервере');
+        }
+      },
 
   setShowHiddenChats: (show) => set({ showHiddenChats: show })
     }),

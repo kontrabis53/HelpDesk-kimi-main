@@ -75,97 +75,129 @@ const io = new Server(fastify.server, {
 // Decorate fastify with io instance to make it accessible in routes
 fastify.decorate('io', io);
 
-// Map to track active users (userId -> socketId)
-const activeUsers = new Map<string, string>();
-fastify.decorate('activeUsers', activeUsers);
+// Map to track active users (userId -> Set of socketIds)
+const activeUsers = new Map<string, Set<string>>();
+fastify.decorate('activeUsers', {
+  get: (userId: string) => {
+    const sockets = activeUsers.get(userId);
+    return sockets ? Array.from(sockets)[0] : undefined; 
+  },
+  getAll: (userId: string) => {
+    const sockets = activeUsers.get(userId);
+    return sockets ? Array.from(sockets) : [];
+  },
+  set: (userId: string, socketId: string) => {
+    if (!activeUsers.has(userId)) {
+      activeUsers.set(userId, new Set());
+    }
+    activeUsers.get(userId)!.add(socketId);
+  },
+  delete: (userId: string, socketId: string) => {
+    const sockets = activeUsers.get(userId);
+    if (sockets) {
+      sockets.delete(socketId);
+      if (sockets.size === 0) {
+        activeUsers.delete(userId);
+        return true; // Last socket removed
+      }
+    }
+    return false;
+  }
+});
 
-// Log socket connections
-io.on('connection', (socket) => {
-  console.log(`[Socket] New connection: ${socket.id}`);
+let clientCount = 0;
+ 
+  io.on('connection', (socket) => {
+  clientCount++;
+  console.log(`[Socket] New connection: ${socket.id} (Total: ${clientCount})`);
   
-  socket.on('disconnect', (reason) => {
-    console.log(`[Socket] Disconnected: ${socket.id}, reason: ${reason}`);
-  });
-  
-  socket.on('error', (error) => {
-    console.error(`[Socket] Error for ${socket.id}:`, error);
-  });
-
   socket.on('authenticate', async (token) => {
     try {
-      const decoded: any = fastify.jwt.decode(token);
+      const decoded = fastify.jwt.verify(token) as any;
       if (decoded && decoded.id) {
-        activeUsers.set(decoded.id, socket.id);
+        (fastify as any).activeUsers.set(decoded.id, socket.id);
+        console.log(`[Socket] User ${decoded.id} authenticated on socket ${socket.id}`);
         
-        // Update user status in DB to true
-          await prisma.user.update({
+        // Broadcast status change
+        io.emit('user_status_change', { userId: decoded.id, isOnline: true });
+        
+        // Update online status in DB
+        await prisma.user.update({
           where: { id: decoded.id },
           data: { isOnline: true }
-        }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to online'));
+        }).catch(e => console.error('Failed to update online status:', e));
 
-        // Broadcast update to all clients
-        io.emit('user_status_change', { userId: decoded.id, isOnline: true });
-
-        // Update cached stats immediately
+        // Update stats
         getDbStats().then(stats => {
           cachedDbStats = stats;
+          io.emit('stats', { ...stats, clients: clientCount });
         });
       }
-    } catch (err: any) {
-      fastify.log.error(err, 'Socket authentication error');
+    } catch (err) {
+      console.error('[Socket] Auth failed:', err);
     }
+  });
+
+  socket.on('disconnect', async (reason) => {
+    clientCount--;
+    console.log(`[Socket] Disconnected: ${socket.id}, reason: ${reason} (Total: ${clientCount})`);
+    
+    let disconnectedUserId: string | null = null;
+    const activeUsersManager = (fastify as any).activeUsers;
+    
+    for (const [userId, sockets] of activeUsers.entries()) {
+      if (sockets.has(socket.id)) {
+        disconnectedUserId = userId;
+        const wasLast = activeUsersManager.delete(userId, socket.id);
+        
+        if (wasLast) {
+          console.log(`[Socket] User ${userId} is now completely offline`);
+          io.emit('user_status_change', { userId, isOnline: false });
+          
+          await prisma.user.update({
+            where: { id: userId },
+            data: { isOnline: false }
+          }).catch(e => console.error('Failed to update offline status:', e));
+        }
+        break;
+      }
+    }
+
+    getDbStats().then(stats => {
+      cachedDbStats = stats;
+    });
   });
 
   socket.on('logout', async (token) => {
     try {
       const decoded: any = fastify.jwt.decode(token);
       if (decoded && decoded.id) {
-        activeUsers.delete(decoded.id);
+        const activeUsersManager = (fastify as any).activeUsers;
+        activeUsersManager.delete(decoded.id, socket.id);
         
         await prisma.user.update({
           where: { id: decoded.id },
           data: { isOnline: false }
-        }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to offline on logout'));
+        }).catch(e => console.error('Failed to update offline status on logout:', e));
 
         io.emit('user_status_change', { userId: decoded.id, isOnline: false });
-
-        // Update cached stats immediately
-        getDbStats().then(stats => {
-          cachedDbStats = stats;
-        });
-        
         console.log(`[Socket] User ${decoded.id} logged out explicitly`);
       }
-    } catch (err: any) {
-      fastify.log.error(err, 'Socket logout error');
+    } catch (err) {
+      console.error('[Socket] Logout error:', err);
     }
   });
 
-  socket.on('disconnect', async () => {
-    let disconnectedUserId: string | null = null;
-    for (const [userId, socketId] of activeUsers.entries()) {
-      if (socketId === socket.id) {
-        disconnectedUserId = userId;
-        activeUsers.delete(userId);
-        break;
-      }
-    }
+  socket.on('chat:delete', ({ chatId, receiverId }: { chatId: string, receiverId: string }) => {
+    console.log(`[Socket] Received chat:delete request for chatId: ${chatId}`);
+    const receiverSockets = (fastify as any).activeUsers.getAll(receiverId);
+    receiverSockets.forEach((sId: string) => {
+      io.to(sId).emit('chat:deleted', { chatId });
+    });
+  });
 
-    if (disconnectedUserId) {
-        // Update user status in DB to false
-        await prisma.user.update({
-          where: { id: disconnectedUserId },
-          data: { isOnline: false }
-        }).catch((err: any) => fastify.log.error(err, 'Failed to update user status to offline'));
-
-      // Broadcast update
-      io.emit('user_status_change', { userId: disconnectedUserId, isOnline: false });
-      
-      // Update cached stats immediately
-      getDbStats().then(stats => {
-        cachedDbStats = stats;
-      });
-    }
+  socket.on('error', (error) => {
+    console.error(`[Socket] Error for ${socket.id}:`, error);
   });
 });
 
@@ -857,11 +889,6 @@ fastify.get('/dashboard', async (_request, reply) => {
 });
 
 // Periodic stats broadcast
-let clientCount = 0;
-io.on('connection', (socket) => {
-  clientCount++;
-  socket.on('disconnect', () => { clientCount--; });
-});
 
 interface DashboardStats {
   tickets: number;

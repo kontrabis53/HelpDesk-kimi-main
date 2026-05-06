@@ -1,6 +1,6 @@
 import { Home, FileText, Package, BookOpen, User, Shield, Users, MessageSquare, Network, ChevronLeft, ChevronRight, Book, Stethoscope, Bell, ClipboardList, Bot } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AIChatPopup } from './AIChatPopup';
 import { AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { useChatStore } from '@/stores/chatStore';
 import { NotificationPanel } from './NotificationPanel';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { UserAvatar } from './UserAvatar';
@@ -23,6 +24,15 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const { getRoleById } = useRoleStore();
   const { unreadCount, isPanelOpen, setPanelOpen } = useNotificationStore();
+  const chats = useChatStore(state => state.chats);
+  const totalChatUnread = (chats || []).reduce((acc: number, chat: any) => acc + (chat?.unreadCount || 0), 0);
+  
+  useEffect(() => {
+    if (totalChatUnread > 0) {
+      console.log(`[Sidebar] Unread messages found: ${totalChatUnread}`);
+    }
+  }, [totalChatUnread]);
+
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   
   const userRole = user ? getRoleById(user.roleId) : null;
@@ -195,6 +205,17 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
               >
                 <Icon className={cn('w-5 h-5 flex-shrink-0 transition-colors', isActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400')} />
                 {!isSidebarCollapsed && <span className="truncate">{tab.label}</span>}
+                
+                {tab.id === 'chat' && totalChatUnread > 0 && (
+                  <div className={cn(
+                    "absolute w-2.5 h-2.5 rounded-full",
+                    isActive 
+                      ? "bg-white" 
+                      : "bg-red-500",
+                    isSidebarCollapsed ? "top-1 right-1" : "top-2.5 right-4"
+                  )} />
+                )}
+
                 {isActive && (
                   <div className="absolute left-[-2px] top-1/4 bottom-1/4 w-1 bg-white rounded-r-full" />
                 )}
@@ -210,6 +231,15 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
       </div>
 
       <div className="mt-auto p-4 border-t border-slate-200 dark:border-slate-700 relative">
+        <div className="mb-2 text-[8px] text-slate-400 font-mono text-center opacity-50 uppercase">
+          Build: 1.2.9-FINAL-FIX-4
+        </div>
+        <button 
+          onClick={() => (window as any).testNotification?.()}
+          className="w-full mb-2 text-[10px] py-1 px-2 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-blue-600 transition-colors"
+        >
+          Тест уведомлений
+        </button>
         <button 
           onClick={toggleSidebar}
           className="absolute right-2 bottom-2 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors z-20"

@@ -25,6 +25,12 @@ const ROUTES_WITHOUT_NAV_PATTERNS = [
 
 export function RootLayout() {
   const location = useLocation();
+  
+  // Debug version
+  useEffect(() => {
+    console.log('%c[RootLayout] VERSION 1.2.9-FIX-4 LOADED', 'color: white; background: #2563eb; padding: 4px; border-radius: 4px;');
+  }, []);
+
   const roles = useRoleStore((state) => state.roles);
   const user = useAuthStore((state) => state.user);
   const hasPermission = useRoleStore((state) => state.hasPermission);
@@ -140,7 +146,17 @@ export function RootLayout() {
         />
       )}
       
-      <Toaster position="bottom-right" richColors />
+      <Toaster 
+        position="bottom-right" 
+        expand={true} 
+        richColors 
+        visibleToasts={5}
+        toastOptions={{
+          style: {
+            zIndex: 9999,
+          }
+        }}
+      />
     </div>
   );
 }

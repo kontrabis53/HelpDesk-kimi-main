@@ -91,7 +91,7 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
             onClick={() => setIsAIChatOpen(true)}
           >
             <div className="relative flex items-center">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/40 border-2 border-white dark:border-slate-800 animate-bounce-slow">
+              <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/40 border-2 border-white dark:border-slate-800 animate-bounce-slow">
                 <Bot className="w-6 h-6 text-white" />
               </div>
               {!isSidebarCollapsed && (

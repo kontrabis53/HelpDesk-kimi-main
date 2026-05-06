@@ -98,15 +98,38 @@
   /* AI Bot Animation */
   @keyframes bounce-slow {
     0%, 100% {
-      transform: translateY(-5%) translateX(0);
-      animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+      transform: translateY(0);
     }
     50% {
-      transform: translateY(0) translateX(0);
-      animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+      transform: translateY(-10px);
     }
   }
   .animate-bounce-slow {
     animation: bounce-slow 3s infinite;
   }
+
+  /* Fix Sonner Toast Transparency & Styles */
+  [data-sonner-toast] {
+    @apply bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xl !important;
+    opacity: 1 !important;
+    background-color: hsl(var(--background)) !important;
+  }
+  
+  [data-sonner-toast] [data-title] {
+    @apply font-bold text-slate-900 dark:text-white !important;
+  }
+
+  [data-sonner-toast] [data-description] {
+    @apply text-slate-600 dark:text-slate-400 !important;
+  }
+
+  [data-sonner-toast] [data-button] {
+    @apply bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg transition-colors !important;
+  }
+}
+
+@layer components {
+}
+
+@layer utilities {
 }

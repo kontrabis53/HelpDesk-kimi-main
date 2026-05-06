@@ -4,3 +4,23 @@ import { twMerge } from "tailwind-merge"
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+/**
+ * Removes Zalgo/combining characters that can cause UI issues or freezes.
+ * Matches Unicode range U+0300 to U+036F (Combining Diacritical Marks).
+ */
+export function sanitizeText(text: string): string {
+  if (!text) return '';
+  // This regex removes combining diacritical marks used for Zalgo text
+  return text.replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * Checks if text contains Zalgo-like characters (excessive combining marks).
+ */
+export function isZalgo(text: string): boolean {
+  if (!text) return false;
+  const zalgoMatch = text.match(/[\u0300-\u036f]/g);
+  // If more than 5 combining marks are found in the message, it's likely Zalgo
+  return zalgoMatch ? zalgoMatch.length > 5 : false;
+}

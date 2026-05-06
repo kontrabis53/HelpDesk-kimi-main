@@ -53,9 +53,32 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
         }
       });
 
-      // REAL-TIME: Emit message to all connected clients
+      // REAL-TIME: Emit message
       if (io) {
-        io.emit('chat:message', message);
+        const activeUsers = (fastify as any).activeUsers;
+        
+        if (receiverId) {
+          const receiverSocketId = activeUsers.get(receiverId);
+          const senderSocketId = activeUsers.get(user.id);
+          
+          const privateMessage = { 
+            ...message, 
+            chatId: `chat-${user.id}-${receiverId}` 
+          };
+
+          // Send to receiver if online
+          if (receiverSocketId) {
+            io.to(receiverSocketId).emit('chat:message', privateMessage);
+          }
+          
+          // Send back to sender for synchronization (if they have multiple tabs)
+          if (senderSocketId) {
+            io.to(senderSocketId).emit('chat:message', privateMessage);
+          }
+        } else {
+          // Public group chat - broadcast to everyone
+          io.emit('chat:message', message);
+        }
       }
 
       return reply.status(201).send(message);

@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, User, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import { Bot, X, Send, Maximize2, Minimize2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { motion } from 'framer-motion';
+import { UserAvatar } from './UserAvatar';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -22,6 +23,24 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]);
 
   // Load history from API
   useEffect(() => {
@@ -113,6 +132,7 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
 
   return (
     <motion.div 
+      ref={popupRef}
       initial={{ opacity: 0, scale: 0.9, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -169,12 +189,19 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
             )}
           >
             <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-              msg.role === 'user' 
-                ? "bg-slate-100 dark:bg-slate-800" 
-                : "bg-gradient-to-tr from-blue-100 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/20"
+              "shrink-0",
+              msg.role === 'user' ? "" : "w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-tr from-blue-100 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/20"
             )}>
-              {msg.role === 'user' ? <User className="w-4 h-4 text-slate-500" /> : <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
+              {msg.role === 'user' ? (
+                <UserAvatar 
+                  avatarUrl={user?.avatar} 
+                  name={user?.name || ''} 
+                  sizeClass="w-8 h-8" 
+                  textClass="text-[10px]" 
+                />
+              ) : (
+                <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              )}
             </div>
             <div className={cn(
               "p-3 rounded-2xl text-sm leading-relaxed tracking-tight",

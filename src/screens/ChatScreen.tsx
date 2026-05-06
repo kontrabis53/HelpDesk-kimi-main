@@ -59,6 +59,8 @@ import {
 } from "@/components/ui/context-menu";
 import { toast } from 'sonner';
 
+import { sanitizeText } from '@/lib/utils';
+
 export function ChatScreen() {
   const { 
     chats, 
@@ -67,6 +69,7 @@ export function ChatScreen() {
     setActiveChat, 
     sendMessage, 
     createDirectChat,
+    fetchMessages,
     clearUnread,
     togglePinChat,
     toggleHideChat,
@@ -75,6 +78,17 @@ export function ChatScreen() {
     showHiddenChats,
     setShowHiddenChats
   } = useChatStore();
+
+  const activeChatIdFromUrl = new URLSearchParams(window.location.search).get('activeChatId');
+
+  useEffect(() => {
+    fetchMessages();
+    if (activeChatIdFromUrl) {
+      setActiveChat(activeChatIdFromUrl);
+      // Clear URL params without reload
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [fetchMessages, activeChatIdFromUrl, setActiveChat]);
   
   const { users } = useRoleStore();
   const { entries: directoryEntries } = useDirectoryStore();
@@ -117,10 +131,11 @@ export function ChatScreen() {
   const isOtherUserOnline = activeChatInfo.isOnline;
 
   useEffect(() => {
+    // Scroll to bottom whenever messages change or a new chat is selected
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [chatMessages]);
+  }, [chatMessages, activeChatId]);
 
   useEffect(() => {
     if (activeChatId) {
@@ -132,13 +147,16 @@ export function ChatScreen() {
     const textToSend = textOverride || newMessage;
     if (!textToSend.trim() || !activeChatId || !currentUser) return;
     
+    // Find recipient info for better message handling if needed
+    const otherParticipantId = activeChat?.participants.find(p => p !== currentUser.id && p !== 'current-user');
+
     // Send message with both Role Name and Real Name
     sendMessage(
       activeChatId, 
       textToSend.trim(), 
       currentUser.id, 
       currentUser.roleId === 'admin' ? 'Администратор' : currentUser.name, 
-      currentUser.name
+      otherParticipantId || activeChat?.name || ''
     );
     if (!textOverride) setNewMessage('');
   };
@@ -191,9 +209,11 @@ export function ChatScreen() {
     };
   
     const filteredChats = useMemo(() => {
+      const query = searchQuery.toLowerCase();
       return chats
         .filter(c => {
-          const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase());
+          const chatName = c.name || '';
+          const matchesSearch = chatName.toLowerCase().includes(query);
           const isHidden = c.isHidden;
           return matchesSearch && (showHiddenChats || !isHidden);
         })
@@ -210,13 +230,7 @@ export function ChatScreen() {
     }, [chats, searchQuery, showHiddenChats]);
   
     const filteredDirectoryEntries = useMemo(() => {
-      // 1. Get all employees from Directory
-      const directoryPeople = directoryEntries.map(entry => ({
-        ...entry,
-        source: 'directory' as const
-      }));
-  
-      // 2. Get all users from RoleStore
+      // 1. Get all users from RoleStore (Registered users)
       const userPeople = users.map(user => ({
         id: user.id,
         name: user.name,
@@ -225,40 +239,65 @@ export function ChatScreen() {
         cabinet: '—',
         internalPhone: '—',
         source: 'users' as const,
-        isUser: true
+        isRegistered: true
       }));
   
-      // 3. Merge them: prefer directory info if both exist, but mark as registered
-      const mergedMap = new Map<string, any>();
+      // 2. Get all employees from Directory
+      const directoryPeople = directoryEntries.map(entry => ({
+        ...entry,
+        source: 'directory' as const,
+        isRegistered: users.some((u: any) => u.name.toLowerCase().trim() === entry.name.toLowerCase().trim())
+      }));
   
-      // Add directory people first
-      directoryPeople.forEach(person => {
-        mergedMap.set(person.name.toLowerCase().trim(), {
-          ...person,
-          isRegistered: users.some((u: any) => u.name.toLowerCase().trim() === person.name.toLowerCase().trim())
-        });
-      });
+      // 3. Merge them:
+      const registeredMap = new Map<string, any>();
+      const unregisteredMap = new Map<string, any>();
   
-      // Add users who are not in directory
+      // Add users from RoleStore first (these are registered)
       userPeople.forEach(person => {
         const nameKey = person.name.toLowerCase().trim();
-        if (!mergedMap.has(nameKey)) {
-          mergedMap.set(nameKey, {
-            ...person,
-            isRegistered: true
-          });
+        if (person.id !== currentUser?.id && nameKey !== currentUser?.name.toLowerCase().trim()) {
+          registeredMap.set(nameKey, person);
+        }
+      });
+
+      // Add directory entries
+      directoryPeople.forEach(person => {
+        const nameKey = person.name.toLowerCase().trim();
+        if (nameKey === currentUser?.name.toLowerCase().trim()) return;
+
+        if (person.isRegistered) {
+          // If already in registeredMap from users, merge with directory info
+          const existing = registeredMap.get(nameKey);
+          if (existing) {
+            registeredMap.set(nameKey, { ...person, ...existing, source: 'merged' });
+          } else {
+            // This case shouldn't happen if isRegistered is true, but just in case
+            registeredMap.set(nameKey, person);
+          }
+        } else {
+          // Unregistered
+          unregisteredMap.set(nameKey, person);
         }
       });
   
-      // 4. Convert back to array and filter by search query
-      return Array.from(mergedMap.values())
-        .filter(person => 
-          person.id !== currentUser?.id && 
-          person.name.toLowerCase().trim() !== currentUser?.name.toLowerCase().trim() &&
-          (person.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
-           person.position.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-           person.department.toLowerCase().includes(userSearchQuery.toLowerCase()))
-        );
+      // 4. Combine: Registered first, then Unregistered
+      const result = [
+        ...Array.from(registeredMap.values()),
+        ...Array.from(unregisteredMap.values())
+      ];
+
+      // 5. Filter by search query
+      return result.filter(person => {
+        const name = person.name || '';
+        const position = person.position || '';
+        const department = person.department || '';
+        const query = userSearchQuery.toLowerCase();
+        
+        return name.toLowerCase().includes(query) || 
+               position.toLowerCase().includes(query) ||
+               department.toLowerCase().includes(query);
+      });
     }, [directoryEntries, users, userSearchQuery, currentUser]);
   
     const isUserRegistered = (person: any) => {
@@ -459,26 +498,17 @@ export function ChatScreen() {
                 )}>
                   {activeChat.type === 'group' ? <Users className="w-5 h-5 text-amber-600" /> : <UserIcon className="w-5 h-5 text-blue-600" />}
                 </div>
-                <div>
-                  <h2 className="font-bold text-slate-800 dark:text-slate-100 leading-none">{activeChat.name}</h2>
-                  {activeChat.type === 'group' ? (
-                    <p className="text-[10px] text-slate-500 font-medium mt-1">
-                      {activeChat.participants?.length || 0} участников
-                    </p>
-                  ) : (
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <div className={cn(
-                        "w-2 h-2 rounded-full",
-                        isOtherUserOnline ? "bg-emerald-500" : "bg-red-500"
-                      )} />
-                      <p className={cn(
-                        "text-[10px] font-medium",
-                        isOtherUserOnline ? "text-emerald-500" : "text-red-500"
-                      )}>
-                        {isOtherUserOnline ? 'В сети' : 'Не в сети'}
-                      </p>
-                    </div>
-                  )}
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-bold text-slate-800 dark:text-slate-100 leading-none truncate">{activeChat.name}</h2>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      isOtherUserOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-300"
+                    )} />
+                    <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                      {isOtherUserOnline ? 'В сети' : 'Не в сети'}
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="flex gap-1">
@@ -517,12 +547,12 @@ export function ChatScreen() {
                           </div>
                         )}
                         <div className={cn(
-                          "max-w-[85%] md:max-w-[70%] px-4 py-2.5 rounded-2xl text-sm relative shadow-sm",
+                          "max-w-[85%] md:max-w-[70%] px-4 py-2.5 rounded-2xl text-sm relative shadow-sm break-words",
                           isMe 
                             ? "bg-blue-600 text-white rounded-tr-none" 
                             : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700"
                         )}>
-                          {msg.text}
+                          {sanitizeText(msg.text)}
                           <span className={cn(
                             "text-[9px] mt-1 block opacity-60",
                             isMe ? "text-right" : "text-left"

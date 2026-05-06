@@ -1,6 +1,9 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { io, Socket } from 'socket.io-client';
 import { chatService } from '@/api/chat';
+import { sanitizeText, isZalgo } from '@/lib/utils';
+import { toast } from 'sonner';
 
 import { useNotificationStore } from './notificationStore';
 
@@ -54,7 +57,9 @@ interface ChatStore {
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
 
-export const useChatStore = create<ChatStore>((set, get) => ({
+export const useChatStore = create<ChatStore>()(
+  persist(
+    (set, get) => ({
   chats: [],
   messages: [],
   activeChatId: null,
@@ -85,15 +90,70 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       }
     });
 
-    socket.on('chat:message', (message: ChatMessage) => {
-      get().addMessage(message);
-      
-      // Add notification for new message if panel is closed or it's a different chat
+    socket.on('chat:message', async (message: ChatMessage) => {
+      // Check if message is for us or from us
       const currentUser = (window as any).useAuthStore?.getState()?.user;
-      if (currentUser && message.senderId !== currentUser.id) {
+      if (!currentUser) return;
+
+      // Sanitize incoming message content to prevent UI issues
+      const sanitizedMessage = {
+        ...message,
+        text: sanitizeText(message.text)
+      };
+
+      // Handle direct chat ID matching
+      let targetChatId = sanitizedMessage.chatId;
+      
+      // If it's a direct message (has receiverId), use consistent chatId
+      const msgReceiverId = (sanitizedMessage as any).receiverId;
+      if (msgReceiverId || sanitizedMessage.chatId.startsWith('chat-')) {
+        const participantId = sanitizedMessage.senderId === currentUser.id ? msgReceiverId : sanitizedMessage.senderId;
+        if (participantId) {
+          targetChatId = `chat-${[currentUser.id, participantId].sort().join('-')}`;
+          
+          // Ensure chat exists in sidebar
+          const existingChat = get().chats.find(c => c.id === targetChatId);
+          if (!existingChat) {
+            const newChat: Chat = {
+              id: targetChatId,
+              name: sanitizedMessage.senderName,
+              type: 'direct',
+              participants: ['current-user', participantId],
+              unreadCount: 1
+            };
+            set(state => ({ chats: [newChat, ...state.chats] }));
+            // Refresh to get full history if needed
+            await get().fetchMessages();
+          }
+        }
+      }
+
+      get().addMessage({ ...sanitizedMessage, chatId: targetChatId });
+      
+      // Add notification for new message if it's from someone else AND not the active chat
+      if (sanitizedMessage.senderId !== currentUser.id && get().activeChatId !== targetChatId) {
+        // Teams-style notification using sonner
+        import('sonner').then(({ toast }) => {
+          toast(sanitizedMessage.senderName, {
+            description: sanitizedMessage.text,
+            duration: 5000,
+            action: {
+              label: 'Ответить',
+              onClick: () => {
+                // First navigate, then set active chat to ensure UI is ready
+                if (window.location.pathname !== '/chat') {
+                  window.location.href = `/chat?activeChatId=${targetChatId}`;
+                } else {
+                  get().setActiveChat(targetChatId);
+                }
+              }
+            }
+          });
+        });
+
         useNotificationStore.getState().addNotification({
-          title: 'Новое сообщение',
-          message: message.text,
+          title: `Новое сообщение от ${sanitizedMessage.senderName}`,
+          message: sanitizedMessage.text,
           type: 'info',
         });
       }
@@ -264,78 +324,109 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   fetchMessages: async () => {
-    set({ isLoading: true });
-    try {
-      const messages = await chatService.getMessages();
-      set({ messages, isLoading: false });
-    } catch (error: any) {
-      console.error('Fetch messages error:', error);
-      set({ isLoading: false });
-    }
-  },
+        set({ isLoading: true });
+        try {
+          const rawMessages = await chatService.getMessages();
+          const currentUser = (window as any).useAuthStore?.getState()?.user;
+          
+          if (!currentUser) {
+            set({ messages: [], isLoading: false });
+            return;
+          }
+
+          // Map raw messages to include chatId
+          const messages = rawMessages.map((m: any) => {
+            let chatId = m.chatId;
+            if (!chatId && m.receiverId) {
+              // For direct messages, find the existing chat or create a consistent ID
+              const participantId = m.senderId === currentUser.id ? m.receiverId : m.senderId;
+              const existingChat = get().chats.find(c => 
+                c.type === 'direct' && c.participants.includes(participantId)
+              );
+              chatId = existingChat ? existingChat.id : `chat-${[m.senderId, m.receiverId].sort().join('-')}`;
+            }
+            return { ...m, chatId };
+          });
+
+          set({ messages, isLoading: false });
+        } catch (error: any) {
+          console.error('Fetch messages error:', error);
+          set({ isLoading: false });
+        }
+      },
 
   setActiveChat: (chatId) => set({ activeChatId: chatId }),
 
-  sendMessage: async (chatId, text, senderId, senderName, _recipientName) => {
-    try {
-      // Mock for now until backend supports full chat model
-      const newMessage: ChatMessage = {
-        id: Date.now().toString(),
-        chatId,
-        text,
-        senderId,
-        senderName,
-        senderRealName: senderName, // Fallback
-        createdAt: new Date().toISOString(),
-        timestamp: new Date().toISOString()
-      };
-      
-      set(state => ({
-        messages: [...state.messages, newMessage],
-        chats: state.chats.map(c => c.id === chatId ? {
-          ...c,
-          lastMessage: text,
-          lastMessageTime: newMessage.createdAt
-        } : c)
-      }));
+  sendMessage: async (chatId, text, senderId, _senderName, _recipientName) => {
+        try {
+          // Prevent sending Zalgo text
+          if (isZalgo(text)) {
+            toast.error('Обнаружены недопустимые символы', {
+              description: 'Сообщение содержит вредоносный текст и было заблокировано.'
+            });
+            return;
+          }
 
-      await chatService.sendMessage(text, chatId);
-    } catch (error: any) {
-      console.error('Send message error:', error);
-    }
-  },
+          const sanitizedText = sanitizeText(text);
+
+          // Find receiverId from chatId if it's a direct chat
+          let receiverId: string | undefined;
+          const chat = get().chats.find(c => c.id === chatId);
+          if (chat && chat.type === 'direct') {
+            receiverId = chat.participants.find(p => p !== 'current-user' && p !== senderId);
+          }
+
+          // We no longer add a mock message here because it will be received 
+          // via Socket.io (chat:message) and added to the state there.
+          // This prevents double messages.
+
+          await chatService.sendMessage(sanitizedText, receiverId);
+        } catch (error: any) {
+          console.error('Send message error:', error);
+        }
+      },
 
   createDirectChat: async (participantId, name) => {
-    const existingChat = get().chats.find(c => 
-      c.type === 'direct' && c.participants.includes(participantId)
-    );
-    
-    if (existingChat) {
-      set({ activeChatId: existingChat.id });
-      return existingChat.id;
-    }
+        const currentUser = (window as any).useAuthStore?.getState()?.user;
+        if (!currentUser) return '';
 
-    const newChat: Chat = {
-      id: `chat-${Date.now()}`,
-      name,
-      type: 'direct',
-      participants: ['current-user', participantId],
-      unreadCount: 0
-    };
+        const existingChat = get().chats.find(c => 
+          c.type === 'direct' && c.participants.includes(participantId)
+        );
+        
+        if (existingChat) {
+          set({ activeChatId: existingChat.id });
+          return existingChat.id;
+        }
 
-    set(state => ({
-      chats: [newChat, ...state.chats],
-      activeChatId: newChat.id
-    }));
+        const consistentId = `chat-${[currentUser.id, participantId].sort().join('-')}`;
+        const newChat: Chat = {
+          id: consistentId,
+          name,
+          type: 'direct',
+          participants: ['current-user', participantId],
+          unreadCount: 0
+        };
 
-    return newChat.id;
-  },
+        set(state => ({
+          chats: [newChat, ...state.chats],
+          activeChatId: newChat.id
+        }));
+
+        return newChat.id;
+      },
 
   addMessage: (message: ChatMessage) => {
-    set((state) => ({
-      messages: [...state.messages, message]
-    }));
-  },
+        set((state) => ({
+          messages: [...state.messages, message],
+          chats: state.chats.map(c => c.id === message.chatId ? {
+            ...c,
+            lastMessage: message.text,
+            lastMessageTime: message.timestamp || message.createdAt,
+            unreadCount: state.activeChatId === message.chatId ? 0 : (c.unreadCount || 0) + 1
+          } : c)
+        }));
+      },
 
   clearUnread: (chatId) => {
     set(state => ({
@@ -369,4 +460,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   setShowHiddenChats: (show) => set({ showHiddenChats: show })
-}));
+    }),
+    {
+      name: 'chat-storage',
+      partialize: (state) => ({
+        chats: state.chats,
+        messages: state.messages,
+        activeChatId: state.activeChatId,
+        showHiddenChats: state.showHiddenChats,
+      }),
+    }
+  )
+);

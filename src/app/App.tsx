@@ -17,6 +17,7 @@ function App() {
   const checkAuth = useAuthStore(state => state.checkAuth);
   const initAutoLogout = useAuthStore(state => state.initAutoLogout);
   const initSocket = useChatStore(state => state.initSocket);
+  const fetchMessages = useChatStore(state => state.fetchMessages);
   const fetchRoles = useRoleStore(state => state.fetchRoles);
   const fetchUsers = useRoleStore(state => state.fetchUsers);
   const initStatusListener = useRoleStore(state => state.initStatusListener);
@@ -68,6 +69,7 @@ function App() {
       fetchUsers();
       // Initialize real-time chat
       initSocket();
+      fetchMessages();
       // Listen for status updates
       const cleanupStatus = initStatusListener();
       // Listen for registry updates

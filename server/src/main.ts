@@ -77,6 +77,7 @@ fastify.decorate('io', io);
 
 // Map to track active users (userId -> socketId)
 const activeUsers = new Map<string, string>();
+fastify.decorate('activeUsers', activeUsers);
 
 // Log socket connections
 io.on('connection', (socket) => {

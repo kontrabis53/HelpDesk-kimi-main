@@ -6,6 +6,8 @@ import { Server } from 'socket.io';
 const chatMessageSchema = z.object({
   text: z.string().min(1).max(4096),
   receiverId: z.string().optional(),
+  chatId: z.string().optional(),
+  chatName: z.string().optional(),
 });
 
 export default async function chatRoutes(fastify: FastifyInstance, options: { io: Server }) {
@@ -22,7 +24,8 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
           OR: [
             { senderId: user.id },
             { receiverId: user.id },
-            { receiverId: null } // Public messages
+            { receiverId: null, chatId: 'public' }, // Public messages
+            { chatId: { startsWith: 'group_' } } // Group messages (simplified: everyone sees all groups for now, or we can filter by participants if we had a Group model)
           ]
         },
         include: {
@@ -34,7 +37,7 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
           }
         },
         orderBy: { createdAt: 'desc' },
-        take: 200 // Increased limit to ensure we see more history
+        take: 200 
       });
       return messages.reverse();
     } catch (error: any) {
@@ -48,14 +51,15 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
     try {
-      const { text, receiverId } = chatMessageSchema.parse(request.body);
+      const { text, receiverId, chatId, chatName } = chatMessageSchema.parse(request.body);
       const user = request.user as any;
 
       const message = await prisma.chatMessage.create({
         data: {
           text,
           senderId: user.id,
-          receiverId
+          receiverId,
+          chatId: chatId || (receiverId ? `chat_${[user.id, receiverId].sort().join('_')}` : 'public')
         },
         include: {
           sender: {
@@ -66,35 +70,27 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
 
       // REAL-TIME: Emit message
       if (io) {
-        const activeUsers = (fastify as any).activeUsers;
-        
+        const messageToEmit = { ...message, chatName };
         if (receiverId) {
-          const receiverSockets = activeUsers.getAll(receiverId);
-          const senderSockets = activeUsers.getAll(user.id);
-          
           // Use consistent chatId (sorted IDs)
           const consistentChatId = `chat_${[user.id, receiverId].sort().join('_')}`;
           
           const privateMessage = { 
-            ...message, 
+            ...messageToEmit, 
             chatId: consistentChatId 
           };
 
-          console.log(`[Socket] Sending private message to ${receiverSockets.length} receiver sockets and ${senderSockets.length} sender sockets`);
-
-          // Send to all receiver sockets
-          receiverSockets.forEach((sId: string) => {
-            io.to(sId).emit('chat:message', privateMessage);
-          });
-          
-          // Send back to all sender sockets for synchronization
-          senderSockets.forEach((sId: string) => {
-            io.to(sId).emit('chat:message', privateMessage);
-          });
+          console.log(`[Socket] Sending private message from sender ${user.id} to receiver ${receiverId}`);
+          io.to(receiverId).to(user.id).emit('chat:message', privateMessage);
+        } else if (chatId && chatId.startsWith('group_')) {
+          // Group message
+          console.log(`[Socket] Broadcasting group message for ${chatId}`);
+          io.emit('chat:message', messageToEmit); // For now broadcast to all, client will filter
         } else {
           // Public group chat - broadcast to everyone
           console.log('[Socket] Broadcasting public message');
-          io.emit('chat:message', message);
+          const publicMessage = { ...messageToEmit, chatId: 'public' };
+          io.emit('chat:message', publicMessage);
         }
       }
 
@@ -159,7 +155,9 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
 
         if (io) {
           const consistentChatId = `chat_${[cleanId1, cleanId2].sort().join('_')}`;
-          io.emit('chat:deleted', { chatId: consistentChatId }); // Broadcast to ensure all tabs update
+          // IMPORTANT: Only send to specific rooms of participants, not globally
+          // This avoids duplicate notifications and preserves privacy
+          io.to(cleanId1).to(cleanId2).emit('chat:deleted', { chatId: consistentChatId });
         }
 
         return reply.status(200).send({ count: deleted.count, success: true });

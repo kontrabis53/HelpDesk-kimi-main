@@ -10,6 +10,7 @@ import { useNotificationStore } from './notificationStore';
 export interface ChatMessage {
   id: string;
   chatId: string;
+  chatName?: string;
   text: string;
   senderId: string;
   senderName: string;
@@ -38,6 +39,7 @@ interface ChatStore {
   socket: Socket | null;
   isLoading: boolean;
   showHiddenChats: boolean;
+  showDirectoryUsers: boolean;
   
   initSocket: () => void;
   disconnectSocket: () => void;
@@ -46,13 +48,16 @@ interface ChatStore {
   setActiveChat: (chatId: string | null) => void;
   sendMessage: (chatId: string, text: string, senderId: string, senderName: string, recipientName: string) => Promise<void>;
   createDirectChat: (participantId: string, name: string) => Promise<string>;
+  createGroupChat: (participantIds: string[], name: string) => Promise<string>;
   addMessage: (message: ChatMessage) => void;
   clearUnread: (chatId: string) => void;
   togglePinChat: (chatId: string) => void;
   toggleHideChat: (chatId: string) => void;
   toggleMuteChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
+  renameChat: (chatId: string, newName: string) => void;
   setShowHiddenChats: (show: boolean) => void;
+  setShowDirectoryUsers: (show: boolean) => void;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -64,6 +69,7 @@ export const useChatStore = create<ChatStore>()(
   socket: null,
   isLoading: false,
   showHiddenChats: false,
+  showDirectoryUsers: false,
 
   initSocket: () => {
     if (get().socket) {
@@ -113,34 +119,52 @@ export const useChatStore = create<ChatStore>()(
         return;
       }
 
-      // Sanitize incoming message content to prevent UI issues
-      const sanitizedMessage = {
+      // SECURITY: Check if this message is actually for us (if it's a direct message)
+      const msgReceiverId = (message as any).receiverId;
+      if (msgReceiverId && msgReceiverId !== currentUser.id && message.senderId !== currentUser.id) {
+        console.warn('[Socket] Security Alert: Received message intended for another user!', {
+          receiverId: msgReceiverId,
+          myId: currentUser.id
+        });
+        return;
+      }
+
+      // Check for duplicate messages to avoid multiple notifications
+      const isDuplicate = get().messages.some(m => m.id === message.id);
+      if (isDuplicate) {
+        console.log('[Socket] Duplicate message ignored:', message.id);
+        return;
+      }
+
+      // Normalize message properties (server sends 'sender', client expects 'senderName')
+      const normalizedMessage = {
         ...message,
-        text: sanitizeText(message.text)
+        text: sanitizeText(message.text),
+        senderName: message.senderName || (message as any).sender?.name || 'Пользователь',
+        receiverName: (message as any).receiverName || (message as any).receiver?.name || 'Пользователь'
       };
 
       // Handle direct chat ID matching
-      let targetChatId = sanitizedMessage.chatId;
+      let targetChatId = normalizedMessage.chatId;
       
       // If it's a direct message (has receiverId), use consistent chatId
-      const msgReceiverId = (sanitizedMessage as any).receiverId;
-      const participantId = sanitizedMessage.senderId === currentUser.id ? msgReceiverId : sanitizedMessage.senderId;
+      const participantId = normalizedMessage.senderId === currentUser.id ? msgReceiverId : normalizedMessage.senderId;
 
-      if (msgReceiverId || sanitizedMessage.chatId.startsWith('chat_')) {
+      if (msgReceiverId || normalizedMessage.chatId.startsWith('chat_')) {
         if (participantId) {
           targetChatId = `chat_${[currentUser.id, participantId].sort().join('_')}`;
         }
       }
 
       // Add message to state (this now handles chat creation and unread counting)
-      get().addMessage({ ...sanitizedMessage, chatId: targetChatId });
+      get().addMessage({ ...normalizedMessage, chatId: targetChatId });
       
       // Add notification for new message if it's from someone else AND not the active chat
-      if (sanitizedMessage.senderId !== currentUser.id && get().activeChatId !== targetChatId) {
-        console.log('[Socket] Triggering notification for:', sanitizedMessage.senderName);
+      if (normalizedMessage.senderId !== currentUser.id && get().activeChatId !== targetChatId) {
+        console.log('[Socket] Triggering notification for:', normalizedMessage.senderName);
         
-        sonnerToast(sanitizedMessage.senderName || 'Новое сообщение', {
-          description: sanitizedMessage.text,
+        sonnerToast(normalizedMessage.senderName || 'Новое сообщение', {
+          description: normalizedMessage.text,
           duration: 5000,
           position: 'bottom-right',
           action: {
@@ -344,7 +368,6 @@ export const useChatStore = create<ChatStore>()(
             return;
           }
 
-          const existingChats = get().chats;
           const newChatsMap = new Map<string, any>();
 
           // Map raw messages to include chatId
@@ -393,18 +416,21 @@ export const useChatStore = create<ChatStore>()(
                   lastMessageTime: lastMessageTime
                 });
               }
-            } else if (chatId === 'public') {
+            } else {
+              // Group or Public chat
               const lastMessageTime = m.timestamp || m.createdAt;
-              const existingChatInState = get().chats.find(c => c.id === 'public');
-              const existingChatInMap = newChatsMap.get('public');
+              const isPublic = chatId === 'public';
+              const chatName = m.chatName || (isPublic ? 'Общий чат' : 'Групповой чат');
+              
+              const existingChatInState = get().chats.find(c => c.id === chatId);
+              const existingChatInMap = newChatsMap.get(chatId);
               
               if (!existingChatInMap || new Date(lastMessageTime) > new Date(existingChatInMap.lastMessageTime)) {
-                newChatsMap.set('public', {
-                  id: 'public',
-                  name: 'Общий чат',
+                newChatsMap.set(chatId, {
+                  id: chatId,
+                  name: chatName,
                   type: 'group',
-                  participants: [],
-                  // Preserve unread count from state
+                  participants: [], // Participants will be filled as messages arrive or from state
                   unreadCount: existingChatInState?.unreadCount || 0,
                   lastMessage: m.text,
                   lastMessageTime: lastMessageTime
@@ -415,27 +441,30 @@ export const useChatStore = create<ChatStore>()(
             return { ...m, chatId };
           });
 
-          // Filter out old chat- formats from existing chats to prevent duplicates
-          const cleanedExistingChats = existingChats.filter(c => c && c.id && !c.id.startsWith('chat-'));
-
           // Merge new chats into state
-          if (newChatsMap.size > 0) {
-            const updatedChats = [...cleanedExistingChats];
-            newChatsMap.forEach((newChat, id) => {
-              const idx = updatedChats.findIndex(c => c && c.id === id);
-              if (idx !== -1) {
-                updatedChats[idx] = { ...updatedChats[idx], ...newChat };
-              } else {
-                updatedChats.unshift(newChat);
-              }
-            });
-            set({ chats: updatedChats });
-          } else {
-            // Even if no new chats from messages, keep cleaned list
-            set({ chats: cleanedExistingChats });
-          }
+          set(state => {
+            const currentChats = state.chats;
+            const cleanedCurrentChats = currentChats.filter(c => c && c.id && !c.id.startsWith('chat-'));
+            const updatedChats = [...cleanedCurrentChats];
 
-          set({ messages, isLoading: false });
+            if (newChatsMap.size > 0) {
+              newChatsMap.forEach((newChat, id) => {
+                const idx = updatedChats.findIndex(c => c && c.id === id);
+                if (idx !== -1) {
+                  // Merge message data with existing chat (preserve pins, etc.)
+                  updatedChats[idx] = { ...updatedChats[idx], ...newChat };
+                } else {
+                  updatedChats.unshift(newChat);
+                }
+              });
+            }
+
+            return { 
+              chats: updatedChats,
+              messages,
+              isLoading: false 
+            };
+          });
         } catch (error: any) {
           console.error('Fetch messages error:', error);
           set({ isLoading: false });
@@ -469,16 +498,23 @@ export const useChatStore = create<ChatStore>()(
 
           // Find receiverId from chatId if it's a direct chat
           let receiverId: string | undefined;
+          let effectiveChatId = chatId;
+          let chatName: string | undefined;
+          
           const chat = get().chats.find(c => c.id === chatId);
-          if (chat && chat.type === 'direct') {
-            receiverId = chat.participants.find(p => p !== senderId);
+          if (chat) {
+            chatName = chat.name;
+            if (chat.type === 'direct') {
+              receiverId = chat.participants.find(p => p !== senderId);
+              effectiveChatId = undefined; // Let server generate direct chatId
+            }
           }
 
           // We no longer add a mock message here because it will be received 
           // via Socket.io (chat:message) and added to the state there.
           // This prevents double messages.
 
-          await chatService.sendMessage(sanitizedText, receiverId);
+          await chatService.sendMessage(sanitizedText, receiverId, effectiveChatId, chatName);
         } catch (error: any) {
           console.error('Send message error:', error);
         }
@@ -514,6 +550,40 @@ export const useChatStore = create<ChatStore>()(
         return newChat.id;
       },
 
+  createGroupChat: async (participantIds, name) => {
+        const currentUser = (window as any).useAuthStore?.getState()?.user;
+        if (!currentUser) return '';
+
+        try {
+          // Generate a unique ID for the group chat
+          const groupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          // Ensure currentUser is added but NOT duplicated
+          const uniqueParticipantIds = Array.from(new Set([currentUser.id, ...participantIds]));
+          
+          const newChat: Chat = {
+            id: groupId,
+            name,
+            type: 'group',
+            participants: uniqueParticipantIds,
+            unreadCount: 0
+          };
+
+          set(state => ({
+            chats: [newChat, ...state.chats],
+            activeChatId: newChat.id
+          }));
+
+          // Notify server if needed (currently we use REST for message sending)
+          // For now, we just create it locally and it will be persisted
+          
+          return groupId;
+        } catch (error) {
+          console.error('Create group chat error:', error);
+          return '';
+        }
+      },
+
   addMessage: (message: ChatMessage) => {
         set((state) => {
           // Prevent duplicates
@@ -542,11 +612,36 @@ export const useChatStore = create<ChatStore>()(
             const currentUser = (window as any).useAuthStore?.getState()?.user;
             const otherId = (message as any).receiverId === currentUser?.id ? message.senderId : (message as any).receiverId;
             
+            // Resolve chat name
+            let chatName = message.chatName || message.senderName || 'Чат';
+            
+            // If it's a direct chat, we want the OTHER person's name
+            if ((message as any).receiverId || effectiveChatId.startsWith('chat_')) {
+              if (message.senderId === currentUser?.id) {
+                // I am the sender, use receiver's name
+                chatName = (message as any).receiverName || 'Чат';
+                if (chatName === 'Чат') {
+                  const receiver = (window as any).useRoleStore?.getState()?.users.find((u: any) => u.id === (message as any).receiverId);
+                  if (receiver) chatName = receiver.name;
+                }
+              } else {
+                // I am the receiver, use sender's name
+                chatName = message.senderName || 'Чат';
+                if (chatName === 'Чат') {
+                  const sender = (window as any).useRoleStore?.getState()?.users.find((u: any) => u.id === message.senderId);
+                  if (sender) chatName = sender.name;
+                }
+              }
+            } else if (effectiveChatId.startsWith('group_')) {
+              // For group chats, prefer chatName from message
+              chatName = message.chatName || 'Групповой чат';
+            }
+
             updatedChats.unshift({
               id: effectiveChatId,
-              name: message.senderName || 'Чат',
-              type: (message as any).receiverId ? 'direct' : 'group',
-              participants: currentUser ? [currentUser.id, otherId].filter(Boolean) : [],
+              name: chatName,
+              type: effectiveChatId.startsWith('group_') ? 'group' : ((message as any).receiverId || effectiveChatId.startsWith('chat_') ? 'direct' : 'group'),
+              participants: currentUser ? Array.from(new Set([currentUser.id, otherId, message.senderId].filter(Boolean))) : [],
               unreadCount: 0, // Will be incremented below
               lastMessage: message.text,
               lastMessageTime: message.timestamp || message.createdAt
@@ -557,13 +652,42 @@ export const useChatStore = create<ChatStore>()(
           updatedChats = updatedChats.map(c => {
             if (c && c.id === effectiveChatId) {
               const isUnread = state.activeChatId !== effectiveChatId;
+              const currentUser = (window as any).useAuthStore?.getState()?.user;
               
-              // Debug log to see if this is triggered
-              console.log(`[ChatStore] Message for ${c.name}, isUnread: ${isUnread}, current: ${c.unreadCount}`);
+              // Resolve correct name
+              let resolvedName = c.name;
+              if (!c.name || c.name === 'Чат' || c.name === 'Пользователь') {
+                if (message.chatName) {
+                  resolvedName = message.chatName;
+                } else if (c.type === 'direct') {
+                  if (message.senderId === currentUser?.id) {
+                    resolvedName = (message as any).receiverName || 'Чат';
+                    // Final fallback to roleStore
+                    if (resolvedName === 'Чат') {
+                      const receiver = (window as any).useRoleStore?.getState()?.users.find((u: any) => u.id === (message as any).receiverId);
+                      if (receiver) resolvedName = receiver.name;
+                    }
+                  } else {
+                    resolvedName = message.senderName || 'Чат';
+                    // Final fallback to roleStore
+                    if (resolvedName === 'Чат') {
+                      const sender = (window as any).useRoleStore?.getState()?.users.find((u: any) => u.id === message.senderId);
+                      if (sender) resolvedName = sender.name;
+                    }
+                  }
+                }
+              }
+
+              // Update participants if message contains them (optional, but good for sync)
+              const participants = c.participants;
+              if (message.senderId && !participants.includes(message.senderId)) {
+                participants.push(message.senderId);
+              }
 
               return {
                 ...c,
-                name: (!c.name || c.name === 'Чат' || c.name === 'Пользователь') ? message.senderName : c.name,
+                name: resolvedName,
+                participants: Array.from(new Set(participants)),
                 lastMessage: message.text,
                 lastMessageTime: message.timestamp || message.createdAt,
                 unreadCount: isUnread ? (c.unreadCount || 0) + 1 : 0
@@ -611,7 +735,7 @@ export const useChatStore = create<ChatStore>()(
   },
 
   deleteChat: async (chatId) => {
-        const { socket, chats } = get();
+        const { chats } = get();
         const chatToDelete = chats.find(c => c.id === chatId);
         const currentUser = (window as any).useAuthStore?.getState()?.user;
         const otherParticipantId = chatToDelete?.participants.find(p => p !== currentUser?.id);
@@ -627,28 +751,34 @@ export const useChatStore = create<ChatStore>()(
 
         try {
           // 1. Delete messages from backend - execute immediately
+          // Note: The backend route already emits 'chat:deleted' via socket
           await chatService.deleteChatMessages(chatId, otherParticipantId || 'unknown');
 
-          // 2. Notify other participants via socket
-          if (socket && chatToDelete && otherParticipantId) {
-            console.log(`[Socket] Sending delete notification for ${chatId} to ${otherParticipantId}`);
-            socket.emit('chat:delete', { chatId, receiverId: otherParticipantId });
-          }
+          // 2. We don't need a separate socket.emit('chat:delete') here 
+          // because the server-side REST handler already notifies the participant.
+          // This prevents duplicate notifications.
         } catch (error) {
           console.error('Failed to delete chat on server:', error);
           sonnerToast.error('Не удалось полностью удалить чат на сервере');
         }
       },
 
-  setShowHiddenChats: (show) => set({ showHiddenChats: show })
+  renameChat: (chatId, newName) => {
+    set(state => ({
+      chats: state.chats.map(c => c.id === chatId ? { ...c, name: newName } : c)
+    }));
+  },
+
+  setShowHiddenChats: (show) => set({ showHiddenChats: show }),
+  setShowDirectoryUsers: (show) => set({ showDirectoryUsers: show })
     }),
     {
       name: 'chat-storage',
       partialize: (state) => ({
         chats: state.chats,
         messages: state.messages,
-        activeChatId: state.activeChatId,
         showHiddenChats: state.showHiddenChats,
+        showDirectoryUsers: state.showDirectoryUsers,
       }),
     }
   )

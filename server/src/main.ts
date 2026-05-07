@@ -116,7 +116,9 @@ let clientCount = 0;
       const decoded = fastify.jwt.verify(token) as any;
       if (decoded && decoded.id) {
         (fastify as any).activeUsers.set(decoded.id, socket.id);
-        console.log(`[Socket] User ${decoded.id} authenticated on socket ${socket.id}`);
+        // Join a room named after the userId for easier targeted messaging
+        socket.join(decoded.id);
+        console.log(`[Socket] User ${decoded.id} authenticated and joined room ${decoded.id}`);
         
         // Broadcast status change
         io.emit('user_status_change', { userId: decoded.id, isOnline: true });
@@ -190,10 +192,8 @@ let clientCount = 0;
 
   socket.on('chat:delete', ({ chatId, receiverId }: { chatId: string, receiverId: string }) => {
     console.log(`[Socket] Received chat:delete request for chatId: ${chatId}`);
-    const receiverSockets = (fastify as any).activeUsers.getAll(receiverId);
-    receiverSockets.forEach((sId: string) => {
-      io.to(sId).emit('chat:deleted', { chatId });
-    });
+    // No need to manually iterate, just use the room
+    io.to(receiverId).emit('chat:deleted', { chatId });
   });
 
   socket.on('error', (error) => {

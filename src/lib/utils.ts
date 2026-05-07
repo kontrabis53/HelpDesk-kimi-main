@@ -24,3 +24,20 @@ export function isZalgo(text: string): boolean {
   // If more than 5 combining marks are found in the message, it's likely Zalgo
   return zalgoMatch ? zalgoMatch.length > 5 : false;
 }
+
+/**
+ * Checks if a string consists only of emojis and whitespace.
+ */
+export function isOnlyEmojis(text: string): boolean {
+  if (!text) return false;
+  
+  // Remove whitespace
+  const cleanText = text.replace(/\s/g, '');
+  if (!cleanText) return false;
+
+  // This regex matches emoji characters.
+  // It includes basic emojis, variation selectors, skin tones, and ZWJ sequences.
+  const emojiRegex = /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$/;
+  
+  return emojiRegex.test(cleanText);
+}

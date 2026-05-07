@@ -6,8 +6,8 @@ export const chatService = {
     return response.data;
   },
 
-  sendMessage: async (text: string, receiverId?: string) => {
-    const response = await apiClient.post('/chat', { text, receiverId });
+  sendMessage: async (text: string, receiverId?: string, chatId?: string, chatName?: string) => {
+    const response = await apiClient.post('/chat', { text, receiverId, chatId, chatName });
     return response.data;
   },
 

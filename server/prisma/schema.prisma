@@ -225,6 +225,7 @@ model ChatMessage {
   id          String   @id @default(uuid())
   text        String
   isSystem    Boolean  @default(false)
+  chatId      String   @default("public")
   createdAt   DateTime @default(now())
   
   // Relations

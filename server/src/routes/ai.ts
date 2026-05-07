@@ -1,15 +1,52 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 
+// --- ИЗОЛЯЦИЯ ЛОГИКИ ИИ ---
+const AI_UTILS = {
+  levenshtein: (a: string, b: string): number => {
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) matrix[i][j] = matrix[i - 1][j - 1];
+        else matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+      }
+    }
+    return matrix[b.length][a.length];
+  },
+
+  getRandom: (arr: string[]) => arr[Math.floor(Math.random() * arr.length)],
+
+  crmKnowledge: {
+    tickets: "Раздел **Заявки** — здесь вы создаете тикеты на ремонт или обслуживание. Можно назначать ответственных, менять статусы и приоритеты.",
+    inventory: "Модуль **Склад** — учет расходных материалов (бумага, картриджи). Я вижу остатки в реальном времени.",
+    registry: "Раздел **Клиника Live** (Реестр) — здесь вся структура клиники: здания, этажи, кабинеты и закрепленное за ними оборудование.",
+    knowledge: "Модуль **База знаний** — инструкции, регламенты и полезные статьи для сотрудников.",
+    guides: "Раздел **Инструкции** — пошаговые руководства по работе с оборудованием и ПО.",
+    documents: "Модуль **Документы** — здесь хранятся акты выполненных работ, списания и другие отчеты.",
+    directory: "Раздел **Справочник** — контакты всех сотрудников клиники, их должности и внутренние номера.",
+    chat: "Внутренний **Чат** — для оперативного общения между сотрудниками.",
+    admin: "Панель **Управление** — только для администраторов: настройка ролей, прав доступа и управление структурой клиники."
+  } as Record<string, string>,
+
+  stopWords: ['привет', 'здравствуй', 'телефон', 'номер', 'найди', 'подскажи', 'узнай', 'сотрудник', 'контакт', 'справочник'],
+
+  stem: (word: string) => {
+    if (word.length <= 4) return word;
+    return word.replace(/(а|я|о|е|и|ы|ь|ю|у|ой|ей|ий|ый|ов|ев|их|ых|ую|юю|ая|яя|ое|ее)$/g, '');
+  }
+};
+
 export default async function aiRoutes(fastify: FastifyInstance) {
   // Get AI history for current user
   fastify.get('/history', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    const user = request.user as any;
+    const requestUser = request.user as any;
     try {
       const history = await (prisma as any).aIHistory.findMany({
-        where: { userId: user.id },
+        where: { userId: requestUser.id },
         orderBy: { createdAt: 'asc' }, // От старых к новым для чата
         take: 50
       });
@@ -24,72 +61,27 @@ export default async function aiRoutes(fastify: FastifyInstance) {
   fastify.post('/chat', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    const { message } = request.body as { message: string };
-    const user = request.user as any;
+    const { message: rawMessage } = request.body as { message: string };
+    const requestUser = request.user as any;
 
     try {
-      console.log(`[AI DEBUG] User ${user.id} sent message: "${message}"`);
-      // 0. Вспомогательные функции
-      const levenshtein = (a: string, b: string): number => {
-        const matrix = [];
-        for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-        for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-        for (let i = 1; i <= b.length; i++) {
-          for (let j = 1; j <= a.length; j++) {
-            if (b.charAt(i - 1) === a.charAt(j - 1)) matrix[i][j] = matrix[i - 1][j - 1];
-            else matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
-          }
-        }
-        return matrix[b.length][a.length];
-      };
-
-      const isFuzzyMatch = (target: string, query: string, threshold = 0.4) => {
-        const t = target.toLowerCase();
-        const q = query.toLowerCase();
-        if (t.includes(q)) return true;
-        const distance = levenshtein(t, q);
-        const maxLength = Math.max(t.length, q.length);
-        return (distance / maxLength) <= threshold;
-      };
-
-      const getRandom = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
-
-      const crmKnowledge = {
-        tickets: "Раздел **Заявки** — здесь вы создаете тикеты на ремонт или обслуживание. Можно назначать ответственных, менять статусы и приоритеты.",
-        inventory: "Модуль **Склад** — учет расходных материалов (бумага, картриджи). Я вижу остатки в реальном времени.",
-        registry: "Раздел **Клиника Live** (Реестр) — здесь вся структура клиники: здания, этажи, кабинеты и закрепленное за ними оборудование.",
-        knowledge: "Модуль **База знаний** — инструкции, регламенты и полезные статьи для сотрудников.",
-        guides: "Раздел **Инструкции** — пошаговые руководства по работе с оборудованием и ПО.",
-        documents: "Модуль **Документы** — здесь хранятся акты выполненных работ, списания и другие отчеты.",
-        directory: "Раздел **Справочник** — контакты всех сотрудников клиники, их должности и внутренние номера.",
-        chat: "Внутренний **Чат** — для оперативного общения между сотрудниками.",
-        admin: "Панель **Управление** — только для администраторов: настройка ролей, прав доступа и управление структурой клиники."
-      };
+      console.log(`[AI DEBUG] User ${requestUser.id} sent message: "${rawMessage}"`);
 
       // --- 1. ПОДГОТОВКА КОНТЕКСТА ---
-      const cleanMsg = message.toLowerCase().replace(/[.,!?;:]/g, ' ').trim();
+      const cleanMsg = rawMessage.toLowerCase().replace(/[.,!?;:]/g, ' ').trim();
       
-      // Слова-исключения, которые не должны считаться поисковыми словами для контактов
-      const stopWords = ['привет', 'здравствуй', 'телефон', 'номер', 'найди', 'подскажи', 'узнай', 'сотрудник', 'контакт', 'справочник'];
-
-      // Функция для примитивного стемминга (удаление окончаний)
-      const stem = (word: string) => {
-        if (word.length <= 4) return word;
-        return word.replace(/(а|я|о|е|и|ы|ь|ю|у|ой|ей|ий|ый|ов|ев|их|ых|ую|юю|ая|яя|ое|ее)$/g, '');
-      };
-
-      const searchWords = cleanMsg.split(/\s+/).filter(w => w.length > 2 && !stopWords.includes(w));
-      const stemmedWords = searchWords.map(stem).filter(w => w.length > 2);
+      const searchWords = cleanMsg.split(/\s+/).filter(w => w.length > 2 && !AI_UTILS.stopWords.includes(w));
+      const stemmedWords = searchWords.map(AI_UTILS.stem).filter(w => w.length > 2);
       
-      console.log(`[AI Search] Original: "${message}", Words: ${searchWords}, Stemmed: ${stemmedWords}`);
+      console.log(`[AI Search] Original: "${rawMessage}", Words: ${searchWords}, Stemmed: ${stemmedWords}`);
 
       const [dbUser, userHistory] = await Promise.all([
         (prisma.user as any).findUnique({
-          where: { id: user.id },
+          where: { id: requestUser.id },
           include: { roleRelation: true, departmentRelation: true }
         }),
         (prisma as any).aIHistory.findMany({
-          where: { userId: user.id },
+          where: { userId: requestUser.id },
           orderBy: { createdAt: 'desc' },
           take: 5
         })
@@ -124,12 +116,12 @@ export default async function aiRoutes(fastify: FastifyInstance) {
 
         // Если в запросе была вся фраза целиком (например, "Андреева Алина")
         if (fullName === cleanMsg) score += 2000;
-        else if (fullName.includes(cleanMsg)) score += 500;
+        else if (fullName.includes(cleanMsg) && cleanMsg.length > 3) score += 500;
 
         return { ...c, searchScore: score };
       })
-      .filter((c: any) => c.searchScore > 0)
-      .sort((a: any, b: any) => b.searchScore - a.searchScore);
+      .filter((c: { searchScore: number }) => c.searchScore > 0)
+      .sort((a: { searchScore: number }, b: { searchScore: number }) => b.searchScore - a.searchScore);
 
       // ЖЕСТКИЙ ФИЛЬТР: Если есть один явный лидер, убираем всех остальных
       if (relevantContacts.length > 1) {
@@ -147,19 +139,18 @@ export default async function aiRoutes(fastify: FastifyInstance) {
       console.log(`[AI DEBUG] Found ${relevantContacts.length} contacts. Best: ${relevantContacts[0]?.name} (Score: ${relevantContacts[0]?.searchScore})`);
 
       // 2.1 ПОИСК ПРЕДЛОЖЕНИЙ (Если нет точного лидера)
-      let suggestions: string[] = [];
+      let aiSuggestions: string[] = [];
       if (relevantContacts.length === 0 || (relevantContacts.length > 1 && relevantContacts[0].searchScore < 500)) {
-        const allContacts = await (prisma as any).directoryEntry.findMany({ take: 500 });
-        const fuzzyMatches = allContacts
+        const fuzzyMatches = allDirectory
           .map((c: any) => ({ 
             name: c.name, 
-            score: Math.max(...searchWords.map(w => 1 - levenshtein(c.name.toLowerCase().split(' ')[0], w) / Math.max(c.name.split(' ')[0].length, w.length)))
+            score: Math.max(...searchWords.map((w: string) => 1 - AI_UTILS.levenshtein(c.name.toLowerCase().split(' ')[0], w) / Math.max(c.name.split(' ')[0].length, w.length)))
           }))
-          .filter((c: any) => c.score > 0.6)
-          .sort((a: any, b: any) => b.score - a.score)
+          .filter((c: { name: string; score: number }) => c.score > 0.6)
+          .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
           .slice(0, 3);
         
-        suggestions = fuzzyMatches.map(m => m.name);
+        aiSuggestions = fuzzyMatches.map((m: { name: string; score: number }) => m.name);
       }
 
       // Поиск оборудования
@@ -206,7 +197,7 @@ export default async function aiRoutes(fastify: FastifyInstance) {
           if (confirmedContact) {
             aiReply = `Отлично! Вот информация по сотруднику:\n👤 **${confirmedContact.name}**\n💼 ${confirmedContact.position}\n🏢 ${confirmedContact.department || '—'}\n📞 Внутр: **${confirmedContact.internalPhone || '—'}**\n📱 Моб: **${confirmedContact.mobilePhone || '—'}**`;
             await (prisma as any).aIHistory.create({
-              data: { message: message, reply: aiReply, userId: user.id }
+              data: { message: rawMessage, reply: aiReply, userId: requestUser.id }
             });
             return { reply: aiReply };
           }
@@ -254,7 +245,7 @@ export default async function aiRoutes(fastify: FastifyInstance) {
           `На связи ИИ MEDIN. `,
           `Добрый день! Слушаю вас. `
         ];
-        prefix = getRandom(greetings);
+        prefix = AI_UTILS.getRandom(greetings);
       }
 
       // Основная логика ответа
@@ -304,9 +295,9 @@ export default async function aiRoutes(fastify: FastifyInstance) {
           "Я просмотрел базу данных, но совпадений нет. Может, опечатка?",
           "Хм, не вижу такого в системе. Попробуйте спросить иначе."
         ];
-        aiReply = getRandom(notFound);
-        if (suggestions.length > 0) {
-          aiReply += `\n\n**Возможно, вы имели в виду:**\n` + suggestions.map(s => `• ${s}`).join('\n');
+        aiReply = AI_UTILS.getRandom(notFound);
+        if (aiSuggestions.length > 0) {
+          aiReply += `\n\n**Возможно, вы имели в виду:**\n` + aiSuggestions.map(s => `• ${s}`).join('\n');
         }
       }
 
@@ -315,9 +306,9 @@ export default async function aiRoutes(fastify: FastifyInstance) {
       // 4. СОХРАНЕНИЕ В ИСТОРИЮ
       await (prisma as any).aIHistory.create({
         data: {
-          message: message,
+          message: rawMessage,
           reply: finalReply,
-          userId: user.id
+          userId: requestUser.id
         }
       });
 

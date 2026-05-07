@@ -95,18 +95,46 @@
     @apply bg-slate-400 dark:bg-slate-600;
   }
 
+  .text-fade {
+    white-space: nowrap;
+    overflow: hidden;
+    mask-image: linear-gradient(to right, black 75%, transparent 95%);
+    -webkit-mask-image: linear-gradient(to right, black 75%, transparent 95%);
+  }
+
   /* AI Bot Animation */
   @keyframes bounce-slow {
     0%, 100% {
       transform: translateY(0);
     }
     50% {
-      transform: translateY(-10px);
+      transform: translateY(-5px);
     }
   }
+
   .animate-bounce-slow {
-    animation: bounce-slow 3s infinite;
+    animation: bounce-slow 2s infinite ease-in-out;
   }
+
+  /* Emoji Animations */
+  @keyframes emoji-pop {
+    0% { transform: scale(0.8); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes emoji-float {
+    0%, 100% { transform: translateY(0) rotate(0); }
+    25% { transform: translateY(-3px) rotate(-2deg); }
+    75% { transform: translateY(2px) rotate(2deg); }
+  }
+
+  .emoji-large {
+    @apply text-4xl inline-block transition-transform;
+    animation: emoji-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+               emoji-float 3s infinite ease-in-out 0.4s;
+  }
+}
 
   /* Fix Sonner Toast Transparency & Styles */
   [data-sonner-toast] {
@@ -126,7 +154,6 @@
   [data-sonner-toast] [data-button] {
     @apply bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg transition-colors !important;
   }
-}
 
 @layer components {
 }

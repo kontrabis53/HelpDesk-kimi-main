@@ -567,7 +567,7 @@ export function ProfileScreen({ stats, theme, onToggleTheme, onOpenSettings, use
 
         <div className="pt-8 text-center pb-8">
           <p className="text-xs font-bold text-slate-300 dark:text-slate-700 uppercase tracking-widest">
-            Медин v1.3.0 Current
+            Медин v1.3.2 Stable
           </p>
         </div>
       </div>

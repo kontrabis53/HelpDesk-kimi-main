@@ -231,15 +231,6 @@ export function Sidebar({ availableModules = [], canAccessAdmin = false }: Sideb
       </div>
 
       <div className="mt-auto p-4 border-t border-slate-200 dark:border-slate-700 relative">
-        <div className="mb-2 text-[8px] text-slate-400 font-mono text-center opacity-50 uppercase">
-          Build: 1.2.9-FINAL-FIX-4
-        </div>
-        <button 
-          onClick={() => (window as any).testNotification?.()}
-          className="w-full mb-2 text-[10px] py-1 px-2 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-blue-600 transition-colors"
-        >
-          Тест уведомлений
-        </button>
         <button 
           onClick={toggleSidebar}
           className="absolute right-2 bottom-2 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors z-20"

@@ -266,14 +266,15 @@ export function ChatScreen() {
     }
   };
 
-  const handleRenameChat = () => {
+  const handleRenameChat = async () => {
     if (!chatToRename || !newChatName.trim()) return;
     const { renameChat } = useChatStore.getState();
-    renameChat(chatToRename.id, newChatName.trim());
-    setIsRenameModalOpen(false);
-    setChatToRename(null);
-    setNewChatName('');
-    toast.success('Чат переименован');
+    const success = await renameChat(chatToRename.id, newChatName.trim());
+    if (success) {
+      setIsRenameModalOpen(false);
+      setChatToRename(null);
+      setNewChatName('');
+    }
   };
 
   const toggleParticipant = (participantId: string) => {
@@ -516,7 +517,7 @@ export function ChatScreen() {
                   </ContextMenuItem>
                   <ContextMenuSeparator />
                   <ContextMenuItem className="text-red-600 focus:text-red-600" onClick={() => {
-                    if (confirm('Вы уверены?')) { deleteChat(chat.id); toast.success('Чат удален'); }
+                    if (confirm('Вы уверены?')) { deleteChat(chat.id); }
                   }}>
                     <Trash2 className="w-4 h-4 mr-2" /> Удалить
                   </ContextMenuItem>
@@ -536,7 +537,12 @@ export function ChatScreen() {
                   <ArrowLeft className="w-5 h-5" />
                 </Button>
                 <UserAvatar 
-                  avatarUrl={users.find(u => u.id === activeChat.participants.find(p => p !== currentUser?.id) || (u.name && activeChat.name && u.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase()))?.avatar} 
+                  avatarUrl={users.find(u => {
+                    const otherId = activeChat.participants.find(p => p !== currentUser?.id);
+                    if (u.id === otherId) return true;
+                    if (!u.name || !activeChat.name) return false;
+                    return u.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase();
+                  })?.avatar} 
                   name={activeChat.name} 
                   sizeClass="w-10 h-10" 
                   textClass="text-[10px]" 
@@ -572,7 +578,20 @@ export function ChatScreen() {
                       const showSender = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
                       const senderFromMsg = msg.senderId === currentUser?.id ? currentUser : ((msg as any).sender || users.find(u => u.id === msg.senderId));
                       const senderName = msg.senderName || senderFromMsg?.name || 'Пользователь';
-                      const onlyEmojis = isOnlyEmojis(msg.text);
+                      const onlyEmojis = isOnlyEmojis(msg.text || '');
+
+                      if (msg.isSystem) {
+                        return (
+                          <div key={msg.id} className="flex justify-center my-4">
+                            <div className="bg-slate-100/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 px-4 py-1.5 rounded-full">
+                              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">
+                                {sanitizeText(msg.text || '')}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div key={msg.id} className={cn("flex gap-3 mb-4", isMe ? "flex-row-reverse items-end" : "flex-row items-end")}>
                           <div className="shrink-0 mb-1">
@@ -585,9 +604,9 @@ export function ChatScreen() {
                               isMe ? "bg-blue-600 text-white rounded-br-none" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700",
                               onlyEmojis && "bg-transparent dark:bg-transparent border-transparent dark:border-transparent shadow-none px-0 py-0"
                             )}>
-                              <p className={cn("whitespace-pre-wrap leading-relaxed", onlyEmojis && "emoji-large")}>{sanitizeText(msg.text)}</p>
+                              <p className={cn("whitespace-pre-wrap leading-relaxed", onlyEmojis && "emoji-large")}>{sanitizeText(msg.text || '')}</p>
                               <span className={cn("text-[9px] mt-1 block opacity-60", isMe ? "text-right" : "text-left", onlyEmojis && "hidden")}>
-                                {format(new Date(msg.timestamp || msg.createdAt), 'HH:mm')}
+                                {format(new Date(msg.timestamp || msg.createdAt || new Date().toISOString()), 'HH:mm')}
                               </span>
                             </div>
                           </div>

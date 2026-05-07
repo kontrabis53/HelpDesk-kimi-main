@@ -355,7 +355,7 @@ fastify.setErrorHandler(async (error: any, _request, reply) => {
 fastify.get('/api', async () => {
   return { 
     message: 'HelpDesk CRM API Server', 
-    version: '1.2.9-FINAL-FIX',
+    version: '1.2.9-FINAL-FIX-RELOAD',
     status: 'running',
     timestamp: new Date().toISOString(),
     changelog: {
@@ -1013,7 +1013,7 @@ async function resetUserStatus() {
 console.clear();
 console.log('=========================================');
 console.log('   HELPDESK CRM SERVER STARTING UP...    ');
-console.log('   VERSION: 1.2.9-FINAL-FIX              ');
+console.log('   VERSION: 1.3.2-STABLE                 ');
 console.log('   AI LOGIC: 2.0 ENABLED                 ');
 console.log('=========================================');
 

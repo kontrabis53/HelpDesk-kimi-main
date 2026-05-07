@@ -17,6 +17,7 @@ export interface ChatMessage {
   senderRealName?: string;
   createdAt: string;
   timestamp?: string;
+  isSystem?: boolean;
 }
 
 interface Chat {
@@ -55,7 +56,8 @@ interface ChatStore {
   toggleHideChat: (chatId: string) => void;
   toggleMuteChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
-  renameChat: (chatId: string, newName: string) => void;
+  renameChat: (chatId: string, newName: string) => Promise<boolean>;
+  deleteChatLocally: (chatId: string) => void;
   setShowHiddenChats: (show: boolean) => void;
   setShowDirectoryUsers: (show: boolean) => void;
 }
@@ -181,20 +183,26 @@ export const useChatStore = create<ChatStore>()(
       }
     });
 
-    socket.on('chat:deleted', ({ chatId }: { chatId: string }) => {
-      console.log(`[Socket] Received chat:deleted event for ${chatId}`);
-      set(state => {
-        const isActive = state.activeChatId === chatId;
-        return {
-          chats: state.chats.filter(c => c && c.id !== chatId),
-          messages: state.messages.filter(m => m.chatId !== chatId),
-          activeChatId: isActive ? null : state.activeChatId
-        };
-      });
+    socket.on('chat:deleted', ({ chatId, deletedBy, deletedById }: { chatId: string, deletedBy?: string, deletedById?: string }) => {
+      console.log(`[Socket] Received chat:deleted event for ${chatId} by ${deletedBy}`);
+      const currentUser = (window as any).useAuthStore?.getState()?.user;
+      
+      // Local deletion
+      get().deleteChatLocally(chatId);
 
-      sonnerToast.info('Чат удален', {
-        description: 'Собеседник удалил этот чат.'
-      });
+      // Notification logic
+      if (deletedById !== currentUser?.id) {
+        sonnerToast.info('Чат удален', {
+          description: `Пользователь ${deletedBy || 'собеседник'} удалил этот чат.`
+        });
+      }
+    });
+
+    socket.on('chat:renamed', ({ chatId, newName }: { chatId: string, newName: string }) => {
+      console.log(`[Socket] Chat ${chatId} renamed to ${newName}`);
+      set(state => ({
+        chats: state.chats.map(c => c.id === chatId ? { ...c, name: newName } : c)
+      }));
     });
 
     socket.on('user_deactivated', ({ userId }: { userId: string }) => {
@@ -369,6 +377,24 @@ export const useChatStore = create<ChatStore>()(
           }
 
           const newChatsMap = new Map<string, any>();
+          const chatNamesFromSystemMessages = new Map<string, string>();
+
+          // First pass: Find all rename system messages to get the latest names
+          rawMessages.forEach((m: any) => {
+            if (m.isSystem && m.text.includes('Группа переименована в "')) {
+              const match = m.text.match(/Группа переименована в "([^"]+)"/);
+              if (match && match[1]) {
+                const chatId = m.chatId || 'public';
+                const existingNameTime = (m as any)._nameTime || 0;
+                const msgTime = new Date(m.timestamp || m.createdAt).getTime();
+                
+                if (msgTime > existingNameTime) {
+                  chatNamesFromSystemMessages.set(chatId, match[1]);
+                  (m as any)._nameTime = msgTime;
+                }
+              }
+            }
+          });
 
           // Map raw messages to include chatId
           const messages = rawMessages.map((m: any) => {
@@ -420,7 +446,11 @@ export const useChatStore = create<ChatStore>()(
               // Group or Public chat
               const lastMessageTime = m.timestamp || m.createdAt;
               const isPublic = chatId === 'public';
-              const chatName = m.chatName || (isPublic ? 'Общий чат' : 'Групповой чат');
+              
+              // Use name from system messages if available, otherwise fallback
+              const chatName = chatNamesFromSystemMessages.get(chatId) || 
+                              m.chatName || 
+                              (isPublic ? 'Общий чат' : 'Групповой чат');
               
               const existingChatInState = get().chats.find(c => c.id === chatId);
               const existingChatInMap = newChatsMap.get(chatId);
@@ -498,7 +528,7 @@ export const useChatStore = create<ChatStore>()(
 
           // Find receiverId from chatId if it's a direct chat
           let receiverId: string | undefined;
-          let effectiveChatId = chatId;
+          let effectiveChatId: string | undefined = chatId;
           let chatName: string | undefined;
           
           const chat = get().chats.find(c => c.id === chatId);
@@ -547,6 +577,13 @@ export const useChatStore = create<ChatStore>()(
           activeChatId: newChat.id
         }));
 
+        // Notify server and other participant about new chat
+        try {
+          await chatService.notifyCreation(consistentId, 'direct', [currentUser.id, participantId], name);
+        } catch (error) {
+          console.error('Failed to notify chat creation:', error);
+        }
+
         return newChat.id;
       },
 
@@ -556,7 +593,7 @@ export const useChatStore = create<ChatStore>()(
 
         try {
           // Generate a unique ID for the group chat
-          const groupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const groupId = `group_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
           
           // Ensure currentUser is added but NOT duplicated
           const uniqueParticipantIds = Array.from(new Set([currentUser.id, ...participantIds]));
@@ -574,8 +611,12 @@ export const useChatStore = create<ChatStore>()(
             activeChatId: newChat.id
           }));
 
-          // Notify server if needed (currently we use REST for message sending)
-          // For now, we just create it locally and it will be persisted
+          // Notify server and all participants about new group
+          try {
+            await chatService.notifyCreation(groupId, 'group', uniqueParticipantIds, name);
+          } catch (error) {
+            console.error('Failed to notify group creation:', error);
+          }
           
           return groupId;
         } catch (error) {
@@ -632,9 +673,14 @@ export const useChatStore = create<ChatStore>()(
                   if (sender) chatName = sender.name;
                 }
               }
-            } else if (effectiveChatId.startsWith('group_')) {
-              // For group chats, prefer chatName from message
-              chatName = message.chatName || 'Групповой чат';
+            } else if (effectiveChatId.startsWith('group_') || effectiveChatId === 'public') {
+              // For group chats, prefer chatName from message, then check if it's a rename message
+              chatName = message.chatName || (effectiveChatId === 'public' ? 'Общий чат' : 'Групповой чат');
+              
+              if (message.isSystem && message.text.includes('Группа переименована в "')) {
+                const match = message.text.match(/Группа переименована в "([^"]+)"/);
+                if (match && match[1]) chatName = match[1];
+              }
             }
 
             updatedChats.unshift({
@@ -656,7 +702,12 @@ export const useChatStore = create<ChatStore>()(
               
               // Resolve correct name
               let resolvedName = c.name;
-              if (!c.name || c.name === 'Чат' || c.name === 'Пользователь') {
+              
+              // If it's a system rename message, always update the name
+              if (message.isSystem && message.text.includes('Группа переименована в "')) {
+                const match = message.text.match(/Группа переименована в "([^"]+)"/);
+                if (match && match[1]) resolvedName = match[1];
+              } else if (!c.name || c.name === 'Чат' || c.name === 'Пользователь' || c.name === 'Групповой чат' || c.name === 'Общий чат') {
                 if (message.chatName) {
                   resolvedName = message.chatName;
                 } else if (c.type === 'direct') {
@@ -743,31 +794,51 @@ export const useChatStore = create<ChatStore>()(
         console.log(`[Chat] Deleting chat ${chatId}, otherParticipantId: ${otherParticipantId}`);
 
         // Immediate local UI update
-        set(state => ({
-          chats: state.chats.filter(c => c.id !== chatId),
-          messages: state.messages.filter(m => m.chatId !== chatId),
-          activeChatId: state.activeChatId === chatId ? null : state.activeChatId
-        }));
+        get().deleteChatLocally(chatId);
 
         try {
           // 1. Delete messages from backend - execute immediately
           // Note: The backend route already emits 'chat:deleted' via socket
           await chatService.deleteChatMessages(chatId, otherParticipantId || 'unknown');
-
-          // 2. We don't need a separate socket.emit('chat:delete') here 
-          // because the server-side REST handler already notifies the participant.
-          // This prevents duplicate notifications.
+          
+          sonnerToast.success('Чат успешно удален');
         } catch (error) {
           console.error('Failed to delete chat on server:', error);
           sonnerToast.error('Не удалось полностью удалить чат на сервере');
         }
       },
 
-  renameChat: (chatId, newName) => {
-    set(state => ({
-      chats: state.chats.map(c => c.id === chatId ? { ...c, name: newName } : c)
-    }));
+  deleteChatLocally: (chatId) => {
+    set(state => {
+      const isActive = state.activeChatId === chatId;
+      return {
+        chats: state.chats.filter(c => c && c.id !== chatId),
+        messages: state.messages.filter(m => m.chatId !== chatId),
+        activeChatId: isActive ? null : state.activeChatId
+      };
+    });
   },
+
+  renameChat: async (chatId, newName) => {
+      try {
+        // Update locally immediately for better UX
+        set(state => ({
+          chats: state.chats.map(c => c.id === chatId ? { ...c, name: newName } : c)
+        }));
+
+        if (chatId.startsWith('group_') || chatId === 'public') {
+          await chatService.renameChat(chatId, newName);
+          sonnerToast.success('Чат переименован');
+        } else {
+          sonnerToast.success('Чат переименован');
+        }
+        return true;
+     } catch (error) {
+       console.error('Failed to rename chat:', error);
+       sonnerToast.error('Не удалось переименовать чат');
+       return false;
+     }
+   },
 
   setShowHiddenChats: (show) => set({ showHiddenChats: show }),
   setShowDirectoryUsers: (show) => set({ showDirectoryUsers: show })

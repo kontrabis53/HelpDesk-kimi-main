@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Search, 
-  Send, 
   Users, 
   MessageSquare, 
   Plus, 
@@ -19,7 +18,6 @@ import {
   Trash2,
   Settings,
   Smile,
-  Paperclip,
   ExternalLink,
   HelpCircle,
   Smartphone,
@@ -67,27 +65,195 @@ import {
 } from "@/components/ui/context-menu";
 import { toast } from 'sonner';
 import { ChatSecurityModal } from '@/components/ChatSecurityModal';
+import { ChatInput } from '@/components/ChatInput';
+import { VList } from 'virtua';
+
+// --- Optimized Sub-components ---
+
+const MessageItem = React.memo(({ msg, isMe, showSender, sender }: any) => {
+  const onlyEmojis = isOnlyEmojis(msg.text || '');
+  const senderName = msg.senderName || sender?.name || 'Пользователь';
+
+  if (msg.isSystem) {
+    let displayText = msg.text || '';
+    if (displayText.startsWith('[GROUP_AVATAR_CHANGED]|')) return null;
+    if (displayText.startsWith('[GROUP_CREATED]|')) {
+      const parts = displayText.split('|');
+      displayText = `Пользователь ${parts[3] || 'Пользователь'} создал группу "${parts[1]}"`;
+    } else if (displayText.startsWith('[DIRECT_CREATED]|')) {
+      displayText = `Пользователь ${displayText.split('|')[1] || 'Пользователь'} начал с вами чат`;
+    }
+    return (
+      <div className="flex justify-center my-4">
+        <div className="bg-slate-100/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 px-4 py-1.5 rounded-full">
+          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{sanitizeText(displayText)}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("flex gap-3 mb-4", isMe ? "flex-row items-end" : "flex-row items-end")}>
+      <div className="shrink-0 mb-1">
+        <UserAvatar avatarUrl={sender?.avatar} name={senderName} sizeClass="w-9 h-9" textClass="text-[10px]" />
+      </div>
+      <div className={cn("flex flex-col max-w-[75%] md:max-w-[65%]", isMe ? "items-start" : "items-start")}>
+        {(showSender || isMe) && <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">{isMe ? 'Вы' : senderName}</span>}
+        <div className={cn(
+          "px-4 py-2.5 rounded-2xl text-sm shadow-sm break-words w-fit transition-all",
+          isMe ? "bg-blue-500 text-white rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none border border-slate-200 dark:border-slate-700",
+          onlyEmojis && "bg-transparent dark:bg-transparent border-transparent dark:border-transparent shadow-none px-0 py-0"
+        )}>
+          <p className={cn("whitespace-pre-wrap leading-relaxed", onlyEmojis && "emoji-large")}>{sanitizeText(msg.text || '')}</p>
+          <span className={cn("text-[9px] mt-1 block opacity-60", "text-left", onlyEmojis && "hidden")}>{format(new Date(msg.timestamp || msg.createdAt || new Date().toISOString()), 'HH:mm')}</span>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+MessageItem.displayName = 'MessageItem';
+
+const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onRename, onTogglePin, onToggleMute, onToggleHide, onDelete }: any) => {
+  const formatChatName = (name: string, type: 'direct' | 'group') => {
+    if (type === 'direct') return name || 'Чат';
+    return (name || 'Групповой чат').replace(/^Групповой чат:\s*/, '');
+  };
+
+  const otherUser = useMemo(() => {
+    return users.find((u: any) => u.id === chat.participants.find((p: string) => p !== currentUser?.id) || (u.name && chat.name && u.name.trim().toLowerCase() === chat.name.trim().toLowerCase()));
+  }, [chat, users, currentUser]);
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <button
+          onClick={() => onSelect(chat.id)}
+          className={cn(
+            "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative border-2",
+            isActive 
+              ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30 scale-[1.02] z-10" 
+              : "hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-transparent",
+            chat.isHidden && "opacity-50 grayscale-[0.5]"
+          )}
+        >
+          <div className="relative flex-shrink-0">
+            <UserAvatar 
+              avatarUrl={chat.avatar || otherUser?.avatar} 
+              name={chat.name} 
+              sizeClass="w-12 h-12" 
+              textClass="text-xs" 
+              isGroup={chat.type === 'group'}
+            />
+            {chat.type === 'direct' && (
+              <div className={cn(
+                "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800",
+                otherUser?.isOnline ? "bg-emerald-500" : "bg-red-500"
+              )} />
+            )}
+            {chat.unreadCount > 0 && (
+              <span className={cn(
+                "absolute -top-1 -right-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2",
+                isActive ? "bg-white text-blue-600 border-blue-600" : "bg-red-500 text-white border-white dark:border-slate-800"
+              )}>
+                {chat.unreadCount}
+              </span>
+            )}
+            {chat.isPinned && (
+              <div className={cn(
+                "absolute -bottom-1 -right-1 rounded-full p-0.5 shadow-sm border",
+                isActive ? "bg-white border-blue-600" : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700"
+              )}>
+                <Pin className={cn("w-3 h-3", isActive ? "text-blue-600 fill-blue-600" : "text-blue-500 fill-blue-500")} />
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <div className="flex justify-between items-center mb-1 gap-3">
+              <div className="flex-1 min-w-0 flex items-center gap-1">
+                <div className={cn(
+                  "font-bold text-sm text-fade flex-1",
+                  isActive ? "text-white" : "text-slate-900 dark:text-slate-100",
+                  chat.unreadCount > 0 && !isActive && "font-black"
+                )}>
+                  {formatChatName(chat.name, chat.type)}
+                </div>
+                {chat.isMuted && <BellOff className={cn("w-3 h-3 flex-shrink-0", isActive ? "text-white/70" : "text-slate-400")} />}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                {chat.unreadCount > 0 && !isActive && (
+                  <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-bold bg-blue-600 text-white shadow-sm">
+                    {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                  </span>
+                )}
+                {chat.lastMessageTime && (
+                  <span className={cn(
+                    "text-[10px] whitespace-nowrap",
+                    isActive ? "text-white/80" : "text-slate-400",
+                    chat.unreadCount > 0 && !isActive && "text-blue-600 dark:text-blue-400 font-bold"
+                  )}>
+                    {format(new Date(chat.lastMessageTime), 'HH:mm')}
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className={cn(
+              "text-xs truncate leading-tight",
+              isActive ? "text-white/90 font-medium" : "text-slate-500 dark:text-slate-400",
+              chat.unreadCount > 0 && !isActive && "text-slate-900 dark:text-slate-100 font-bold"
+            )}>
+              {chat.lastMessage || 'Нет сообщений'}
+            </p>
+          </div>
+          {isActive && (
+            <div className="absolute left-[-2px] top-1/4 bottom-1/4 w-1 bg-white rounded-r-full" />
+          )}
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onClick={() => onTogglePin(chat.id)}>
+          {chat.isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Открепить</> : <><Pin className="w-4 h-4 mr-2" /> Закрепить</>}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onToggleMute(chat.id)}>
+          {chat.isMuted ? <><Bell className="w-4 h-4 mr-2" /> Включить звук</> : <><BellOff className="w-4 h-4 mr-2" /> Без звука</>}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onToggleHide(chat.id)}>
+          {chat.isHidden ? <><Eye className="w-4 h-4 mr-2" /> Показать</> : <><EyeOff className="w-4 h-4 mr-2" /> Скрыть</>}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onRename({ id: chat.id, name: chat.name })}>
+          <Edit2 className="w-4 h-4 mr-2" /> Переименовать
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem className="text-red-600 focus:text-red-600" onClick={() => {
+          if (confirm('Вы уверены?')) { onDelete(chat.id); }
+        }}>
+          <Trash2 className="w-4 h-4 mr-2" /> Удалить
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+});
+
+ChatItem.displayName = 'ChatItem';
 
 export function ChatScreen() {
-  const { 
-    chats, 
-    messages, 
-    activeChatId, 
-    setActiveChat, 
-    sendMessage, 
-    createDirectChat,
-    createGroupChat,
-    fetchMessages,
-    clearUnread,
-    togglePinChat,
-    toggleHideChat,
-    toggleMuteChat,
-    deleteChat,
-    showHiddenChats,
-    setShowHiddenChats,
-    showDirectoryUsers,
-    setShowDirectoryUsers
-  } = useChatStore();
+  const chats = useChatStore(s => s.chats);
+  const messages = useChatStore(s => s.messages);
+  const activeChatId = useChatStore(s => s.activeChatId);
+  const setActiveChat = useChatStore(s => s.setActiveChat);
+  const sendMessage = useChatStore(s => s.sendMessage);
+  const createDirectChat = useChatStore(s => s.createDirectChat);
+  const createGroupChat = useChatStore(s => s.createGroupChat);
+  const fetchMessages = useChatStore(s => s.fetchMessages);
+  const clearUnread = useChatStore(s => s.clearUnread);
+  const togglePinChat = useChatStore(s => s.togglePinChat);
+  const toggleHideChat = useChatStore(s => s.toggleHideChat);
+  const toggleMuteChat = useChatStore(s => s.toggleMuteChat);
+  const deleteChat = useChatStore(s => s.deleteChat);
+  const showHiddenChats = useChatStore(s => s.showHiddenChats);
+  const setShowHiddenChats = useChatStore(s => s.setShowHiddenChats);
+  const showDirectoryUsers = useChatStore(s => s.showDirectoryUsers);
+  const setShowDirectoryUsers = useChatStore(s => s.setShowDirectoryUsers);
 
   const { entries: directoryEntries, fetchEntries: fetchDirectoryEntries } = useDirectoryStore();
 
@@ -118,17 +284,16 @@ export function ChatScreen() {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [newMessage, setNewMessage] = useState('');
+  // newMessage state is now handled inside ChatInput
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [chatToRename, setChatToRename] = useState<{ id: string, name: string } | null>(null);
   const [newChatName, setNewChatName] = useState('');
   const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
+  // States related to message input (newMessage, emoji picker, textarea ref) 
+  // are now encapsulated in ChatInput component to prevent global re-renders.
+
   // Group chat state
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
@@ -173,49 +338,19 @@ export function ChatScreen() {
   const activeChat = (chats || []).find(c => c.id === activeChatId);
   const chatMessages = (messages || []).filter(m => m.chatId === activeChatId);
 
-  // Auto-resize textarea
+  // Focus textarea when switching chats
   useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = '40px'; // Reset height
-      const scrollHeight = textarea.scrollHeight;
-      textarea.style.height = Math.min(scrollHeight, 150) + 'px'; // Max height 150px
+    if (activeChatId) {
+      // Small delay to ensure the component is rendered and ready
+      const timer = setTimeout(() => {
+        // Мы не можем напрямую вызвать фокус здесь, так как textarea теперь внутри ChatInput
+        // Но мы можем полагаться на то, что ChatInput сам по себе не перерендеривается лишний раз
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [newMessage]);
+  }, [activeChatId]);
 
-  // Close emoji picker on click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
-        setIsEmojiPickerOpen(false);
-      }
-    };
-
-    if (isEmojiPickerOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isEmojiPickerOpen]);
-
-  // Handle marking as read on scroll
-  useEffect(() => {
-    const viewport = viewportRef.current as HTMLDivElement | null;
-    if (!viewport || !activeChatId || chatMessages.length === 0) return;
-
-    const handleScroll = () => {
-      const isNearBottom = 
-        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
-      
-      if (isNearBottom) {
-        clearUnread(activeChatId);
-      }
-    };
-
-    viewport.addEventListener('scroll', handleScroll);
-    handleScroll();
-
-    return () => viewport.removeEventListener('scroll', handleScroll);
-  }, [activeChatId, chatMessages.length, clearUnread]);
+  // Handle marking as read on scroll logic removed as it's now handled by VList onScroll
 
   // Find directory info and online status
   const activeChatInfo = useMemo(() => {
@@ -234,24 +369,23 @@ export function ChatScreen() {
   const isOtherUserOnline = activeChatInfo.isOnline;
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+    if (viewportRef.current) {
+      // scrollToIndex can be used here for more reliable scrolling with virtualization
+      viewportRef.current.scrollTo(viewportRef.current.scrollHeight);
     }
   }, [chatMessages.length, activeChatId]);
 
-  const handleSendMessage = (textOverride?: string) => {
-    const textToSend = textOverride || newMessage;
-    if (!textToSend.trim() || !activeChatId || !currentUser) return;
+  const handleSendMessage = (text: string) => {
+    if (!text.trim() || !activeChatId || !currentUser) return;
     
     const otherParticipantId = activeChat?.participants.find(p => p !== currentUser.id);
     sendMessage(
       activeChatId, 
-      textToSend.trim(), // Отправляем чистый текст, стор сам зашифрует
+      text.trim(), // Отправляем чистый текст, стор сам зашифрует
       currentUser.id, 
       currentUser.roleId === 'admin' ? 'Администратор' : currentUser.name, 
       otherParticipantId || activeChat?.name || ''
     );
-    if (!textOverride) setNewMessage('');
   };
 
   const handleContactAction = (type: 'call' | 'telegram', value: string) => {
@@ -461,13 +595,6 @@ export function ChatScreen() {
 
   const isUserRegistered = (person: any) => person.isRegistered;
 
-  const formatChatName = (name: string, type: 'direct' | 'group') => {
-    if (type === 'direct') return name || 'Чат';
-    
-    // Убираем префикс "Групповой чат: " для списка чатов (оставляем только имена)
-    return (name || 'Групповой чат').replace(/^Групповой чат:\s*/, '');
-  };
-
   return (
     <div className="flex h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
       {/* Sidebar List */}
@@ -515,116 +642,23 @@ export function ChatScreen() {
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
             {filteredChats.map((chat) => (
-              <ContextMenu key={chat.id}>
-                <ContextMenuTrigger>
-                  <button
-                     onClick={() => setActiveChat(chat.id)}
-                     className={cn(
-                       "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative border-2",
-                       activeChatId === chat.id 
-                         ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30 scale-[1.02] z-10" 
-                         : "hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-transparent",
-                       chat.isHidden && "opacity-50 grayscale-[0.5]"
-                     )}
-                   >
-                     <div className="relative flex-shrink-0">
-                       <UserAvatar 
-                         avatarUrl={chat.avatar || users.find(u => u.id === chat.participants.find(p => p !== currentUser?.id) || (u.name && chat.name && u.name.trim().toLowerCase() === chat.name.trim().toLowerCase()))?.avatar} 
-                         name={chat.name} 
-                         sizeClass="w-12 h-12" 
-                         textClass="text-xs" 
-                         isGroup={chat.type === 'group'}
-                       />
-                       {chat.type === 'direct' && (
-                         <div className={cn(
-                           "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800",
-                           users.find(u => u.id === chat.participants.find(p => p !== currentUser?.id) || (u.name && chat.name && u.name.trim().toLowerCase() === chat.name.trim().toLowerCase()))?.isOnline ? "bg-emerald-500" : "bg-red-500"
-                         )} />
-                       )}
-                       {chat.unreadCount > 0 && (
-                         <span className={cn(
-                           "absolute -top-1 -right-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2",
-                           activeChatId === chat.id ? "bg-white text-blue-600 border-blue-600" : "bg-red-500 text-white border-white dark:border-slate-800"
-                         )}>
-                           {chat.unreadCount}
-                         </span>
-                       )}
-                       {chat.isPinned && (
-                         <div className={cn(
-                           "absolute -bottom-1 -right-1 rounded-full p-0.5 shadow-sm border",
-                           activeChatId === chat.id ? "bg-white border-blue-600" : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700"
-                         )}>
-                           <Pin className={cn("w-3 h-3", activeChatId === chat.id ? "text-blue-600 fill-blue-600" : "text-blue-500 fill-blue-500")} />
-                         </div>
-                       )}
-                     </div>
-                     <div className="flex-1 min-w-0 text-left">
-                       <div className="flex justify-between items-center mb-1 gap-3">
-                          <div className="flex-1 min-w-0 flex items-center gap-1">
-                            <div className={cn(
-                              "font-bold text-sm text-fade flex-1",
-                              activeChatId === chat.id ? "text-white" : "text-slate-900 dark:text-slate-100",
-                              chat.unreadCount > 0 && activeChatId !== chat.id && "font-black"
-                            )}>
-                              {formatChatName(chat.name, chat.type)}
-                            </div>
-                            {chat.isMuted && <BellOff className={cn("w-3 h-3 flex-shrink-0", activeChatId === chat.id ? "text-white/70" : "text-slate-400")} />}
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                           {chat.unreadCount > 0 && activeChatId !== chat.id && (
-                             <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-bold bg-blue-600 text-white shadow-sm">
-                               {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
-                             </span>
-                           )}
-                           {chat.lastMessageTime && (
-                             <span className={cn(
-                               "text-[10px] whitespace-nowrap",
-                               activeChatId === chat.id ? "text-white/80" : "text-slate-400",
-                               chat.unreadCount > 0 && activeChatId !== chat.id && "text-blue-600 dark:text-blue-400 font-bold"
-                             )}>
-                               {format(new Date(chat.lastMessageTime), 'HH:mm')}
-                             </span>
-                           )}
-                         </div>
-                       </div>
-                       <p className={cn(
-                         "text-xs truncate leading-tight",
-                         activeChatId === chat.id ? "text-white/90 font-medium" : "text-slate-500 dark:text-slate-400",
-                         chat.unreadCount > 0 && activeChatId !== chat.id && "text-slate-900 dark:text-slate-100 font-bold"
-                       )}>
-                         {chat.lastMessage || 'Нет сообщений'}
-                       </p>
-                     </div>
-                     {activeChatId === chat.id && (
-                       <div className="absolute left-[-2px] top-1/4 bottom-1/4 w-1 bg-white rounded-r-full" />
-                     )}
-                   </button>
-                </ContextMenuTrigger>
-                <ContextMenuContent className="w-48">
-                  <ContextMenuItem onClick={() => togglePinChat(chat.id)}>
-                    {chat.isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Открепить</> : <><Pin className="w-4 h-4 mr-2" /> Закрепить</>}
-                  </ContextMenuItem>
-                  <ContextMenuItem onClick={() => toggleMuteChat(chat.id)}>
-                    {chat.isMuted ? <><Bell className="w-4 h-4 mr-2" /> Включить звук</> : <><BellOff className="w-4 h-4 mr-2" /> Без звука</>}
-                  </ContextMenuItem>
-                  <ContextMenuItem onClick={() => toggleHideChat(chat.id)}>
-                    {chat.isHidden ? <><Eye className="w-4 h-4 mr-2" /> Показать</> : <><EyeOff className="w-4 h-4 mr-2" /> Скрыть</>}
-                  </ContextMenuItem>
-                  <ContextMenuItem onClick={() => {
-                    setChatToRename({ id: chat.id, name: chat.name });
-                    setNewChatName(chat.name);
-                    setIsRenameModalOpen(true);
-                  }}>
-                    <Edit2 className="w-4 h-4 mr-2" /> Переименовать
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem className="text-red-600 focus:text-red-600" onClick={() => {
-                    if (confirm('Вы уверены?')) { deleteChat(chat.id); }
-                  }}>
-                    <Trash2 className="w-4 h-4 mr-2" /> Удалить
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
+              <ChatItem 
+                key={chat.id}
+                chat={chat}
+                isActive={activeChatId === chat.id}
+                currentUser={currentUser}
+                users={users}
+                onSelect={setActiveChat}
+                onRename={(chatInfo: any) => {
+                  setChatToRename(chatInfo);
+                  setNewChatName(chatInfo.name);
+                  setIsRenameModalOpen(true);
+                }}
+                onTogglePin={togglePinChat}
+                onToggleMute={toggleMuteChat}
+                onToggleHide={toggleHideChat}
+                onDelete={deleteChat}
+              />
             ))}
           </div>
         </ScrollArea>
@@ -701,91 +735,38 @@ export function ChatScreen() {
               </div>
 
               {/* Messages Area */}
-              <ScrollArea className="flex-1 min-h-0 px-4 h-full" viewportRef={viewportRef as any}>
-                <div className="py-4 space-y-4">
-                  {chatMessages.map((msg, i) => {
-                    const isMe = msg.senderId === currentUser?.id;
-                    const prevMsg = chatMessages[i - 1];
-                    const showSender = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
-                    const senderFromMsg = msg.senderId === currentUser?.id ? currentUser : ((msg as any).sender || users.find(u => u.id === msg.senderId));
-                    const senderName = msg.senderName || senderFromMsg?.name || 'Пользователь';
-                    const onlyEmojis = isOnlyEmojis(msg.text || '');
-
-                    if (msg.isSystem) {
-                      let displayText = msg.text || '';
-                      if (displayText.startsWith('[GROUP_AVATAR_CHANGED]|')) return null;
-                      if (displayText.startsWith('[GROUP_CREATED]|')) {
-                        const parts = displayText.split('|');
-                        displayText = `Пользователь ${parts[3] || 'Пользователь'} создал группу "${parts[1]}"`;
-                      } else if (displayText.startsWith('[DIRECT_CREATED]|')) {
-                        displayText = `Пользователь ${displayText.split('|')[1] || 'Пользователь'} начал с вами чат`;
-                      }
-                      return (
-                        <div key={msg.id} className="flex justify-center my-4">
-                          <div className="bg-slate-100/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 px-4 py-1.5 rounded-full">
-                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{sanitizeText(displayText)}</p>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div key={msg.id} className={cn("flex gap-3 mb-4", isMe ? "flex-row items-end" : "flex-row items-end")}>
-                        <div className="shrink-0 mb-1">
-                          <UserAvatar avatarUrl={senderFromMsg?.avatar} name={senderName} sizeClass="w-9 h-9" textClass="text-[10px]" />
-                        </div>
-                        <div className={cn("flex flex-col max-w-[75%] md:max-w-[65%]", isMe ? "items-start" : "items-start")}>
-                          {(showSender || isMe) && <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">{isMe ? 'Вы' : senderName}</span>}
-                          <div className={cn(
-                            "px-4 py-2.5 rounded-2xl text-sm shadow-sm break-words w-fit transition-all",
-                            isMe ? "bg-blue-500 text-white rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none border border-slate-200 dark:border-slate-700",
-                            onlyEmojis && "bg-transparent dark:bg-transparent border-transparent dark:border-transparent shadow-none px-0 py-0"
-                          )}>
-                            <p className={cn("whitespace-pre-wrap leading-relaxed", onlyEmojis && "emoji-large")}>{sanitizeText(msg.text || '')}</p>
-                            <span className={cn("text-[9px] mt-1 block opacity-60", "text-left", onlyEmojis && "hidden")}>{format(new Date(msg.timestamp || msg.createdAt || new Date().toISOString()), 'HH:mm')}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div ref={scrollRef} />
-                </div>
-              </ScrollArea>
+              <div className="flex-1 min-h-0 relative h-full overflow-hidden">
+                <VList 
+                  className="h-full px-4 custom-scrollbar"
+                  style={{ overflowY: 'auto' }}
+                  onScroll={() => {
+                    const viewport = viewportRef.current;
+                    if (!viewport || !activeChatId || chatMessages.length === 0) return;
+                    const isNearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
+                    if (isNearBottom) clearUnread(activeChatId);
+                  }}
+                  ref={viewportRef as any}
+                >
+                  <div className="py-4 space-y-4">
+                    {chatMessages.map((msg, i) => (
+                      <MessageItem 
+                        key={msg.id}
+                        msg={msg}
+                        isMe={msg.senderId === currentUser?.id}
+                        showSender={msg.senderId !== currentUser?.id && (!chatMessages[i - 1] || chatMessages[i - 1].senderId !== msg.senderId)}
+                        sender={msg.senderId === currentUser?.id ? currentUser : ((msg as any).sender || users.find((u: any) => u.id === msg.senderId))}
+                      />
+                    ))}
+                    <div ref={scrollRef} />
+                  </div>
+                </VList>
+              </div>
 
               {/* Input Area */}
-              <div className="flex-none px-4 pb-6 pt-2 bg-transparent z-20">
-                <div className="w-full relative">
-                  {isEmojiPickerOpen && (
-                    <div ref={emojiPickerRef} className="absolute bottom-[calc(100%+12px)] left-0 mb-2 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-2 z-50 w-full max-w-[450px]">
-                      <div className="grid grid-cols-8 gap-1 p-1">
-                        {['😊', '😂', '🤣', '❤️', '😍', '😒', '👌', '😘', '💕', '😁', '👍', '🙌', '👏', '🤝', '🔥', '✨', '✅', '🆘', '❓', '📞', '🖥️', '📦', '🏥', '🚑', '😢', '😭', '😩', '😤', '😡', '🤯', '😱', '🤔', '🤨', '🙄', '😴', '👋', '🙏', '💪', '🚀', '⭐', '📍', '📅', '📎', '💻', '📱', '🔋', '🔌', '🛠️'].map(emoji => (
-                          <button key={emoji} onClick={() => { setNewMessage(prev => prev + emoji); textareaRef.current?.focus(); }} className="text-2xl hover:bg-slate-100 dark:hover:bg-slate-700 p-2 rounded-xl transition-all hover:scale-125 focus:outline-none">{emoji}</button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-end gap-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-2 rounded-[24px] border border-slate-200 dark:border-slate-700 shadow-lg ring-1 ring-black/5 dark:ring-white/5 transition-all focus-within:ring-0 focus-within:ring-transparent focus-within:border-slate-300 dark:focus-within:border-slate-600">
-                    <div className="flex items-center gap-1 px-1">
-                      <Button variant="ghost" size="icon" className={cn("text-slate-400 shrink-0 w-9 h-9 rounded-full", isEmojiPickerOpen && "text-blue-500 bg-blue-50 dark:bg-blue-900/20")} onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}><Smile className="w-5 h-5" /></Button>
-                      <Button variant="ghost" size="icon" className="text-slate-400 shrink-0 w-9 h-9 rounded-full"><Paperclip className="w-5 h-5" /></Button>
-                    </div>
-                    <textarea 
-                      ref={textareaRef} 
-                      placeholder="Напишите сообщение..." 
-                      className="flex-1 bg-transparent border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none !outline-none !ring-0 resize-none py-2.5 text-sm max-h-[150px] min-h-[40px] text-slate-800 dark:text-slate-100 custom-scrollbar leading-relaxed" 
-                      value={newMessage} 
-                      maxLength={4096} 
-                      onChange={(e) => setNewMessage(e.target.value)} 
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); handleSendMessage(); } }} 
-                      rows={1} 
-                    />
-                    <div className="flex flex-col items-end gap-1 px-1">
-                      {newMessage.length > 3000 && <span className={cn("text-[9px] font-bold mr-2 mb-1", newMessage.length > 4000 ? "text-red-500" : "text-slate-400")}>{newMessage.length}/4096</span>}
-                      <button className={cn("w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200", newMessage.trim() ? "bg-blue-600 text-white shadow-md shadow-blue-500/40 scale-100" : "bg-slate-100 dark:bg-slate-700 text-slate-400 opacity-50 cursor-not-allowed")} onClick={() => handleSendMessage()} disabled={!newMessage.trim()}><Send className="w-4 h-4 ml-0.5" /></button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ChatInput 
+                onSendMessage={handleSendMessage} 
+                disabled={!activeChatId}
+              />
             </div>
 
             {/* Right Sidebar Column */}
@@ -922,10 +903,10 @@ export function ChatScreen() {
             <ScrollArea className="h-[400px] -mx-2 px-2 custom-scrollbar">
               <div className="space-y-1 pb-4">
                 {filteredDirectoryEntries.map((entry) => {
-                  const reg = isUserRegistered(entry);
-                  const isExpanded = expandedPersonId === entry.id;
-                  const isSelected = selectedParticipants.includes(entry.id);
-                  const initials = entry.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2) || '?';
+  const initials = entry.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2) || '?';
+  const isSelected = selectedParticipants.includes(entry.id);
+  const reg = isUserRegistered(entry);
+  const isExpanded = expandedPersonId === entry.id;
 
                   return (
                     <div 

@@ -179,7 +179,7 @@ export function ChatScreen() {
     if (textarea) {
       textarea.style.height = '40px'; // Reset height
       const scrollHeight = textarea.scrollHeight;
-      textarea.style.height = Math.min(scrollHeight, 200) + 'px'; // Max height 200px
+      textarea.style.height = Math.min(scrollHeight, 150) + 'px'; // Max height 150px
     }
   }, [newMessage]);
 
@@ -470,9 +470,10 @@ export function ChatScreen() {
 
   return (
     <div className="flex h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
+      {/* Sidebar List */}
       <div className={cn(
-        "w-full md:w-[380px] flex-shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-all",
-        activeChatId ? "hidden md:flex" : "flex h-full"
+        "w-full md:w-[380px] flex-shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-all h-full",
+        activeChatId ? "hidden md:flex" : "flex"
       )}>
         <div className="p-4 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center justify-between mb-4">
@@ -629,257 +630,214 @@ export function ChatScreen() {
         </ScrollArea>
       </div>
 
-      <div className={cn("flex-1 flex flex-col bg-white dark:bg-slate-900 relative", !activeChatId && "hidden md:flex")}>
+      {/* Active Chat Section */}
+      <div className={cn(
+        "flex-1 min-w-0 h-full grid bg-white dark:bg-slate-900 overflow-hidden relative",
+        !activeChatId && "hidden md:flex items-center justify-center"
+      )}>
         {activeChat ? (
-          <>
-            <div className="h-16 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setActiveChat(null)}>
-                  <ArrowLeft className="w-5 h-5" />
-                </Button>
-                <UserAvatar 
-                  avatarUrl={activeChat.avatar || users.find(u => {
-                    const otherId = activeChat.participants.find(p => p !== currentUser?.id);
-                    if (u.id === otherId) return true;
-                    if (!u.name || !activeChat.name) return false;
-                    return u.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase();
-                  })?.avatar} 
-                  name={activeChat.name} 
-                  sizeClass="w-10 h-10" 
-                  textClass="text-[10px]" 
-                  isGroup={activeChat.type === 'group'}
-                />
-                <div className="flex-1 min-w-0">
-                  <h2 
-                    className={cn(
-                      "font-bold text-slate-800 dark:text-slate-100 leading-tight",
-                      activeChat.type === 'group' && "cursor-pointer hover:text-blue-600 transition-colors"
+          <div className={cn(
+            "h-full grid min-h-0 overflow-hidden relative",
+            isQuickActionsOpen ? "grid-cols-[1fr_256px]" : "grid-cols-1"
+          )}>
+            {/* Main Chat Column */}
+            <div className="h-full grid grid-rows-[64px_1fr_auto] min-h-0 overflow-hidden relative">
+              {/* Header */}
+              <div className="flex-none h-16 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-10">
+                <div className="flex items-center gap-3">
+                  <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setActiveChat(null)}>
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
+                  <UserAvatar 
+                    avatarUrl={activeChat.avatar || users.find(u => {
+                      const otherId = activeChat.participants.find(p => p !== currentUser?.id);
+                      if (u.id === otherId) return true;
+                      if (!u.name || !activeChat.name) return false;
+                      return u.name.trim().toLowerCase() === activeChat.name.trim().toLowerCase();
+                    })?.avatar} 
+                    name={activeChat.name} 
+                    sizeClass="w-10 h-10" 
+                    textClass="text-[10px]" 
+                    isGroup={activeChat.type === 'group'}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h2 
+                      className={cn(
+                        "font-bold text-slate-800 dark:text-slate-100 leading-tight",
+                        activeChat.type === 'group' && "cursor-pointer hover:text-blue-600 transition-colors"
+                      )}
+                      onClick={() => {
+                        if (activeChat.type === 'group') {
+                          setShowAvatarEditor(true);
+                        }
+                      }}
+                    >
+                      <div className="truncate max-w-[200px] md:max-w-[500px]">
+                        {activeChat.type === 'group' && !activeChat.name.startsWith('Групповой чат:') 
+                          ? `Групповой чат: ${activeChat.name}` 
+                          : activeChat.name}
+                      </div>
+                    </h2>
+                    {activeChat.type === 'direct' ? (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <div className={cn("w-1.5 h-1.5 rounded-full", isOtherUserOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
+                        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{isOtherUserOnline ? 'В сети' : 'Не в сети'}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                          {activeChat.participants.length} участников
+                        </span>
+                      </div>
                     )}
-                    onClick={() => {
-                      if (activeChat.type === 'group') {
-                        setShowAvatarEditor(true);
-                      }
-                    }}
-                  >
-                    <div className="truncate max-w-[200px] md:max-w-[500px]">
-                      {activeChat.type === 'group' && !activeChat.name.startsWith('Групповой чат:') 
-                        ? `Групповой чат: ${activeChat.name}` 
-                        : activeChat.name}
-                    </div>
-                  </h2>
-                  {activeChat.type === 'direct' ? (
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <div className={cn("w-1.5 h-1.5 rounded-full", isOtherUserOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
-                      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{isOtherUserOnline ? 'В сети' : 'Не в сети'}</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
-                        {activeChat.participants.length} участников
-                      </span>
-                    </div>
-                  )}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" className={cn("text-slate-400", isQuickActionsOpen && "text-blue-600 bg-blue-50 dark:bg-blue-900/20")} onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}>
+                    <Settings className="w-5 h-5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="text-slate-400"><MoreVertical className="w-5 h-5" /></Button>
                 </div>
               </div>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="icon" className={cn("text-slate-400", isQuickActionsOpen && "text-blue-600 bg-blue-50 dark:bg-blue-900/20")} onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}>
-                  <Settings className="w-5 h-5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="text-slate-400"><MoreVertical className="w-5 h-5" /></Button>
-              </div>
-            </div>
 
-            <div className="flex-1 flex overflow-hidden relative">
-              <div className="flex-1 flex flex-col min-w-0 h-full">
-                <div className="flex-1 overflow-hidden flex flex-col relative">
-                  <ScrollArea className="flex-1 px-4" viewportRef={viewportRef as any}>
-                  <div className="py-4 space-y-4">
-                    {chatMessages.map((msg, i) => {
-                      const isMe = msg.senderId === currentUser?.id;
-                      const prevMsg = chatMessages[i - 1];
-                      const showSender = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
-                      const senderFromMsg = msg.senderId === currentUser?.id ? currentUser : ((msg as any).sender || users.find(u => u.id === msg.senderId));
-                      const senderName = msg.senderName || senderFromMsg?.name || 'Пользователь';
-                      const onlyEmojis = isOnlyEmojis(msg.text || '');
+              {/* Messages Area */}
+              <ScrollArea className="flex-1 min-h-0 px-4 h-full" viewportRef={viewportRef as any}>
+                <div className="py-4 space-y-4">
+                  {chatMessages.map((msg, i) => {
+                    const isMe = msg.senderId === currentUser?.id;
+                    const prevMsg = chatMessages[i - 1];
+                    const showSender = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
+                    const senderFromMsg = msg.senderId === currentUser?.id ? currentUser : ((msg as any).sender || users.find(u => u.id === msg.senderId));
+                    const senderName = msg.senderName || senderFromMsg?.name || 'Пользователь';
+                    const onlyEmojis = isOnlyEmojis(msg.text || '');
 
-                      if (msg.isSystem) {
-                        let displayText = msg.text || '';
-                        
-                        // Hide internal persistence messages from UI
-                        if (displayText.startsWith('[GROUP_AVATAR_CHANGED]|')) {
-                          return null;
-                        }
-
-                        if (displayText.startsWith('[GROUP_CREATED]|')) {
-                          const parts = displayText.split('|');
-                          const groupName = parts[1];
-                          const creatorName = parts[3] || 'Пользователь';
-                          displayText = `Пользователь ${creatorName} создал группу "${groupName}"`;
-                        } else if (displayText.startsWith('[DIRECT_CREATED]|')) {
-                          const parts = displayText.split('|');
-                          const creatorName = parts[1] || 'Пользователь';
-                          displayText = `Пользователь ${creatorName} начал с вами чат`;
-                        }
-
-                        return (
-                          <div key={msg.id} className="flex justify-center my-4">
-                            <div className="bg-slate-100/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 px-4 py-1.5 rounded-full">
-                              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">
-                                {sanitizeText(displayText)}
-                              </p>
-                            </div>
-                          </div>
-                        );
+                    if (msg.isSystem) {
+                      let displayText = msg.text || '';
+                      if (displayText.startsWith('[GROUP_AVATAR_CHANGED]|')) return null;
+                      if (displayText.startsWith('[GROUP_CREATED]|')) {
+                        const parts = displayText.split('|');
+                        displayText = `Пользователь ${parts[3] || 'Пользователь'} создал группу "${parts[1]}"`;
+                      } else if (displayText.startsWith('[DIRECT_CREATED]|')) {
+                        displayText = `Пользователь ${displayText.split('|')[1] || 'Пользователь'} начал с вами чат`;
                       }
-
                       return (
-                        <div key={msg.id} className={cn("flex gap-3 mb-4", isMe ? "flex-row items-end" : "flex-row items-end")}>
-                          <div className="shrink-0 mb-1">
-                            <UserAvatar avatarUrl={senderFromMsg?.avatar} name={senderName} sizeClass="w-9 h-9" textClass="text-[10px]" />
-                          </div>
-                          <div className={cn("flex flex-col max-w-[75%] md:max-w-[65%]", isMe ? "items-start" : "items-start")}>
-                            {(showSender || isMe) && <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">{isMe ? 'Вы' : senderName}</span>}
-                            <div className={cn(
-                              "px-4 py-2.5 rounded-2xl text-sm shadow-sm break-words w-fit transition-all",
-                              isMe ? "bg-blue-500 text-white rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none border border-slate-200 dark:border-slate-700",
-                              onlyEmojis && "bg-transparent dark:bg-transparent border-transparent dark:border-transparent shadow-none px-0 py-0"
-                            )}>
-                              <p className={cn("whitespace-pre-wrap leading-relaxed", onlyEmojis && "emoji-large")}>{sanitizeText(msg.text || '')}</p>
-                              <span className={cn("text-[9px] mt-1 block opacity-60", "text-left", onlyEmojis && "hidden")}>
-                                {format(new Date(msg.timestamp || msg.createdAt || new Date().toISOString()), 'HH:mm')}
-                              </span>
-                            </div>
+                        <div key={msg.id} className="flex justify-center my-4">
+                          <div className="bg-slate-100/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 px-4 py-1.5 rounded-full">
+                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{sanitizeText(displayText)}</p>
                           </div>
                         </div>
                       );
-                    })}
-                    <div ref={scrollRef} />
-                  </div>
-                </ScrollArea>
+                    }
 
-                <div className="px-4 pb-6 pt-2 bg-transparent relative z-20">
-                  <div className="w-full relative">
-                    {isEmojiPickerOpen && (
-                      <div ref={emojiPickerRef} className="absolute bottom-[calc(100%+12px)] left-0 mb-2 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-2 z-50 w-full max-w-[450px]">
-                        <div className="grid grid-cols-8 gap-1 p-1">
-                          {['😊', '😂', '🤣', '❤️', '😍', '😒', '👌', '😘', '💕', '😁', '👍', '🙌', '👏', '🤝', '🔥', '✨', '✅', '🆘', '❓', '📞', '🖥️', '📦', '🏥', '🚑', '😢', '😭', '😩', '😤', '😡', '🤯', '😱', '🤔', '🤨', '🙄', '😴', '👋', '🙏', '💪', '🚀', '⭐', '📍', '📅', '📎', '💻', '📱', '🔋', '🔌', '🛠️'].map(emoji => (
-                            <button 
-                              key={emoji} 
-                              onClick={() => {
-                                setNewMessage(prev => prev + emoji);
-                                // Возвращаем фокус в текстовое поле после выбора смайла
-                                textareaRef.current?.focus();
-                              }} 
-                              className="text-2xl hover:bg-slate-100 dark:hover:bg-slate-700 p-2 rounded-xl transition-all hover:scale-125 focus:outline-none"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
+                    return (
+                      <div key={msg.id} className={cn("flex gap-3 mb-4", isMe ? "flex-row items-end" : "flex-row items-end")}>
+                        <div className="shrink-0 mb-1">
+                          <UserAvatar avatarUrl={senderFromMsg?.avatar} name={senderName} sizeClass="w-9 h-9" textClass="text-[10px]" />
+                        </div>
+                        <div className={cn("flex flex-col max-w-[75%] md:max-w-[65%]", isMe ? "items-start" : "items-start")}>
+                          {(showSender || isMe) && <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">{isMe ? 'Вы' : senderName}</span>}
+                          <div className={cn(
+                            "px-4 py-2.5 rounded-2xl text-sm shadow-sm break-words w-fit transition-all",
+                            isMe ? "bg-blue-500 text-white rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none border border-slate-200 dark:border-slate-700",
+                            onlyEmojis && "bg-transparent dark:bg-transparent border-transparent dark:border-transparent shadow-none px-0 py-0"
+                          )}>
+                            <p className={cn("whitespace-pre-wrap leading-relaxed", onlyEmojis && "emoji-large")}>{sanitizeText(msg.text || '')}</p>
+                            <span className={cn("text-[9px] mt-1 block opacity-60", "text-left", onlyEmojis && "hidden")}>{format(new Date(msg.timestamp || msg.createdAt || new Date().toISOString()), 'HH:mm')}</span>
+                          </div>
                         </div>
                       </div>
-                    )}
-                    <div className="flex items-end gap-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-2 rounded-[24px] border border-slate-200 dark:border-slate-700 shadow-lg ring-1 ring-black/5 dark:ring-white/5 transition-all focus-within:ring-0 focus-within:ring-transparent focus-within:border-slate-300 dark:focus-within:border-slate-600">
-                      <div className="flex items-center gap-1 px-1">
-                        <Button variant="ghost" size="icon" className={cn("text-slate-400 shrink-0 w-9 h-9 rounded-full", isEmojiPickerOpen && "text-blue-500 bg-blue-50 dark:bg-blue-900/20")} onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}><Smile className="w-5 h-5" /></Button>
-                        <Button variant="ghost" size="icon" className="text-slate-400 shrink-0 w-9 h-9 rounded-full"><Paperclip className="w-5 h-5" /></Button>
+                    );
+                  })}
+                  <div ref={scrollRef} />
+                </div>
+              </ScrollArea>
+
+              {/* Input Area */}
+              <div className="flex-none px-4 pb-6 pt-2 bg-transparent z-20">
+                <div className="w-full relative">
+                  {isEmojiPickerOpen && (
+                    <div ref={emojiPickerRef} className="absolute bottom-[calc(100%+12px)] left-0 mb-2 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-2 z-50 w-full max-w-[450px]">
+                      <div className="grid grid-cols-8 gap-1 p-1">
+                        {['😊', '😂', '🤣', '❤️', '😍', '😒', '👌', '😘', '💕', '😁', '👍', '🙌', '👏', '🤝', '🔥', '✨', '✅', '🆘', '❓', '📞', '🖥️', '📦', '🏥', '🚑', '😢', '😭', '😩', '😤', '😡', '🤯', '😱', '🤔', '🤨', '🙄', '😴', '👋', '🙏', '💪', '🚀', '⭐', '📍', '📅', '📎', '💻', '📱', '🔋', '🔌', '🛠️'].map(emoji => (
+                          <button key={emoji} onClick={() => { setNewMessage(prev => prev + emoji); textareaRef.current?.focus(); }} className="text-2xl hover:bg-slate-100 dark:hover:bg-slate-700 p-2 rounded-xl transition-all hover:scale-125 focus:outline-none">{emoji}</button>
+                        ))}
                       </div>
-                      <textarea 
-                        ref={textareaRef} 
-                        placeholder="Напишите сообщение..." 
-                        className="flex-1 bg-transparent border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none !outline-none !ring-0 resize-none py-2.5 text-sm max-h-[200px] min-h-[40px] text-slate-800 dark:text-slate-100 custom-scrollbar leading-relaxed" 
-                        value={newMessage} 
-                        maxLength={4096} 
-                        onChange={(e) => setNewMessage(e.target.value)} 
-                        onKeyDown={(e) => { 
-                          if (e.key === 'Enter' && !e.shiftKey) { 
-                            e.preventDefault(); 
-                            if (isEmojiPickerOpen) setIsEmojiPickerOpen(false);
-                            handleSendMessage(); 
-                          } 
-                        }} 
-                        rows={1} 
-                      />
-                      <div className="flex flex-col items-end gap-1 px-1">
-                        {newMessage.length > 3000 && <span className={cn("text-[9px] font-bold mr-2 mb-1", newMessage.length > 4000 ? "text-red-500" : "text-slate-400")}>{newMessage.length}/4096</span>}
-                        <button className={cn("w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200", newMessage.trim() ? "bg-blue-600 text-white shadow-md shadow-blue-500/40 scale-100" : "bg-slate-100 dark:bg-slate-700 text-slate-400 opacity-50 cursor-not-allowed")} onClick={() => handleSendMessage()} disabled={!newMessage.trim()}><Send className="w-4 h-4 ml-0.5" /></button>
-                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-end gap-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-2 rounded-[24px] border border-slate-200 dark:border-slate-700 shadow-lg ring-1 ring-black/5 dark:ring-white/5 transition-all focus-within:ring-0 focus-within:ring-transparent focus-within:border-slate-300 dark:focus-within:border-slate-600">
+                    <div className="flex items-center gap-1 px-1">
+                      <Button variant="ghost" size="icon" className={cn("text-slate-400 shrink-0 w-9 h-9 rounded-full", isEmojiPickerOpen && "text-blue-500 bg-blue-50 dark:bg-blue-900/20")} onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}><Smile className="w-5 h-5" /></Button>
+                      <Button variant="ghost" size="icon" className="text-slate-400 shrink-0 w-9 h-9 rounded-full"><Paperclip className="w-5 h-5" /></Button>
+                    </div>
+                    <textarea 
+                      ref={textareaRef} 
+                      placeholder="Напишите сообщение..." 
+                      className="flex-1 bg-transparent border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none !outline-none !ring-0 resize-none py-2.5 text-sm max-h-[150px] min-h-[40px] text-slate-800 dark:text-slate-100 custom-scrollbar leading-relaxed" 
+                      value={newMessage} 
+                      maxLength={4096} 
+                      onChange={(e) => setNewMessage(e.target.value)} 
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); handleSendMessage(); } }} 
+                      rows={1} 
+                    />
+                    <div className="flex flex-col items-end gap-1 px-1">
+                      {newMessage.length > 3000 && <span className={cn("text-[9px] font-bold mr-2 mb-1", newMessage.length > 4000 ? "text-red-500" : "text-slate-400")}>{newMessage.length}/4096</span>}
+                      <button className={cn("w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200", newMessage.trim() ? "bg-blue-600 text-white shadow-md shadow-blue-500/40 scale-100" : "bg-slate-100 dark:bg-slate-700 text-slate-400 opacity-50 cursor-not-allowed")} onClick={() => handleSendMessage()} disabled={!newMessage.trim()}><Send className="w-4 h-4 ml-0.5" /></button>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* Right Sidebar Column */}
             {isQuickActionsOpen && (
-              <div className="w-64 border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-4 hidden lg:flex flex-col gap-6 overflow-y-auto h-full">
-                  <div>
-                    <div className="flex items-center justify-between mb-3 px-1">
-                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Участники</h3>
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 gap-1" onClick={() => {
-                        setIsGroupMode(true);
-                        setSelectedParticipants(activeChat.participants.filter(id => id !== currentUser?.id));
-                        setIsNewChatModalOpen(true);
-                      }}>
-                        <UserPlus className="w-3 h-3" /> Добавить
-                      </Button>
-                    </div>
-                    {activeChat.type === 'group' ? (
-                      <div className="space-y-2">
-                        {Array.from(new Set(activeChat.participants)).map(participantId => {
-                          const participant = users.find(u => u.id === participantId);
-                          if (!participant) return null;
-                          return (
-                            <div key={participantId} className="flex items-center gap-2 p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-all">
-                              <UserAvatar avatarUrl={participant.avatar} name={participant.name} sizeClass="w-8 h-8" textClass="text-[10px]" />
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{participant.name}</p>
-                                <p className="text-[10px] text-slate-500 truncate">{participant.position || 'Пользователь'}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : activeChatDirectoryInfo ? (
-                      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-all hover:shadow-md">
-                        <div className="p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 border-b border-slate-100 dark:border-slate-700/50">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-inner shrink-0"><UserIcon className="w-6 h-6" /></div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate">{activeChatDirectoryInfo.name}</p>
-                              <p className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold truncate mt-0.5">{activeChatDirectoryInfo.position}</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="p-4 space-y-3">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Building className="w-3.5 h-3.5 text-slate-400" /><span className="text-[11px] font-medium truncate">{activeChatDirectoryInfo.department}</span></div>
-                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><MapPin className="w-3.5 h-3.5 text-slate-400" /><span className="text-[11px] font-medium">Кабинет {activeChatDirectoryInfo.cabinet}</span></div>
-                          </div>
-                          <div className="grid grid-cols-1 gap-2 pt-2">
-                            <Button variant="secondary" size="sm" className="h-9 text-[11px] font-bold gap-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-transparent hover:bg-blue-100 dark:hover:bg-blue-900/50" onClick={() => handleContactAction('call', activeChatDirectoryInfo.internalPhone)}><Phone className="w-3.5 h-3.5" /> Вн. {activeChatDirectoryInfo.internalPhone}</Button>
-                            {activeChatDirectoryInfo.mobilePhone && <Button variant="secondary" size="sm" className="h-9 text-[11px] font-bold gap-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-transparent hover:bg-green-100 dark:hover:bg-green-900/40" onClick={() => handleContactAction('call', activeChatDirectoryInfo.mobilePhone!)}><Smartphone className="w-3.5 h-3.5" /> Позвонить</Button>}
-                            {activeChatDirectoryInfo.telegram && <Button variant="secondary" size="sm" className="h-9 text-[11px] font-bold gap-2 bg-[#0088cc15] text-[#0088cc] dark:text-[#33aaff] border-transparent hover:bg-[#0088cc25]" onClick={() => handleContactAction('telegram', activeChatDirectoryInfo.telegram!)}><SendHorizontal className="w-3.5 h-3.5" /> Telegram</Button>}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 text-center shadow-sm">
-                        <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-3"><Users className="w-6 h-6 text-slate-300" /></div>
-                        <p className="text-[11px] text-slate-400 leading-relaxed px-2">Выберите личный чат для просмотра контактов</p>
-                      </div>
-                    )}
+              <div className="flex-none w-64 border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-4 hidden lg:flex flex-col gap-6 overflow-y-auto h-full">
+                <div>
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Участники</h3>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 gap-1" onClick={() => { setIsGroupMode(true); setSelectedParticipants(activeChat.participants.filter(id => id !== currentUser?.id)); setIsNewChatModalOpen(true); }}><UserPlus className="w-3 h-3" /> Добавить</Button>
                   </div>
-                  <div>
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Быстрые сообщения</h3>
-                    <div className="flex flex-col gap-2">
-                      <Button variant="ghost" size="sm" className="justify-start text-xs h-9 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-100 dark:border-slate-700" onClick={() => handleQuickAction('help')}><HelpCircle className="w-3.5 h-3.5 mr-2 text-red-500" /> Попросить помочь</Button>
-                      <Button variant="ghost" size="sm" className="justify-start text-xs h-9 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-100 dark:border-slate-700" onClick={() => handleQuickAction('connect')}><ExternalLink className="w-3.5 h-3.5 mr-2 text-blue-500" /> Подключиться</Button>
-                      <Button variant="ghost" size="sm" className="justify-start text-xs h-9 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-100 dark:border-slate-700" onClick={() => handleQuickAction('status')}><Search className="w-3.5 h-3.5 mr-2 text-amber-500" /> Статус заявки?</Button>
+                  {activeChat.type === 'group' ? (
+                    <div className="space-y-2">
+                      {Array.from(new Set(activeChat.participants)).map(participantId => {
+                        const participant = users.find(u => u.id === participantId);
+                        if (!participant) return null;
+                        return (
+                          <div key={participantId} className="flex items-center gap-2 p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-all">
+                            <UserAvatar avatarUrl={participant.avatar} name={participant.name} sizeClass="w-8 h-8" textClass="text-[10px]" />
+                            <div className="min-w-0"><p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{participant.name}</p><p className="text-[10px] text-slate-500 truncate">{participant.position || 'Пользователь'}</p></div>
+                          </div>
+                        );
+                      })}
                     </div>
+                  ) : activeChatDirectoryInfo ? (
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-all hover:shadow-md">
+                      <div className="p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 border-b border-slate-100 dark:border-slate-700/50">
+                        <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-inner shrink-0"><UserIcon className="w-6 h-6" /></div><div className="min-w-0"><p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate">{activeChatDirectoryInfo.name}</p><p className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold truncate mt-0.5">{activeChatDirectoryInfo.position}</p></div></div>
+                      </div>
+                      <div className="p-4 space-y-3">
+                        <div className="space-y-2"><div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Building className="w-3.5 h-3.5 text-slate-400" /><span className="text-[11px] font-medium truncate">{activeChatDirectoryInfo.department}</span></div><div className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><MapPin className="w-3.5 h-3.5 text-slate-400" /><span className="text-[11px] font-medium">Кабинет {activeChatDirectoryInfo.cabinet}</span></div></div>
+                        <div className="grid grid-cols-1 gap-2 pt-2">
+                          <Button variant="secondary" size="sm" className="h-9 text-[11px] font-bold gap-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-transparent hover:bg-blue-100 dark:hover:bg-blue-900/50" onClick={() => handleContactAction('call', activeChatDirectoryInfo.internalPhone)}><Phone className="w-3.5 h-3.5" /> Вн. {activeChatDirectoryInfo.internalPhone}</Button>
+                          {activeChatDirectoryInfo.mobilePhone && <Button variant="secondary" size="sm" className="h-9 text-[11px] font-bold gap-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-transparent hover:bg-green-100 dark:hover:bg-green-900/40" onClick={() => handleContactAction('call', activeChatDirectoryInfo.mobilePhone!)}><Smartphone className="w-3.5 h-3.5" /> Позвонить</Button>}
+                          {activeChatDirectoryInfo.telegram && <Button variant="secondary" size="sm" className="h-9 text-[11px] font-bold gap-2 bg-[#0088cc15] text-[#0088cc] dark:text-[#33aaff] border-transparent hover:bg-[#0088cc25]" onClick={() => handleContactAction('telegram', activeChatDirectoryInfo.telegram!)}><SendHorizontal className="w-3.5 h-3.5" /> Telegram</Button>}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 text-center shadow-sm"><div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-3"><Users className="w-6 h-6 text-slate-300" /></div><p className="text-[11px] text-slate-400 leading-relaxed px-2">Выберите личный чат для просмотра контактов</p></div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Быстрые сообщения</h3>
+                  <div className="flex flex-col gap-2">
+                    <Button variant="ghost" size="sm" className="justify-start text-xs h-9 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-100 dark:border-slate-700" onClick={() => handleQuickAction('help')}><HelpCircle className="w-3.5 h-3.5 mr-2 text-red-500" /> Попросить помочь</Button>
+                    <Button variant="ghost" size="sm" className="justify-start text-xs h-9 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-100 dark:border-slate-700" onClick={() => handleQuickAction('connect')}><ExternalLink className="w-3.5 h-3.5 mr-2 text-blue-500" /> Подключиться</Button>
+                    <Button variant="ghost" size="sm" className="justify-start text-xs h-9 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-100 dark:border-slate-700" onClick={() => handleQuickAction('status')}><Search className="w-3.5 h-3.5 mr-2 text-amber-500" /> Статус заявки?</Button>
                   </div>
                 </div>
-              )}
-            </div>
-          </>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-center p-8">
             <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-6"><MessageSquare className="w-10 h-10 opacity-20" /></div>

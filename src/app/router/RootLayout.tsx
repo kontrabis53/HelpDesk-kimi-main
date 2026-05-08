@@ -154,7 +154,11 @@ export function RootLayout() {
         toastOptions={{
           style: {
             zIndex: 9999,
-          }
+            background: 'white',
+            color: 'black',
+            border: '1px solid #e2e8f0'
+          },
+          className: "dark:bg-slate-800 dark:text-white dark:border-slate-700 shadow-2xl",
         }}
       />
     </div>

@@ -21,6 +21,11 @@ export const chatService = {
     return response.data;
   },
 
+  updateAvatar: async (chatId: string, avatar: string | null) => {
+    const response = await apiClient.patch(`/chat/avatar/${chatId}`, { avatar });
+    return response.data;
+  },
+
   notifyCreation: async (chatId: string, type: 'direct' | 'group', participants: string[], name: string) => {
     const response = await apiClient.post('/chat/notify-creation', { chatId, type, participants, name });
     return response.data;

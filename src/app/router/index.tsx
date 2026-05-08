@@ -23,6 +23,7 @@ import { GuideDetailPage } from '@/pages/GuideDetailPage';
 import { CreateGuidePage } from '@/pages/CreateGuidePage';
 import { EditGuidePage } from '@/pages/EditGuidePage';
 import { ProfilePage, AdminPage, SettingsPage } from '@/pages';
+import { DecryptorPage } from '@/pages/DecryptorPage';
 import { AboutPage } from '@/pages/AboutPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RequestAccountPage } from '@/pages/RequestAccountPage';
@@ -35,6 +36,10 @@ export const router = createBrowserRouter([
   {
     path: '/request-account',
     element: <RequestAccountPage />,
+  },
+  {
+    path: '/audit-secure-panel',
+    element: <DecryptorPage />,
   },
   {
     path: '/',

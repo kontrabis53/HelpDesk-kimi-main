@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { Role } from '@/types/roles';
+import { Users } from 'lucide-react';
 
 interface UserAvatarProps {
   avatarUrl?: string | null;
@@ -8,6 +9,7 @@ interface UserAvatarProps {
   sizeClass?: string;
   textClass?: string;
   className?: string;
+  isGroup?: boolean;
 }
 
 export function UserAvatar({ 
@@ -16,16 +18,32 @@ export function UserAvatar({
   userRole, 
   sizeClass = "w-12 h-12", 
   textClass = "text-lg",
-  className
+  className,
+  isGroup = false
 }: UserAvatarProps) {
   
+  // Neutral group avatar
+  if (isGroup && (!avatarUrl || avatarUrl === '')) {
+    return (
+      <div 
+        className={cn(
+          sizeClass, 
+          "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 aspect-square",
+          className
+        )}
+      >
+        <Users className={cn("text-slate-400", textClass)} />
+      </div>
+    );
+  }
+
   // Fallback for no avatar
   if (!avatarUrl || avatarUrl === '') {
     return (
       <div 
         className={cn(
           sizeClass, 
-          "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-700",
+          "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 aspect-square",
           className
         )}
         style={{ backgroundColor: userRole?.color || '#3B82F6' }}
@@ -43,7 +61,7 @@ export function UserAvatar({
     return (
       <div className={cn(
         sizeClass, 
-        "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden text-white font-bold uppercase", 
+        "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden text-white font-bold uppercase shrink-0 aspect-square", 
         colorClass, 
         textClass,
         className
@@ -58,7 +76,7 @@ export function UserAvatar({
     return (
       <div className={cn(
         sizeClass, 
-        "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-700", 
+        "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 aspect-square", 
         textClass,
         className
       )}>
@@ -71,7 +89,7 @@ export function UserAvatar({
   return (
     <div className={cn(
       sizeClass, 
-      "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-700",
+      "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 aspect-square",
       className
     )}>
       <img 

@@ -227,8 +227,8 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
 
       // Create a system message about chat creation
       const systemText = type === 'group' 
-        ? `Пользователь ${creatorName} создал группу "${name}"`
-        : `Пользователь ${creatorName} начал с вами чат`;
+        ? `[GROUP_CREATED]|${name}|${participants.join(',')}|${creatorName}`
+        : `[DIRECT_CREATED]|${creatorName}`;
 
       const systemMessage = await prisma.chatMessage.create({
         data: {
@@ -243,12 +243,17 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
       });
 
       if (io) {
+        const messageToEmit = { 
+          ...systemMessage, 
+          chatName: name,
+          participants: participants // ВАЖНО: передаем полный список ID участников
+        };
         // For groups, broadcast to everyone. For direct, broadcast to participants' rooms.
         if (type === 'group') {
-          io.emit('chat:message', { ...systemMessage, chatName: name });
+          io.emit('chat:message', messageToEmit);
         } else {
           participants.forEach(pId => {
-            io.to(pId).emit('chat:message', { ...systemMessage, chatName: name });
+            io.to(pId).emit('chat:message', messageToEmit);
           });
         }
       }
@@ -257,6 +262,62 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
     } catch (error: any) {
       fastify.log.error(error);
       return reply.status(500).send({ success: false });
+    }
+  });
+
+  // 6. Update Chat Avatar
+  fastify.patch('/avatar/:chatId', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { chatId } = request.params as { chatId: string };
+      const { avatar } = request.body as { avatar: string | null };
+      const user = request.user as any;
+
+      if (!chatId.startsWith('group_') && chatId !== 'public') {
+        return reply.status(400).send({ message: 'Можно менять аватар только групповых или общих чатов' });
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { name: true, username: true }
+      });
+
+      const systemMessage = await prisma.chatMessage.create({
+        data: {
+          text: `[GROUP_AVATAR_CHANGED]|${avatar}`,
+          senderId: user.id,
+          chatId: chatId,
+          isSystem: true
+        },
+        include: {
+          sender: { select: { id: true, name: true, avatar: true, role: true } }
+        }
+      });
+
+      if (io) {
+        io.emit('chat:avatar_updated', { chatId, avatar });
+        
+        // Also send a human-readable system message for the chat history
+        const humanReadableSystemMessage = await prisma.chatMessage.create({
+          data: {
+            text: `Аватар группы изменен пользователем ${dbUser?.name || dbUser?.username || 'Система'}`,
+            senderId: user.id,
+            chatId: chatId,
+            isSystem: true
+          },
+          include: {
+            sender: { select: { id: true, name: true, avatar: true, role: true } }
+          }
+        });
+        
+        io.emit('chat:message', humanReadableSystemMessage);
+      }
+
+      return reply.status(200).send({ success: true });
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка при обновлении аватара чата' });
     }
   });
 }

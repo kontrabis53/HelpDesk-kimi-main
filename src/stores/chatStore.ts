@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { io, Socket } from 'socket.io-client';
 import { chatService } from '@/api/chat';
+import { cryptoUtils } from '@/utils/cryptoUtils';
 import { sanitizeText, isZalgo } from '@/lib/utils';
 import { toast as sonnerToast } from 'sonner';
 
@@ -28,9 +29,11 @@ interface Chat {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount: number;
+  avatar?: string | null;
   isPinned?: boolean;
   isHidden?: boolean;
   isMuted?: boolean;
+  isAutoNamed?: boolean;
 }
 
 interface ChatStore {
@@ -49,7 +52,7 @@ interface ChatStore {
   setActiveChat: (chatId: string | null) => void;
   sendMessage: (chatId: string, text: string, senderId: string, senderName: string, recipientName: string) => Promise<void>;
   createDirectChat: (participantId: string, name: string) => Promise<string>;
-  createGroupChat: (participantIds: string[], name: string) => Promise<string>;
+  createGroupChat: (participantIds: string[], name: string, existingChatId?: string) => Promise<string>;
   addMessage: (message: ChatMessage) => void;
   clearUnread: (chatId: string) => void;
   togglePinChat: (chatId: string) => void;
@@ -57,6 +60,7 @@ interface ChatStore {
   toggleMuteChat: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
   renameChat: (chatId: string, newName: string) => Promise<boolean>;
+  updateChatAvatar: (chatId: string, avatar: string | null) => Promise<boolean>;
   deleteChatLocally: (chatId: string) => void;
   setShowHiddenChats: (show: boolean) => void;
   setShowDirectoryUsers: (show: boolean) => void;
@@ -141,10 +145,22 @@ export const useChatStore = create<ChatStore>()(
       // Normalize message properties (server sends 'sender', client expects 'senderName')
       const normalizedMessage = {
         ...message,
-        text: sanitizeText(message.text),
         senderName: message.senderName || (message as any).sender?.name || 'Пользователь',
         receiverName: (message as any).receiverName || (message as any).receiver?.name || 'Пользователь'
       };
+
+      // Расшифровка текста сообщения (если зашифровано)
+      let displayText = normalizedMessage.text;
+      if (displayText && displayText.startsWith('[ENC]')) {
+        // Мы не санитизируем зашифрованный блоб, санитизация должна быть перед шифрованием на стороне отправителя
+        // Но для безопасности можно санитизировать результат расшифровки
+        displayText = cryptoUtils.decryptMessage(displayText, message.chatId);
+      } else {
+        // Если не зашифровано, санитизируем обычный текст
+        displayText = sanitizeText(displayText);
+      }
+      
+      normalizedMessage.text = displayText;
 
       // Handle direct chat ID matching
       let targetChatId = normalizedMessage.chatId;
@@ -172,11 +188,16 @@ export const useChatStore = create<ChatStore>()(
           action: {
             label: 'Ответить',
             onClick: () => {
-              if (window.location.pathname !== '/chat') {
+              // Находим chatId и устанавливаем его активным
+              get().setActiveChat(targetChatId);
+              
+              // Если мы не на странице чата, переходим на неё
+              if (!window.location.pathname.startsWith('/chat')) {
                 window.location.href = `/chat?activeChatId=${targetChatId}`;
-              } else {
-                get().setActiveChat(targetChatId);
               }
+              // Если уже на странице чата, setActiveChat выше уже сработал,
+              // но на мобилках может потребоваться закрыть сайдбар, что произойдет автоматически
+              // при обновлении activeChatId в сторе.
             }
           }
         });
@@ -190,18 +211,46 @@ export const useChatStore = create<ChatStore>()(
       // Local deletion
       get().deleteChatLocally(chatId);
 
-      // Notification logic
+      // Notification logic with grouping/throttling
       if (deletedById !== currentUser?.id) {
-        sonnerToast.info('Чат удален', {
-          description: `Пользователь ${deletedBy || 'собеседник'} удалил этот чат.`
-        });
-      }
-    });
+            // Group multiple deletions into one notification if they happen rapidly
+            const now = Date.now();
+            const lastTime = (window as any)._lastDeleteToastTime || 0;
+            
+            if (now - lastTime < 2000) {
+              // If less than 2s passed, update existing or just skip to avoid spam
+              return; 
+            }
+            
+            (window as any)._lastDeleteToastTime = now;
 
-    socket.on('chat:renamed', ({ chatId, newName }: { chatId: string, newName: string }) => {
-      console.log(`[Socket] Chat ${chatId} renamed to ${newName}`);
+            const isGroup = chatId.startsWith('group_') || chatId === 'public';
+            sonnerToast.info(`${isGroup ? 'Групповой чат' : 'Чат'} удален пользователем ${deletedBy || 'собеседник'}`, {
+              description: 'История сообщений была очищена.',
+              duration: 5000,
+            });
+          }
+        });
+
+        socket.on('chat:renamed', ({ chatId, newName }: { chatId: string, newName: string }) => {
+          console.log(`[Socket] Chat ${chatId} renamed to ${newName}`);
+          const isGroup = chatId.startsWith('group_') || chatId === 'public';
+          
+          sonnerToast.info(`${isGroup ? 'Групповой чат' : 'Чат'} переименован`, {
+            description: `Новое название: ${newName}`,
+            duration: 4000
+          });
+
+          set(state => ({
+            chats: state.chats.map(c => c.id === chatId ? { ...c, name: newName, isAutoNamed: false } : c)
+          }));
+        });
+
+    socket.on('chat:avatar_updated', ({ chatId, avatar }: { chatId: string, avatar: string | null }) => {
+      console.log(`[Socket] Chat ${chatId} avatar updated`);
+      
       set(state => ({
-        chats: state.chats.map(c => c.id === chatId ? { ...c, name: newName } : c)
+        chats: state.chats.map(c => c.id === chatId ? { ...c, avatar } : c)
       }));
     });
 
@@ -378,17 +427,45 @@ export const useChatStore = create<ChatStore>()(
 
           const newChatsMap = new Map<string, any>();
           const chatNamesFromSystemMessages = new Map<string, string>();
+          const chatAvatarsFromSystemMessages = new Map<string, string | null>();
+          const chatParticipantsFromSystemMessages = new Map<string, string[]>();
 
-          // First pass: Find all rename system messages to get the latest names
+          // First pass: Find all rename, avatar and creation system messages to get the latest names, avatars and participants
           rawMessages.forEach((m: any) => {
-            if (m.isSystem && m.text.includes('Группа переименована в "')) {
-              const match = m.text.match(/Группа переименована в "([^"]+)"/);
-              if (match && match[1]) {
-                const chatId = m.chatId || 'public';
-                const existingNameTime = (m as any)._nameTime || 0;
-                const msgTime = new Date(m.timestamp || m.createdAt).getTime();
-                
-                if (msgTime > existingNameTime) {
+            if (m.isSystem) {
+              const chatId = m.chatId || 'public';
+              const msgTime = new Date(m.timestamp || m.createdAt).getTime();
+              const existingNameTime = (m as any)._nameTime || 0;
+              const existingAvatarTime = (m as any)._avatarTime || 0;
+
+              if (m.text.includes('Группа переименована в "')) {
+                const match = m.text.match(/Группа переименована в "([^"]+)"/);
+                if (match && match[1] && msgTime > existingNameTime) {
+                  chatNamesFromSystemMessages.set(chatId, match[1]);
+                  (m as any)._nameTime = msgTime;
+                }
+              } else if (m.text.startsWith('[GROUP_AVATAR_CHANGED]|')) {
+                const avatarData = m.text.split('|')[1] || null;
+                if (msgTime > existingAvatarTime) {
+                  chatAvatarsFromSystemMessages.set(chatId, avatarData);
+                  (m as any)._avatarTime = msgTime;
+                }
+              } else if (m.text.startsWith('[GROUP_CREATED]|')) {
+                const parts = m.text.split('|');
+                if (parts.length >= 3) {
+                  const groupName = parts[1];
+                  const participants = parts[2].split(',');
+                  
+                  if (msgTime > existingNameTime) {
+                    chatNamesFromSystemMessages.set(chatId, groupName);
+                    chatParticipantsFromSystemMessages.set(chatId, participants);
+                    (m as any)._nameTime = msgTime;
+                  }
+                }
+              } else if (m.text.includes('создал группу "')) {
+                // Legacy format support
+                const match = m.text.match(/создал группу "([^"]+)"/);
+                if (match && match[1] && msgTime > existingNameTime) {
                   chatNamesFromSystemMessages.set(chatId, match[1]);
                   (m as any)._nameTime = msgTime;
                 }
@@ -396,7 +473,7 @@ export const useChatStore = create<ChatStore>()(
             }
           });
 
-          // Map raw messages to include chatId
+          // Map raw messages to include chatId and DECRYPT them
           const messages = rawMessages.map((m: any) => {
             // A message belongs to a direct chat ONLY if it has a receiverId
             const participantId = m.senderId === currentUser.id ? m.receiverId : (m.receiverId ? m.senderId : null);
@@ -407,6 +484,12 @@ export const useChatStore = create<ChatStore>()(
             } else if (!m.chatId || m.chatId === 'public') {
               chatId = 'public';
             }
+
+            // Расшифровка текста сообщения
+            if (m.text && m.text.startsWith('[ENC]')) {
+              m.text = cryptoUtils.decryptMessage(m.text, chatId);
+            }
+            m.timestamp = m.timestamp || m.createdAt;
 
             // Resolve name
             let chatName = 'Чат';
@@ -438,6 +521,7 @@ export const useChatStore = create<ChatStore>()(
                   participants: [currentUser.id, participantId],
                   // Preserve unread count from state if it exists, otherwise 0
                   unreadCount: existingChatInState?.unreadCount || 0,
+                  avatar: chatAvatarsFromSystemMessages.get(chatId) || m.chatAvatar || existingChatInState?.avatar,
                   lastMessage: m.text,
                   lastMessageTime: lastMessageTime
                 });
@@ -447,23 +531,72 @@ export const useChatStore = create<ChatStore>()(
               const lastMessageTime = m.timestamp || m.createdAt;
               const isPublic = chatId === 'public';
               
-              // Use name from system messages if available, otherwise fallback
-              const chatName = chatNamesFromSystemMessages.get(chatId) || 
-                              m.chatName || 
-                              (isPublic ? 'Общий чат' : 'Групповой чат');
+              // Resolve name
+              let chatName = chatNamesFromSystemMessages.get(chatId) || m.chatName;
+              let isAutoNamed = false;
+
+              if (!chatName) {
+                if (isPublic) {
+                  chatName = 'Общий чат';
+                } else {
+                  // Reconstruct auto-name from participants
+                  const participants = chatParticipantsFromSystemMessages.get(chatId) || m.participants || [];
+                  
+                  if (participants.length > 0) {
+                    const users = (window as any).useRoleStore?.getState()?.users || [];
+                    const names = participants
+                      .map((id: string) => {
+                        const u = users.find((user: any) => user.id === id);
+                        return u?.name?.split(' ')[0] || null;
+                      })
+                      .filter(Boolean);
+                    
+                    if (names.length > 0) {
+                      chatName = names.join(', '); // NO "Групповой чат: " prefix here!
+                      isAutoNamed = true;
+                    } else {
+                      chatName = 'Групповой чат';
+                    }
+                  } else {
+                    chatName = 'Групповой чат';
+                  }
+                }
+              } else if (!isPublic && !chatNamesFromSystemMessages.has(chatId)) {
+                // Если имя содержит "Групповой чат:", считаем его авто-именем и очищаем префикс
+                if (chatName.includes('Групповой чат:')) {
+                  chatName = chatName.replace('Групповой чат:', '').trim();
+                  isAutoNamed = true;
+                }
+              }
               
               const existingChatInState = get().chats.find(c => c.id === chatId);
               const existingChatInMap = newChatsMap.get(chatId);
               
+              // ПРИОРИТЕТ: Всегда собираем участников из всех доступных источников
+              const allParticipants = Array.from(new Set([
+                ...(chatParticipantsFromSystemMessages.get(chatId) || []),
+                ...(m.participants || []),
+                ...(existingChatInMap?.participants || []),
+                ...(existingChatInState?.participants || [])
+              ])).filter(Boolean);
+
               if (!existingChatInMap || new Date(lastMessageTime) > new Date(existingChatInMap.lastMessageTime)) {
                 newChatsMap.set(chatId, {
                   id: chatId,
                   name: chatName,
-                  type: 'group',
-                  participants: [], // Participants will be filled as messages arrive or from state
+                  type: isPublic ? 'group' : 'group',
+                  participants: allParticipants,
                   unreadCount: existingChatInState?.unreadCount || 0,
+                  avatar: chatAvatarsFromSystemMessages.get(chatId) || m.chatAvatar || existingChatInState?.avatar,
                   lastMessage: m.text,
-                  lastMessageTime: lastMessageTime
+                  lastMessageTime: lastMessageTime,
+                  isAutoNamed: isAutoNamed
+                });
+              } else if (allParticipants.length > existingChatInMap.participants.length) {
+                // Если мы нашли больше участников в текущем сообщении, обновляем только их
+                newChatsMap.set(chatId, {
+                  ...existingChatInMap,
+                  participants: allParticipants
                 });
               }
             }
@@ -482,7 +615,17 @@ export const useChatStore = create<ChatStore>()(
                 const idx = updatedChats.findIndex(c => c && c.id === id);
                 if (idx !== -1) {
                   // Merge message data with existing chat (preserve pins, etc.)
-                  updatedChats[idx] = { ...updatedChats[idx], ...newChat };
+                  // ВАЖНО: Приоритет объединения участников, чтобы не потерять их при частичном обновлении
+                  const mergedParticipants = Array.from(new Set([
+                    ...(updatedChats[idx].participants || []),
+                    ...(newChat.participants || [])
+                  ])).filter(Boolean);
+                  
+                  updatedChats[idx] = { 
+                    ...updatedChats[idx], 
+                    ...newChat,
+                    participants: mergedParticipants 
+                  };
                 } else {
                   updatedChats.unshift(newChat);
                 }
@@ -508,23 +651,27 @@ export const useChatStore = create<ChatStore>()(
           const trimmedText = text.trim();
           if (!trimmedText) return;
 
-          // Enforce max length limit (4096 characters like Telegram)
-          if (trimmedText.length > 4096) {
+          // 1. Sanitize raw text BEFORE encryption
+          const sanitizedText = sanitizeText(trimmedText);
+
+          // 2. Enforce max length limit (4096 characters like Telegram)
+          if (sanitizedText.length > 4096) {
             sonnerToast.error('Сообщение слишком длинное', {
-              description: `Максимальная длина — 4096 символов. Сейчас: ${trimmedText.length}`
+              description: `Максимальная длина — 4096 символов. Сейчас: ${sanitizedText.length}`
             });
             return;
           }
 
-          // Prevent sending Zalgo text
-          if (isZalgo(trimmedText)) {
+          // 3. Prevent sending Zalgo text
+          if (isZalgo(sanitizedText)) {
             sonnerToast.error('Обнаружены недопустимые символы', {
               description: 'Сообщение содержит вредоносный текст и было заблокировано.'
             });
             return;
           }
 
-          const sanitizedText = sanitizeText(text);
+          // 4. Encrypt the sanitized text
+          const encryptedText = cryptoUtils.encryptMessage(sanitizedText, chatId);
 
           // Find receiverId from chatId if it's a direct chat
           let receiverId: string | undefined;
@@ -540,11 +687,8 @@ export const useChatStore = create<ChatStore>()(
             }
           }
 
-          // We no longer add a mock message here because it will be received 
-          // via Socket.io (chat:message) and added to the state there.
-          // This prevents double messages.
-
-          await chatService.sendMessage(sanitizedText, receiverId, effectiveChatId, chatName);
+          // 5. Send encrypted text to server
+          await chatService.sendMessage(encryptedText, receiverId, effectiveChatId, chatName);
         } catch (error: any) {
           console.error('Send message error:', error);
         }
@@ -587,35 +731,93 @@ export const useChatStore = create<ChatStore>()(
         return newChat.id;
       },
 
-  createGroupChat: async (participantIds, name) => {
+  createGroupChat: async (participantIds, name, existingChatId) => {
         const currentUser = (window as any).useAuthStore?.getState()?.user;
         if (!currentUser) return '';
 
         try {
-          // Generate a unique ID for the group chat
-          const groupId = `group_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+          // 1. Ensure currentUser is added but NOT duplicated
+          const uniqueParticipantIds = Array.from(new Set([currentUser.id, ...participantIds])).sort();
           
-          // Ensure currentUser is added but NOT duplicated
-          const uniqueParticipantIds = Array.from(new Set([currentUser.id, ...participantIds]));
+          // 2. IMPORTANT: If existingChatId is provided, use it instead of searching/creating
+          let groupId = existingChatId;
           
-          const newChat: Chat = {
-            id: groupId,
-            name,
-            type: 'group',
-            participants: uniqueParticipantIds,
-            unreadCount: 0
-          };
+          if (!groupId) {
+            // Check if a group with EXACTLY these participants already exists
+            const existingGroup = get().chats.find(c => 
+              c.type === 'group' && 
+              c.participants.length === uniqueParticipantIds.length &&
+              uniqueParticipantIds.every(id => c.participants.includes(id))
+            );
 
-          set(state => ({
-            chats: [newChat, ...state.chats],
-            activeChatId: newChat.id
-          }));
+            if (existingGroup) {
+              console.log(`[Chat] Found existing group ${existingGroup.id} for these participants`);
+              set({ activeChatId: existingGroup.id });
+              return existingGroup.id;
+            }
+            
+            // Generate a stable unique ID if no existing group
+            groupId = `group_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+          }
 
-          // Notify server and all participants about new group
+          // 3. Find if the group already exists in our state (to update it)
+          const existingChatInState = get().chats.find(c => c.id === groupId);
+          
+          // If no name provided, generate one from participant names
+          let finalName = name.trim();
+          let isAutoNamed = false;
+
+          if (!finalName) {
+            isAutoNamed = true;
+            const users = (window as any).useRoleStore?.getState()?.users || [];
+            const names = uniqueParticipantIds
+              .map(id => {
+                const u = users.find((user: any) => user.id === id);
+                return u?.name?.split(' ')[0] || null;
+              })
+              .filter(Boolean);
+            
+            // ВАЖНО: Теперь просто имена, без префикса
+            finalName = names.length > 0 ? names.join(', ') : 'Групповой чат';
+          }
+
+          if (existingChatInState) {
+            // Update existing group instead of creating a new one
+            set(state => ({
+              chats: state.chats.map(c => c.id === groupId ? {
+                ...c,
+                name: finalName,
+                participants: uniqueParticipantIds,
+                isAutoNamed
+              } : c),
+              activeChatId: groupId,
+              // Force activeChat to be available for UI immediately
+              messages: [...state.messages] 
+            }));
+          } else {
+            // Create new group object
+            const newChat: Chat = {
+              id: groupId,
+              name: finalName,
+              type: 'group',
+              participants: uniqueParticipantIds,
+              unreadCount: 0,
+              isAutoNamed
+            };
+
+            set(state => ({
+              chats: [newChat, ...state.chats],
+              activeChatId: newChat.id,
+              // Initialize empty messages for this new chat so UI knows it's ready
+              messages: [...state.messages]
+            }));
+          }
+
+          // Notify server and all participants about group (new or updated)
           try {
-            await chatService.notifyCreation(groupId, 'group', uniqueParticipantIds, name);
+            await chatService.notifyCreation(groupId, 'group', uniqueParticipantIds, finalName);
           } catch (error) {
-            console.error('Failed to notify group creation:', error);
+            console.error('Failed to notify group creation/update:', error);
           }
           
           return groupId;
@@ -644,6 +846,14 @@ export const useChatStore = create<ChatStore>()(
           }
           
           const msgWithFixedId = { ...message, chatId: effectiveChatId };
+
+          // Расшифровка текста сообщения для отображения в уведомлении и списке чатов
+          let displayText = message.text;
+          if (message.text && message.text.startsWith('[ENC]')) {
+            displayText = cryptoUtils.decryptMessage(message.text, effectiveChatId);
+          }
+          
+          const normalizedMessage = { ...msgWithFixedId, text: displayText };
 
           // 1. Ensure the chat exists in the list
           let chatExists = state.chats.some(c => c && c.id === effectiveChatId);
@@ -674,41 +884,53 @@ export const useChatStore = create<ChatStore>()(
                 }
               }
             } else if (effectiveChatId.startsWith('group_') || effectiveChatId === 'public') {
-              // For group chats, prefer chatName from message, then check if it's a rename message
+              // For group chats, prefer chatName from message, then check if it's a rename or create message
               chatName = message.chatName || (effectiveChatId === 'public' ? 'Общий чат' : 'Групповой чат');
               
-              if (message.isSystem && message.text.includes('Группа переименована в "')) {
-                const match = message.text.match(/Группа переименована в "([^"]+)"/);
-                if (match && match[1]) chatName = match[1];
+              if (message.isSystem) {
+                if (message.text.includes('Группа переименована в "')) {
+                  const match = message.text.match(/Группа переименована в "([^"]+)"/);
+                  if (match && match[1]) chatName = match[1];
+                } else if (message.text.startsWith('[GROUP_CREATED]|')) {
+                  const parts = message.text.split('|');
+                  if (parts.length >= 2) chatName = parts[1];
+                }
               }
             }
+
+            const isAutoNamed = chatName === 'Групповой чат' || (effectiveChatId.startsWith('group_') && !message.chatName);
 
             updatedChats.unshift({
               id: effectiveChatId,
               name: chatName,
               type: effectiveChatId.startsWith('group_') ? 'group' : ((message as any).receiverId || effectiveChatId.startsWith('chat_') ? 'direct' : 'group'),
-              participants: currentUser ? Array.from(new Set([currentUser.id, otherId, message.senderId].filter(Boolean))) : [],
-              unreadCount: 0, // Will be incremented below
-              lastMessage: message.text,
-              lastMessageTime: message.timestamp || message.createdAt
+              participants: (message as any).participants || (currentUser ? Array.from(new Set([currentUser.id, otherId, message.senderId].filter(Boolean))) : []),
+              unreadCount: 0, 
+              lastMessage: displayText,
+              lastMessageTime: message.timestamp || message.createdAt,
+              isAutoNamed: isAutoNamed
             });
           }
 
           // 2. Update the chat data and increment unread if needed
           updatedChats = updatedChats.map(c => {
             if (c && c.id === effectiveChatId) {
-              const isUnread = state.activeChatId !== effectiveChatId;
               const currentUser = (window as any).useAuthStore?.getState()?.user;
               
               // Resolve correct name
               let resolvedName = c.name;
               
-              // If it's a system rename message, always update the name
-              if (message.isSystem && message.text.includes('Группа переименована в "')) {
-                const match = message.text.match(/Группа переименована в "([^"]+)"/);
-                if (match && match[1]) resolvedName = match[1];
-              } else if (!c.name || c.name === 'Чат' || c.name === 'Пользователь' || c.name === 'Групповой чат' || c.name === 'Общий чат') {
-                if (message.chatName) {
+              // If it's a system rename or create message, always update the name
+              if (message.isSystem) {
+                if (message.text.includes('Группа переименована в "')) {
+                  const match = message.text.match(/Группа переименована в "([^"]+)"/);
+                  if (match && match[1]) resolvedName = match[1];
+                } else if (message.text.startsWith('[GROUP_CREATED]|')) {
+                  const parts = message.text.split('|');
+                  if (parts.length >= 2) resolvedName = parts[1];
+                }
+              } else if (!c.name || c.name === 'Чат' || c.name === 'Пользователь' || c.name === 'Групповой чат' || c.name === 'Общий чат' || c.isAutoNamed) {
+                if (message.chatName && !message.isSystem) {
                   resolvedName = message.chatName;
                 } else if (c.type === 'direct') {
                   if (message.senderId === currentUser?.id) {
@@ -729,26 +951,56 @@ export const useChatStore = create<ChatStore>()(
                 }
               }
 
-              // Update participants if message contains them (optional, but good for sync)
-              const participants = c.participants;
+              // Update participants list if provided in message (e.g. from notify-creation)
+              let newParticipants = (message as any).participants;
+              
+              // Handle participants from new system message format
+              if (message.isSystem && message.text.startsWith('[GROUP_CREATED]|')) {
+                const parts = message.text.split('|');
+                if (parts.length >= 3) {
+                  newParticipants = parts[2].split(',');
+                }
+              }
+
+              // ВАЖНО: Если у нас уже есть список участников и пришло обычное сообщение (без участников), 
+              // мы НЕ должны заменять существующий список на пустой.
+              let participants = c.participants && c.participants.length > 0 && (!newParticipants || newParticipants.length === 0)
+                ? [...c.participants]
+                : Array.from(new Set([...(c.participants || []), ...(newParticipants || [])]));
+
               if (message.senderId && !participants.includes(message.senderId)) {
                 participants.push(message.senderId);
+              }
+
+              // ВАЖНО: Если это авто-имя, пересчитываем его на основе актуальных участников
+              if (c.isAutoNamed) {
+                const users = (window as any).useRoleStore?.getState()?.users || [];
+                const names = participants
+                  .map((id: string) => {
+                    const u = users.find((user: any) => user.id === id);
+                    return u?.name?.split(' ')[0] || null;
+                  })
+                  .filter(Boolean);
+                
+                if (names.length > 0) {
+                 resolvedName = names.join(', '); // NO prefix here either!
+               }
               }
 
               return {
                 ...c,
                 name: resolvedName,
-                participants: Array.from(new Set(participants)),
-                lastMessage: message.text,
+                participants: participants,
+                lastMessage: displayText,
                 lastMessageTime: message.timestamp || message.createdAt,
-                unreadCount: isUnread ? (c.unreadCount || 0) + 1 : 0
+                unreadCount: effectiveChatId === state.activeChatId ? 0 : (c.unreadCount || 0) + 1
               };
             }
             return c;
           });
 
           // Sort messages by creation time
-          const newMessages = [...state.messages, msgWithFixedId].sort((a, b) => {
+          const newMessages = [...state.messages, normalizedMessage].sort((a, b) => {
             const timeA = new Date(a.timestamp || a.createdAt).getTime();
             const timeB = new Date(b.timestamp || b.createdAt).getTime();
             return timeA - timeB;
@@ -801,7 +1053,7 @@ export const useChatStore = create<ChatStore>()(
           // Note: The backend route already emits 'chat:deleted' via socket
           await chatService.deleteChatMessages(chatId, otherParticipantId || 'unknown');
           
-          sonnerToast.success('Чат успешно удален');
+          sonnerToast.success('Чат успешно удален', { duration: 4000 });
         } catch (error) {
           console.error('Failed to delete chat on server:', error);
           sonnerToast.error('Не удалось полностью удалить чат на сервере');
@@ -821,16 +1073,17 @@ export const useChatStore = create<ChatStore>()(
 
   renameChat: async (chatId, newName) => {
       try {
+        const trimmedName = newName.trim();
         // Update locally immediately for better UX
         set(state => ({
-          chats: state.chats.map(c => c.id === chatId ? { ...c, name: newName } : c)
+          chats: state.chats.map(c => c.id === chatId ? { ...c, name: trimmedName, isAutoNamed: false } : c)
         }));
 
         if (chatId.startsWith('group_') || chatId === 'public') {
-          await chatService.renameChat(chatId, newName);
-          sonnerToast.success('Чат переименован');
+          await chatService.renameChat(chatId, trimmedName);
+          sonnerToast.success('Чат переименован', { duration: 4000 });
         } else {
-          sonnerToast.success('Чат переименован');
+          sonnerToast.success('Чат переименован', { duration: 4000 });
         }
         return true;
      } catch (error) {
@@ -839,6 +1092,25 @@ export const useChatStore = create<ChatStore>()(
        return false;
      }
    },
+
+  updateChatAvatar: async (chatId, avatar) => {
+    try {
+      // Update locally immediately
+      set(state => ({
+        chats: state.chats.map(c => c.id === chatId ? { ...c, avatar } : c)
+      }));
+
+      if (chatId.startsWith('group_') || chatId === 'public') {
+        await chatService.updateAvatar(chatId, avatar);
+        sonnerToast.success('Аватар чата обновлен', { duration: 4000 });
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to update chat avatar:', error);
+      sonnerToast.error('Не удалось обновить аватар чата');
+      return false;
+    }
+  },
 
   setShowHiddenChats: (show) => set({ showHiddenChats: show }),
   setShowDirectoryUsers: (show) => set({ showDirectoryUsers: show })

@@ -1,5 +1,6 @@
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { AdminScreen } from '@/screens/AdminScreen';
+import { DecryptorPage } from './DecryptorPage';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
@@ -98,10 +99,8 @@ export function SettingsPage() {
   };
   
   return (
-    <SettingsScreen
-      onBack={handleBack}
-      theme={theme}
-      onToggleTheme={toggleTheme}
-    />
+    <SettingsScreen theme={theme} onToggleTheme={toggleTheme} onBack={handleBack} />
   );
 }
+
+export { DecryptorPage };

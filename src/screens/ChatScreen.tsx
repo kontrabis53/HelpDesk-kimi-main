@@ -26,7 +26,12 @@ import {
   MapPin,
   Building,
   SendHorizontal,
-  Edit2
+  Edit2,
+  Check,
+  X,
+  Sparkles,
+  Loader2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -61,6 +66,7 @@ import {
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import { toast } from 'sonner';
+import { ChatSecurityModal } from '@/components/ChatSecurityModal';
 
 export function ChatScreen() {
   const { 
@@ -85,13 +91,17 @@ export function ChatScreen() {
 
   const { entries: directoryEntries, fetchEntries: fetchDirectoryEntries } = useDirectoryStore();
 
-  const activeChatIdFromUrl = new URLSearchParams(window.location.search).get('activeChatId');
-
   useEffect(() => {
     fetchMessages();
     fetchDirectoryEntries(); // Load directory data for the new chat modal
-    if (activeChatIdFromUrl) {
-      setActiveChat(activeChatIdFromUrl);
+    
+    // Получаем ID из URL только один раз при монтировании
+    const params = new URLSearchParams(window.location.search);
+    const chatId = params.get('activeChatId');
+    
+    if (chatId) {
+      console.log('[ChatScreen] Found activeChatId in URL:', chatId);
+      setActiveChat(chatId);
       // Clear URL params without reload
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -101,7 +111,7 @@ export function ChatScreen() {
       console.log('[ChatScreen] Unmounting, clearing activeChatId');
       setActiveChat(null);
     };
-  }, [fetchMessages, fetchDirectoryEntries, activeChatIdFromUrl, setActiveChat]);
+  }, [fetchMessages, fetchDirectoryEntries, setActiveChat]); // activeChatIdFromUrl убран из зависимостей
   
   const { users } = useRoleStore();
   const currentUser = useAuthStore((state) => state.user);
@@ -123,6 +133,40 @@ export function ChatScreen() {
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [groupName, setGroupName] = useState('');
+
+  // Security Modal State
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  
+  useEffect(() => {
+    const lastShowTime = localStorage.getItem('chat_security_modal_last_show');
+    const now = Date.now();
+    const oneDayInMs = 24 * 60 * 60 * 1000;
+
+    if (!lastShowTime || (now - parseInt(lastShowTime)) > oneDayInMs) {
+      // Small delay to ensure smooth transition after loading messages
+      const timer = setTimeout(() => {
+        setShowSecurityModal(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleCloseSecurityModal = () => {
+    setShowSecurityModal(false);
+    localStorage.setItem('chat_security_modal_last_show', Date.now().toString());
+  };
+
+  // Avatar Editor State
+  const [showAvatarEditor, setShowAvatarEditor] = useState(false);
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+  const [tempAvatar, setTempAvatar] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const memojis = ['👦', '👧', '👨‍💻', '👩‍💻', '🦸', '🦹', '🐱', '🐶', '🦊', '🦁', '🐸', '🐨'];
+  const monogramColors = [
+    'bg-amber-400', 'bg-blue-500', 'bg-emerald-500', 
+    'bg-rose-500', 'bg-violet-500', 'bg-slate-700'
+  ];
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -198,10 +242,11 @@ export function ChatScreen() {
   const handleSendMessage = (textOverride?: string) => {
     const textToSend = textOverride || newMessage;
     if (!textToSend.trim() || !activeChatId || !currentUser) return;
+    
     const otherParticipantId = activeChat?.participants.find(p => p !== currentUser.id);
     sendMessage(
       activeChatId, 
-      textToSend.trim(), 
+      textToSend.trim(), // Отправляем чистый текст, стор сам зашифрует
       currentUser.id, 
       currentUser.roleId === 'admin' ? 'Администратор' : currentUser.name, 
       otherParticipantId || activeChat?.name || ''
@@ -253,7 +298,12 @@ export function ChatScreen() {
     // Remove duplicates from names just in case
     const uniqueNames = Array.from(new Set(participantNames));
     const generatedName = groupName.trim() || uniqueNames.join(', ');
-    const id = await createGroupChat(selectedParticipants, generatedName);
+    
+    // Если мы уже в групповом чате и открыли модалку "Добавить", 
+    // передаем ID текущего чата, чтобы обновить его, а не создавать новый
+    const existingGroupId = activeChat?.type === 'group' ? activeChat.id : undefined;
+    
+    const id = await createGroupChat(selectedParticipants, generatedName, existingGroupId);
     if (id) {
       setActiveChat(id);
       setIsNewChatModalOpen(false);
@@ -274,6 +324,59 @@ export function ChatScreen() {
       setIsRenameModalOpen(false);
       setChatToRename(null);
       setNewChatName('');
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Размер файла не должен превышать 2МБ');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Файл должен быть изображением');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setTempAvatar(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveAvatar = async () => {
+    if (!tempAvatar || !activeChatId) return;
+    setIsUpdatingAvatar(true);
+    try {
+      const { updateChatAvatar } = useChatStore.getState();
+      await updateChatAvatar(activeChatId, tempAvatar);
+      setShowAvatarEditor(false);
+      setTempAvatar(null);
+    } catch (error) {
+      console.error('Save chat avatar error:', error);
+      toast.error('Не удалось сохранить аватар');
+    } finally {
+      setIsUpdatingAvatar(false);
+    }
+  };
+
+  const handleResetAvatar = async () => {
+    if (!activeChatId) return;
+    setIsUpdatingAvatar(true);
+    try {
+      const { updateChatAvatar } = useChatStore.getState();
+      await updateChatAvatar(activeChatId, null);
+      setShowAvatarEditor(false);
+      setTempAvatar(null);
+    } catch (error) {
+      toast.error('Не удалось сбросить аватар');
+    } finally {
+      setIsUpdatingAvatar(false);
     }
   };
 
@@ -359,19 +462,16 @@ export function ChatScreen() {
   const isUserRegistered = (person: any) => person.isRegistered;
 
   const formatChatName = (name: string, type: 'direct' | 'group') => {
-    if (type === 'direct' || !name.includes(',')) return name;
-    const names = name.split(',').map(n => n.trim());
-    if (names.length <= 1) return name;
-    const first = names[0];
-    const second = names[1];
-    const halfSecond = second.substring(0, Math.ceil(second.length / 2));
-    return `${first}, ${halfSecond}`;
+    if (type === 'direct') return name || 'Чат';
+    
+    // Убираем префикс "Групповой чат: " для списка чатов (оставляем только имена)
+    return (name || 'Групповой чат').replace(/^Групповой чат:\s*/, '');
   };
 
   return (
     <div className="flex h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
       <div className={cn(
-        "w-full md:w-80 flex-shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-all",
+        "w-full md:w-[380px] flex-shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-all",
         activeChatId ? "hidden md:flex" : "flex h-full"
       )}>
         <div className="p-4 border-b border-slate-100 dark:border-slate-700">
@@ -428,10 +528,11 @@ export function ChatScreen() {
                    >
                      <div className="relative flex-shrink-0">
                        <UserAvatar 
-                         avatarUrl={users.find(u => u.id === chat.participants.find(p => p !== currentUser?.id) || (u.name && chat.name && u.name.trim().toLowerCase() === chat.name.trim().toLowerCase()))?.avatar} 
+                         avatarUrl={chat.avatar || users.find(u => u.id === chat.participants.find(p => p !== currentUser?.id) || (u.name && chat.name && u.name.trim().toLowerCase() === chat.name.trim().toLowerCase()))?.avatar} 
                          name={chat.name} 
                          sizeClass="w-12 h-12" 
                          textClass="text-xs" 
+                         isGroup={chat.type === 'group'}
                        />
                        {chat.type === 'direct' && (
                          <div className={cn(
@@ -537,7 +638,7 @@ export function ChatScreen() {
                   <ArrowLeft className="w-5 h-5" />
                 </Button>
                 <UserAvatar 
-                  avatarUrl={users.find(u => {
+                  avatarUrl={activeChat.avatar || users.find(u => {
                     const otherId = activeChat.participants.find(p => p !== currentUser?.id);
                     if (u.id === otherId) return true;
                     if (!u.name || !activeChat.name) return false;
@@ -546,17 +647,38 @@ export function ChatScreen() {
                   name={activeChat.name} 
                   sizeClass="w-10 h-10" 
                   textClass="text-[10px]" 
+                  isGroup={activeChat.type === 'group'}
                 />
                 <div className="flex-1 min-w-0">
-                  <h2 className="font-bold text-slate-800 dark:text-slate-100 leading-none flex items-center gap-1">
-                    <span className="text-fade max-w-[200px] md:max-w-[400px]">
-                      {formatChatName(activeChat.name, activeChat.type)}
-                    </span>
+                  <h2 
+                    className={cn(
+                      "font-bold text-slate-800 dark:text-slate-100 leading-tight",
+                      activeChat.type === 'group' && "cursor-pointer hover:text-blue-600 transition-colors"
+                    )}
+                    onClick={() => {
+                      if (activeChat.type === 'group') {
+                        setShowAvatarEditor(true);
+                      }
+                    }}
+                  >
+                    <div className="truncate max-w-[200px] md:max-w-[500px]">
+                      {activeChat.type === 'group' && !activeChat.name.startsWith('Групповой чат:') 
+                        ? `Групповой чат: ${activeChat.name}` 
+                        : activeChat.name}
+                    </div>
                   </h2>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <div className={cn("w-1.5 h-1.5 rounded-full", isOtherUserOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
-                    <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{isOtherUserOnline ? 'В сети' : 'Не в сети'}</span>
-                  </div>
+                  {activeChat.type === 'direct' ? (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div className={cn("w-1.5 h-1.5 rounded-full", isOtherUserOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
+                      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{isOtherUserOnline ? 'В сети' : 'Не в сети'}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                        {activeChat.participants.length} участников
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-1">
@@ -581,11 +703,29 @@ export function ChatScreen() {
                       const onlyEmojis = isOnlyEmojis(msg.text || '');
 
                       if (msg.isSystem) {
+                        let displayText = msg.text || '';
+                        
+                        // Hide internal persistence messages from UI
+                        if (displayText.startsWith('[GROUP_AVATAR_CHANGED]|')) {
+                          return null;
+                        }
+
+                        if (displayText.startsWith('[GROUP_CREATED]|')) {
+                          const parts = displayText.split('|');
+                          const groupName = parts[1];
+                          const creatorName = parts[3] || 'Пользователь';
+                          displayText = `Пользователь ${creatorName} создал группу "${groupName}"`;
+                        } else if (displayText.startsWith('[DIRECT_CREATED]|')) {
+                          const parts = displayText.split('|');
+                          const creatorName = parts[1] || 'Пользователь';
+                          displayText = `Пользователь ${creatorName} начал с вами чат`;
+                        }
+
                         return (
                           <div key={msg.id} className="flex justify-center my-4">
                             <div className="bg-slate-100/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 px-4 py-1.5 rounded-full">
                               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">
-                                {sanitizeText(msg.text || '')}
+                                {sanitizeText(displayText)}
                               </p>
                             </div>
                           </div>
@@ -593,19 +733,19 @@ export function ChatScreen() {
                       }
 
                       return (
-                        <div key={msg.id} className={cn("flex gap-3 mb-4", isMe ? "flex-row-reverse items-end" : "flex-row items-end")}>
+                        <div key={msg.id} className={cn("flex gap-3 mb-4", isMe ? "flex-row items-end" : "flex-row items-end")}>
                           <div className="shrink-0 mb-1">
                             <UserAvatar avatarUrl={senderFromMsg?.avatar} name={senderName} sizeClass="w-9 h-9" textClass="text-[10px]" />
                           </div>
-                          <div className={cn("flex flex-col max-w-[75%] md:max-w-[65%]", isMe ? "items-end" : "items-start")}>
-                            {showSender && <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">{senderName}</span>}
+                          <div className={cn("flex flex-col max-w-[75%] md:max-w-[65%]", isMe ? "items-start" : "items-start")}>
+                            {(showSender || isMe) && <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">{isMe ? 'Вы' : senderName}</span>}
                             <div className={cn(
                               "px-4 py-2.5 rounded-2xl text-sm shadow-sm break-words w-fit transition-all",
-                              isMe ? "bg-blue-600 text-white rounded-br-none" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700",
+                              isMe ? "bg-blue-500 text-white rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-2xl rounded-tr-2xl rounded-br-2xl rounded-bl-none border border-slate-200 dark:border-slate-700",
                               onlyEmojis && "bg-transparent dark:bg-transparent border-transparent dark:border-transparent shadow-none px-0 py-0"
                             )}>
                               <p className={cn("whitespace-pre-wrap leading-relaxed", onlyEmojis && "emoji-large")}>{sanitizeText(msg.text || '')}</p>
-                              <span className={cn("text-[9px] mt-1 block opacity-60", isMe ? "text-right" : "text-left", onlyEmojis && "hidden")}>
+                              <span className={cn("text-[9px] mt-1 block opacity-60", "text-left", onlyEmojis && "hidden")}>
                                 {format(new Date(msg.timestamp || msg.createdAt || new Date().toISOString()), 'HH:mm')}
                               </span>
                             </div>
@@ -623,7 +763,17 @@ export function ChatScreen() {
                       <div ref={emojiPickerRef} className="absolute bottom-[calc(100%+12px)] left-0 mb-2 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-2 z-50 w-full max-w-[450px]">
                         <div className="grid grid-cols-8 gap-1 p-1">
                           {['😊', '😂', '🤣', '❤️', '😍', '😒', '👌', '😘', '💕', '😁', '👍', '🙌', '👏', '🤝', '🔥', '✨', '✅', '🆘', '❓', '📞', '🖥️', '📦', '🏥', '🚑', '😢', '😭', '😩', '😤', '😡', '🤯', '😱', '🤔', '🤨', '🙄', '😴', '👋', '🙏', '💪', '🚀', '⭐', '📍', '📅', '📎', '💻', '📱', '🔋', '🔌', '🛠️'].map(emoji => (
-                            <button key={emoji} onClick={() => setNewMessage(prev => prev + emoji)} className="text-2xl hover:bg-slate-100 dark:hover:bg-slate-700 p-2 rounded-xl transition-all hover:scale-125">{emoji}</button>
+                            <button 
+                              key={emoji} 
+                              onClick={() => {
+                                setNewMessage(prev => prev + emoji);
+                                // Возвращаем фокус в текстовое поле после выбора смайла
+                                textareaRef.current?.focus();
+                              }} 
+                              className="text-2xl hover:bg-slate-100 dark:hover:bg-slate-700 p-2 rounded-xl transition-all hover:scale-125 focus:outline-none"
+                            >
+                              {emoji}
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -633,7 +783,22 @@ export function ChatScreen() {
                         <Button variant="ghost" size="icon" className={cn("text-slate-400 shrink-0 w-9 h-9 rounded-full", isEmojiPickerOpen && "text-blue-500 bg-blue-50 dark:bg-blue-900/20")} onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}><Smile className="w-5 h-5" /></Button>
                         <Button variant="ghost" size="icon" className="text-slate-400 shrink-0 w-9 h-9 rounded-full"><Paperclip className="w-5 h-5" /></Button>
                       </div>
-                      <textarea ref={textareaRef} placeholder="Напишите сообщение..." className="flex-1 bg-transparent border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none !outline-none !ring-0 resize-none py-2.5 text-sm max-h-[200px] min-h-[40px] text-slate-800 dark:text-slate-100 custom-scrollbar leading-relaxed" value={newMessage} maxLength={4096} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} rows={1} />
+                      <textarea 
+                        ref={textareaRef} 
+                        placeholder="Напишите сообщение..." 
+                        className="flex-1 bg-transparent border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none !outline-none !ring-0 resize-none py-2.5 text-sm max-h-[200px] min-h-[40px] text-slate-800 dark:text-slate-100 custom-scrollbar leading-relaxed" 
+                        value={newMessage} 
+                        maxLength={4096} 
+                        onChange={(e) => setNewMessage(e.target.value)} 
+                        onKeyDown={(e) => { 
+                          if (e.key === 'Enter' && !e.shiftKey) { 
+                            e.preventDefault(); 
+                            if (isEmojiPickerOpen) setIsEmojiPickerOpen(false);
+                            handleSendMessage(); 
+                          } 
+                        }} 
+                        rows={1} 
+                      />
                       <div className="flex flex-col items-end gap-1 px-1">
                         {newMessage.length > 3000 && <span className={cn("text-[9px] font-bold mr-2 mb-1", newMessage.length > 4000 ? "text-red-500" : "text-slate-400")}>{newMessage.length}/4096</span>}
                         <button className={cn("w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200", newMessage.trim() ? "bg-blue-600 text-white shadow-md shadow-blue-500/40 scale-100" : "bg-slate-100 dark:bg-slate-700 text-slate-400 opacity-50 cursor-not-allowed")} onClick={() => handleSendMessage()} disabled={!newMessage.trim()}><Send className="w-4 h-4 ml-0.5" /></button>
@@ -725,88 +890,182 @@ export function ChatScreen() {
       </div>
 
       <Dialog open={isNewChatModalOpen} onOpenChange={(open) => { setIsNewChatModalOpen(open); if (!open) { setExpandedPersonId(null); setIsGroupMode(false); setSelectedParticipants([]); setGroupName(''); } }}>
-        <DialogContent className="max-w-2xl bg-white dark:bg-slate-800 p-0 overflow-hidden border-0 shadow-2xl">
-          <DialogHeader className="p-6 pb-0"><DialogTitle className="text-xl font-bold">Начать новый чат</DialogTitle></DialogHeader>
-          <div className="p-6 space-y-4">
-            {isGroupMode ? (
-              <div className="space-y-3 bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md"><Users className="w-5 h-5" /></div>
-                    <p className="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Группа</p>
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-8 text-xs font-medium text-slate-500 hover:text-red-500 rounded-lg" onClick={() => { setIsGroupMode(false); setSelectedParticipants([]); }}>Отмена</Button>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Участники:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedParticipants.length > 0 ? (
-                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{selectedParticipants.map(id => users.find(u => u.id === id)?.name).join(', ')}</p>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic">Выберите участников ниже</p>
-                    )}
-                  </div>
-                </div>
-                {selectedParticipants.length > 0 && <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 rounded-xl shadow-lg shadow-blue-500/20" onClick={handleCreateGroupChat}>Создать группу ({selectedParticipants.length})</Button>}
-              </div>
-            ) : (
-              <Button variant="outline" className="w-full h-12 rounded-xl border-2 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all flex items-center justify-center gap-3 font-bold shadow-sm" onClick={() => setIsGroupMode(true)}><div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center"><Users className="w-5 h-5" /></div>Создать групповой чат</Button>
-            )}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input placeholder="Поиск сотрудников..." className="pl-9 bg-slate-100 dark:bg-slate-700 border-0 h-11 rounded-xl" value={userSearchQuery} onChange={(e) => { setUserSearchQuery(e.target.value); setExpandedPersonId(null); }} />
+        <DialogContent className="max-w-[440px] bg-white dark:bg-slate-900 p-0 overflow-hidden border-0 shadow-2xl rounded-[32px] gap-0">
+          <div className="p-6 pb-4 flex flex-col items-center relative">
+            <h2 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 uppercase mt-2">
+              Новое сообщение или группа
+            </h2>
+          </div>
+
+          <div className="px-6 space-y-4">
+            {/* Toggle Tabs */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl shadow-inner">
+              <button 
+                onClick={() => { setIsGroupMode(false); setSelectedParticipants([]); }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
+                  !isGroupMode ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md" : "text-slate-500"
+                )}
+              >
+                <MessageSquare className="w-4 h-4" /> Чат
+              </button>
+              <button 
+                onClick={() => setIsGroupMode(true)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
+                  isGroupMode ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md" : "text-slate-500"
+                )}
+              >
+                <Users className="w-4 h-4" /> Группа
+              </button>
             </div>
-            <ScrollArea className="h-[400px] pr-4">
-              <div className="space-y-4">
-                {filteredDirectoryEntries.length > 0 ? (
-                  (() => {
-                    const registered = filteredDirectoryEntries.filter(e => e.isRegistered);
-                    const unregistered = filteredDirectoryEntries.filter(e => !e.isRegistered);
-                    const renderEntry = (entry: any) => {
-                      const reg = isUserRegistered(entry);
-                      const isExpanded = expandedPersonId === entry.id;
-                      const isSelected = selectedParticipants.includes(entry.id);
-                      return (
-                        <div key={entry.id} className={cn("group relative rounded-2xl border transition-all duration-300 overflow-hidden", reg ? "border-slate-100 dark:border-slate-700 hover:border-blue-200" : "border-slate-50 dark:border-slate-800 bg-slate-50/30 opacity-95", isExpanded && "border-blue-400 shadow-md bg-blue-50/30", isSelected && "border-blue-500 bg-blue-50")}>
-                          <div className="p-3 flex items-center gap-3 cursor-pointer" onClick={() => { if (isGroupMode && reg) toggleParticipant(entry.id); else setExpandedPersonId(isExpanded ? null : entry.id); }}>
-                            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all", reg ? "bg-blue-100 text-blue-600" : "bg-slate-200 text-slate-400", isSelected && "bg-blue-600 text-white")}>{isSelected ? <Plus className="w-5 h-5 rotate-45" /> : <UserIcon className="w-5 h-5" />}</div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2"><p className="font-bold text-slate-800 dark:text-slate-100 truncate text-sm">{entry.name}</p>{!reg && <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-600 border border-amber-200/50 whitespace-nowrap">Не в системе</span>}</div>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{entry.position}</p>
-                            </div>
-                            {!isGroupMode && <div className={cn("transition-transform duration-300", isExpanded ? "rotate-180" : "")}><Plus className={cn("w-4 h-4", isExpanded ? "rotate-45 text-blue-500" : "text-slate-300")} /></div>}
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input 
+                placeholder="Поиск коллег, отделов..." 
+                className="pl-11 bg-slate-50 dark:bg-slate-800/50 border-0 h-12 rounded-2xl text-sm placeholder:text-slate-400" 
+                value={userSearchQuery} 
+                onChange={(e) => { setUserSearchQuery(e.target.value); setExpandedPersonId(null); }} 
+              />
+            </div>
+
+            {/* Selected Participants Row */}
+            {isGroupMode && (
+              <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex flex-wrap gap-2 items-center">
+                  {selectedParticipants.map(id => {
+                    const u = users.find(user => user.id === id);
+                    const initials = u?.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || '?';
+                    return (
+                      <div key={id} className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 pl-1 pr-2 py-1 rounded-xl group transition-all hover:border-blue-300">
+                        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white relative">
+                          {initials}
+                          <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-600 border border-white rounded-full flex items-center justify-center">
+                            <Check className="w-1.5 h-1.5 text-white" />
                           </div>
-                          {!isGroupMode && (
-                            <div className={cn("px-3 pb-3 transition-all duration-300 ease-in-out", isExpanded ? "max-h-96 opacity-100 mt-1" : "max-h-0 opacity-0 pointer-events-none")}>
-                              <div className="pt-3 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500 font-medium">
-                                  <div className="flex items-center gap-1"><Building className="w-3 h-3 text-slate-400" /><span>{entry.department}</span></div>
-                                  <div className="flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" /><span>Каб. {entry.cabinet}</span></div>
-                                  <div className="flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /><span>Вн. {entry.internalPhone}</span></div>
-                                </div>
-                                {reg ? <Button className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold gap-2 shadow-sm" onClick={() => handleCreateDirectChat(entry)}><Send className="w-3.5 h-3.5" /> Написать сообщение</Button> : <div className="p-2.5 bg-slate-100/80 rounded-xl border border-slate-200/50"><p className="text-[10px] text-slate-500 font-medium leading-relaxed mb-3">Сотрудник еще не зарегистрирован.</p><div className="flex gap-2"><Button variant="secondary" size="sm" className="h-8 text-[10px] flex-1 font-bold gap-1.5 bg-white text-blue-600 shadow-sm" onClick={(e) => { e.stopPropagation(); handleContactAction('call', entry.internalPhone); }}><Phone className="w-3 h-3" /> Позвонить</Button>{entry.mobilePhone && <Button variant="secondary" size="sm" className="h-8 text-[10px] flex-1 font-bold gap-1.5 bg-white text-green-600 shadow-sm" onClick={(e) => { e.stopPropagation(); handleContactAction('call', entry.mobilePhone!); }}><Smartphone className="w-3 h-3" /> Моб</Button>}</div></div>}
-                              </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300">{u?.name?.split(' ')[0]}</span>
+                        <button onClick={() => toggleParticipant(id)} className="text-blue-400 hover:text-red-500 transition-colors">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] font-medium text-slate-500 pl-1">
+                  Участников выбрано: {selectedParticipants.length}
+                </p>
+              </div>
+            )}
+
+            {/* List */}
+            <ScrollArea className="h-[400px] -mx-2 px-2 custom-scrollbar">
+              <div className="space-y-1 pb-4">
+                {filteredDirectoryEntries.map((entry) => {
+                  const reg = isUserRegistered(entry);
+                  const isExpanded = expandedPersonId === entry.id;
+                  const isSelected = selectedParticipants.includes(entry.id);
+                  const initials = entry.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2) || '?';
+
+                  return (
+                    <div 
+                      key={entry.id} 
+                      className={cn(
+                        "group rounded-2xl transition-all duration-200 cursor-pointer overflow-hidden",
+                        isSelected 
+                          ? "bg-white dark:bg-slate-800 border border-blue-400/50 shadow-sm" 
+                          : "hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent"
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (isGroupMode) {
+                          if (reg) toggleParticipant(entry.id);
+                        } else {
+                          if (reg) setExpandedPersonId(isExpanded ? null : entry.id);
+                        }
+                      }}
+                    >
+                      <div className="p-3 flex items-center gap-4">
+                        <div className="relative shrink-0">
+                          <div className={cn(
+                            "w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold transition-all shadow-sm",
+                            isSelected ? "bg-blue-600 text-white" : "bg-blue-500 text-white"
+                          )}>
+                            {initials}
+                          </div>
+                          {isSelected && (
+                            <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 border-2 border-white dark:border-slate-800 rounded-full flex items-center justify-center">
+                              <Check className="w-2.5 h-2.5 text-white" />
                             </div>
                           )}
                         </div>
-                      );
-                    };
-                    return (
-                      <>
-                        {registered.length > 0 && <div className="space-y-2"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">Зарегистрированные</p>{registered.map(renderEntry)}</div>}
-                        {unregistered.length > 0 && <div className="space-y-2"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 pt-2">Из справочника</p>{unregistered.map(renderEntry)}</div>}
-                      </>
-                    );
-                  })()
-                ) : (
-                  <div className="text-center py-12"><Search className="w-12 h-12 text-slate-100 mx-auto mb-4" /><p className="text-sm text-slate-500">Сотрудники не найдены</p></div>
-                )}
+
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm text-slate-800 dark:text-slate-100 truncate">
+                            {entry.name}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              {entry.position}
+                            </span>
+                            <span className="w-1 h-1 rounded-full bg-slate-300" />
+                            <span className="text-[10px] text-slate-400 truncate">
+                              {entry.department}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expand for Direct Chat */}
+                      {!isGroupMode && isExpanded && (
+                        <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-300">
+                          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                            <div className="flex gap-4 text-[10px] text-slate-500 font-medium px-1">
+                              <span className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> Каб. {entry.cabinet}</span>
+                              <span className="flex items-center gap-1.5"><Phone className="w-3 h-3" /> Вн. {entry.internalPhone}</span>
+                            </div>
+                            <Button 
+                              className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold gap-2 shadow-lg shadow-blue-500/20" 
+                              onClick={() => handleCreateDirectChat(entry)}
+                            >
+                              Написать сообщение
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </ScrollArea>
           </div>
-          <div className="p-6 pt-0 border-t border-slate-50 flex justify-between gap-3">
-            <Button variant="ghost" onClick={() => setIsNewChatModalOpen(false)} className="rounded-xl flex-1">Отмена</Button>
-            {isGroupMode && <Button className="rounded-xl flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold" onClick={handleCreateGroupChat} disabled={selectedParticipants.length < 1}>Создать группу ({selectedParticipants.length})</Button>}
+
+          <div className="p-6 pt-2 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800">
+            <Button 
+              variant="ghost" 
+              onClick={() => setIsNewChatModalOpen(false)} 
+              className="text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest"
+            >
+              Закрыть
+            </Button>
+            {isGroupMode ? (
+              <Button 
+                className={cn(
+                  "h-12 px-8 rounded-full font-bold text-sm text-white shadow-xl transition-all flex items-center gap-2",
+                  selectedParticipants.length > 0 
+                    ? "bg-gradient-to-r from-blue-600 to-blue-500 hover:scale-105 shadow-blue-500/30" 
+                    : "bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-50"
+                )}
+                onClick={handleCreateGroupChat} 
+                disabled={selectedParticipants.length < 1}
+              >
+                <UserPlus className="w-5 h-5" />
+                {activeChat?.type === 'group' ? 'Добавить участника' : 'Создать группу'}
+                <Sparkles className="w-3 h-3 text-blue-100" />
+              </Button>
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
@@ -833,6 +1092,163 @@ export function ChatScreen() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
+
+      {/* Group Avatar Editor Dialog (from ProfileScreen style) */}
+      <Dialog open={showAvatarEditor} onOpenChange={(open) => {
+          if (!open) {
+            setShowAvatarEditor(false);
+            setTempAvatar(null);
+          }
+        }}>
+          <DialogContent className="max-w-[460px] p-0 overflow-hidden border-none bg-[#F2F2F7] dark:bg-black rounded-[32px] shadow-2xl">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Редактирование аватара группы</DialogTitle>
+            </DialogHeader>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
+              <button 
+                onClick={() => {
+                  setShowAvatarEditor(false);
+                  setTempAvatar(null);
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-900 dark:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              
+              <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-full flex gap-1">
+                <button className="px-4 py-1 rounded-full bg-white dark:bg-slate-700 text-xs font-bold shadow-sm">Аватар</button>
+                <button className="px-4 py-1 rounded-full text-xs font-bold text-slate-400">Постер</button>
+              </div>
+
+              <button 
+                onClick={handleSaveAvatar}
+                disabled={!tempAvatar || isUpdatingAvatar}
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                  tempAvatar ? "bg-blue-500 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-300"
+                )}
+              >
+                {isUpdatingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <div className="p-8 flex flex-col items-center gap-8">
+              {/* Hidden File Input */}
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                className="hidden" 
+                accept="image/*"
+              />
+              
+              {/* Preview Circle */}
+              <div className="relative group">
+                <div className="w-48 h-48 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center overflow-hidden border-4 border-white dark:border-slate-900 shadow-xl">
+                  <UserAvatar 
+                    avatarUrl={tempAvatar || activeChat?.avatar} 
+                    name={activeChat?.name || 'Группа'} 
+                    sizeClass="w-full h-full" 
+                    textClass="text-7xl"
+                    className="border-0"
+                    isGroup={true}
+                  />
+                </div>
+                
+                {(tempAvatar || activeChat?.avatar) && (
+                  <button 
+                    onClick={handleResetAvatar}
+                    className="absolute -top-1 -right-1 w-8 h-8 bg-slate-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-500 transition-colors border-2 border-white dark:border-slate-900"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <button className="px-6 py-2 bg-slate-200 dark:bg-slate-800 rounded-full text-sm font-bold text-slate-900 dark:text-white">
+                Настроить
+              </button>
+
+              {/* Grid Options (iOS Style) */}
+              <div className="w-full space-y-6 overflow-y-auto max-h-[300px] px-6 py-2 custom-scrollbar">
+                {/* Photo Row */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Фото &gt;</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <ImageIcon className="w-6 h-6" />
+                    </button>
+                    {/* Empty history for now, can be added later if needed */}
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={`empty-${idx}`} className="aspect-square rounded-full bg-slate-300/30 dark:bg-slate-700/30 overflow-hidden" />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Memoji Row */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Memoji &gt;</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    <button 
+                      className="aspect-square rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <Smile className="w-6 h-6" />
+                    </button>
+                    {memojis.map((emoji, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => setTempAvatar(emoji)}
+                        className={cn(
+                          "aspect-square rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110",
+                          idx % 4 === 0 ? "bg-blue-100" : idx % 4 === 1 ? "bg-amber-100" : idx % 4 === 2 ? "bg-emerald-100" : "bg-rose-100",
+                          tempAvatar === emoji && "ring-4 ring-blue-500 ring-offset-2 dark:ring-offset-black"
+                        )}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Monogram Row */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Монограмма &gt;</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    <button className="aspect-square rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 text-sm font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">Aa</button>
+                    {monogramColors.map((color, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => setTempAvatar(`monogram:${color}`)}
+                        className={cn(
+                          "aspect-square rounded-full flex items-center justify-center text-xl font-bold text-white transition-all hover:scale-110",
+                          color,
+                          tempAvatar === `monogram:${color}` && "ring-4 ring-blue-500 ring-offset-2 dark:ring-offset-black"
+                        )}
+                      >
+                        {(activeChat?.name || 'Г').charAt(0)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+         </Dialog>
+       <ChatSecurityModal 
+         isOpen={showSecurityModal} 
+         onClose={handleCloseSecurityModal} 
+       />
+     </div>
+   );
+ }

@@ -1,425 +1,414 @@
-import Fastify, { FastifyReply, FastifyRequest } from 'fastify';
-import { Server } from 'socket.io';
-import * as dotenv from 'dotenv';
-import fastifyJwt from '@fastify/jwt';
-import fastifyHelmet from '@fastify/helmet';
-import fastifyCors from '@fastify/cors';
-import fastifyRateLimit from '@fastify/rate-limit';
-import os from 'os';
-
-import prisma from './lib/prisma.js';
-import authRoutes from './routes/auth.js';
-import userRoutes from './routes/users.js';
-import roleRoutes from './routes/roles.js';
-import ticketRoutes from './routes/tickets.js';
-import inventoryRoutes from './routes/inventory.js';
-import directoryRoutes from './routes/directory.js';
-import documentRoutes from './routes/documents.js';
-import knowledgeRoutes from './routes/knowledge.js';
-import chatRoutes from './routes/chat.js';
-import aiRoutes from './routes/ai.js';
-import registryRoutes from './routes/registry.js';
-
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const fastify_1 = __importDefault(require("fastify"));
+const socket_io_1 = require("socket.io");
+const dotenv = __importStar(require("dotenv"));
+const jwt_1 = __importDefault(require("@fastify/jwt"));
+const helmet_1 = __importDefault(require("@fastify/helmet"));
+const cors_1 = __importDefault(require("@fastify/cors"));
+const rate_limit_1 = __importDefault(require("@fastify/rate-limit"));
+const os_1 = __importDefault(require("os"));
+const prisma_js_1 = __importDefault(require("./lib/prisma.js"));
+const auth_js_1 = __importDefault(require("./routes/auth.js"));
+const users_js_1 = __importDefault(require("./routes/users.js"));
+const roles_js_1 = __importDefault(require("./routes/roles.js"));
+const tickets_js_1 = __importDefault(require("./routes/tickets.js"));
+const inventory_js_1 = __importDefault(require("./routes/inventory.js"));
+const directory_js_1 = __importDefault(require("./routes/directory.js"));
+const documents_js_1 = __importDefault(require("./routes/documents.js"));
+const knowledge_js_1 = __importDefault(require("./routes/knowledge.js"));
+const chat_js_1 = __importDefault(require("./routes/chat.js"));
+const ai_js_1 = __importDefault(require("./routes/ai.js"));
+const registry_js_1 = __importDefault(require("./routes/registry.js"));
 dotenv.config();
-
-const fastify = Fastify({
-  ignoreTrailingSlash: true,
-  bodyLimit: 10485760, // 10MB limit for base64 images
-  logger: {
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        translateTime: 'HH:MM:ss Z',
-        ignore: 'pid,hostname',
-      },
+const fastify = (0, fastify_1.default)({
+    ignoreTrailingSlash: true,
+    bodyLimit: 10485760, // 10MB limit for base64 images
+    logger: {
+        transport: {
+            target: 'pino-pretty',
+            options: {
+                translateTime: 'HH:MM:ss Z',
+                ignore: 'pid,hostname',
+            },
+        },
     },
-  },
 });
-
 // 1. SECURITY: Helmet (Sets various HTTP headers)
-fastify.register(fastifyHelmet, {
-  contentSecurityPolicy: false, // Disable CSP for easier dashboard development, enable in full prod
+fastify.register(helmet_1.default, {
+    contentSecurityPolicy: false, // Disable CSP for easier dashboard development, enable in full prod
 });
-
 // 2. MIDDLEWARE & PLUGINS
-fastify.register(fastifyCors, {
-  origin: '*', // Temporarily allow all for network access debugging
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  credentials: true
+fastify.register(cors_1.default, {
+    origin: '*', // Temporarily allow all for network access debugging
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true
 });
-
 // 3. SECURITY: Rate Limiting (Prevent Brute-force/DDoS)
-fastify.register(fastifyRateLimit, {
-  max: 100, // 100 requests per window
-  timeWindow: '1 minute',
+fastify.register(rate_limit_1.default, {
+    max: 100, // 100 requests per window
+    timeWindow: '1 minute',
 });
-
 // 4. SECURITY: Register JWT
-fastify.register(fastifyJwt, {
-  secret: process.env.JWT_SECRET || 'super-secret-key-change-me',
-  sign: {
-    expiresIn: '7d', // Token valid for 7 days
-  },
+fastify.register(jwt_1.default, {
+    secret: process.env.JWT_SECRET || 'super-secret-key-change-me',
+    sign: {
+        expiresIn: '7d', // Token valid for 7 days
+    },
 });
-
 // Initialize Socket.io immediately
-const io = new Server(fastify.server, {
-  path: '/socket.io/',
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
-  transports: ['websocket', 'polling']
+const io = new socket_io_1.Server(fastify.server, {
+    path: '/socket.io/',
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST'],
+    },
+    transports: ['websocket', 'polling']
 });
-
 // Decorate fastify with io instance to make it accessible in routes
 fastify.decorate('io', io);
-
 // Map to track active users (userId -> Set of socketIds)
-const activeUsers = new Map<string, Set<string>>();
+const activeUsers = new Map();
 fastify.decorate('activeUsers', {
-  get: (userId: string) => {
-    const sockets = activeUsers.get(userId);
-    return sockets ? Array.from(sockets)[0] : undefined; 
-  },
-  getAll: (userId: string) => {
-    const sockets = activeUsers.get(userId);
-    return sockets ? Array.from(sockets) : [];
-  },
-  set: (userId: string, socketId: string) => {
-    if (!activeUsers.has(userId)) {
-      activeUsers.set(userId, new Set());
-    }
-    activeUsers.get(userId)!.add(socketId);
-  },
-  delete: (userId: string, socketId: string) => {
-    const sockets = activeUsers.get(userId);
-    if (sockets) {
-      sockets.delete(socketId);
-      if (sockets.size === 0) {
-        activeUsers.delete(userId);
-        return true; // Last socket removed
-      }
-    }
-    return false;
-  }
-});
-
-let clientCount = 0;
- 
-  io.on('connection', (socket) => {
-  clientCount++;
-  console.log(`[Socket] New connection: ${socket.id} (Total: ${clientCount})`);
-  
-  socket.on('authenticate', async (token) => {
-    try {
-      const decoded = fastify.jwt.verify(token) as any;
-      if (decoded && decoded.id) {
-        (fastify as any).activeUsers.set(decoded.id, socket.id);
-        // Join a room named after the userId for easier targeted messaging
-        socket.join(decoded.id);
-        console.log(`[Socket] User ${decoded.id} authenticated and joined room ${decoded.id}`);
-        
-        // Broadcast status change
-        io.emit('user_status_change', { userId: decoded.id, isOnline: true });
-        
-        // Update online status in DB
-        await prisma.user.update({
-          where: { id: decoded.id },
-          data: { isOnline: true }
-        }).catch(e => console.error('Failed to update online status:', e));
-
-        // Update stats
-        getDbStats().then(stats => {
-          cachedDbStats = stats;
-          io.emit('stats', { ...stats, clients: clientCount });
-        });
-      }
-    } catch (err) {
-      console.error('[Socket] Auth failed:', err);
-    }
-  });
-
-  socket.on('disconnect', async (reason) => {
-    clientCount--;
-    console.log(`[Socket] Disconnected: ${socket.id}, reason: ${reason} (Total: ${clientCount})`);
-    
-    let disconnectedUserId: string | null = null;
-    const activeUsersManager = (fastify as any).activeUsers;
-    
-    for (const [userId, sockets] of activeUsers.entries()) {
-      if (sockets.has(socket.id)) {
-        disconnectedUserId = userId;
-        const wasLast = activeUsersManager.delete(userId, socket.id);
-        
-        if (wasLast) {
-          console.log(`[Socket] User ${userId} is now completely offline`);
-          io.emit('user_status_change', { userId, isOnline: false });
-          
-          await prisma.user.update({
-            where: { id: userId },
-            data: { isOnline: false }
-          }).catch(e => console.error('Failed to update offline status:', e));
+    get: (userId) => {
+        const sockets = activeUsers.get(userId);
+        return sockets ? Array.from(sockets)[0] : undefined;
+    },
+    getAll: (userId) => {
+        const sockets = activeUsers.get(userId);
+        return sockets ? Array.from(sockets) : [];
+    },
+    set: (userId, socketId) => {
+        if (!activeUsers.has(userId)) {
+            activeUsers.set(userId, new Set());
         }
-        break;
-      }
+        activeUsers.get(userId).add(socketId);
+    },
+    delete: (userId, socketId) => {
+        const sockets = activeUsers.get(userId);
+        if (sockets) {
+            sockets.delete(socketId);
+            if (sockets.size === 0) {
+                activeUsers.delete(userId);
+                return true; // Last socket removed
+            }
+        }
+        return false;
     }
-
-    getDbStats().then(stats => {
-      cachedDbStats = stats;
+});
+let clientCount = 0;
+io.on('connection', (socket) => {
+    clientCount++;
+    console.log(`[Socket] New connection: ${socket.id} (Total: ${clientCount})`);
+    socket.on('authenticate', async (token) => {
+        try {
+            const decoded = fastify.jwt.verify(token);
+            if (decoded && decoded.id) {
+                fastify.activeUsers.set(decoded.id, socket.id);
+                // Join a room named after the userId for easier targeted messaging
+                socket.join(decoded.id);
+                console.log(`[Socket] User ${decoded.id} authenticated and joined room ${decoded.id}`);
+                // Broadcast status change
+                io.emit('user_status_change', { userId: decoded.id, isOnline: true });
+                // Update online status in DB
+                await prisma_js_1.default.user.update({
+                    where: { id: decoded.id },
+                    data: { isOnline: true }
+                }).catch(e => console.error('Failed to update online status:', e));
+                // Update stats
+                getDbStats().then(stats => {
+                    cachedDbStats = stats;
+                    io.emit('stats', { ...stats, clients: clientCount });
+                });
+            }
+        }
+        catch (err) {
+            console.error('[Socket] Auth failed:', err);
+        }
     });
-  });
-
-  socket.on('logout', async (token) => {
-    try {
-      const decoded: any = fastify.jwt.decode(token);
-      if (decoded && decoded.id) {
-        const activeUsersManager = (fastify as any).activeUsers;
-        activeUsersManager.delete(decoded.id, socket.id);
-        
-        await prisma.user.update({
-          where: { id: decoded.id },
-          data: { isOnline: false }
-        }).catch(e => console.error('Failed to update offline status on logout:', e));
-
-        io.emit('user_status_change', { userId: decoded.id, isOnline: false });
-        console.log(`[Socket] User ${decoded.id} logged out explicitly`);
-      }
-    } catch (err) {
-      console.error('[Socket] Logout error:', err);
-    }
-  });
-
-  socket.on('chat:delete', ({ chatId, receiverId }: { chatId: string, receiverId: string }) => {
-    console.log(`[Socket] Received chat:delete request for chatId: ${chatId}`);
-    // No need to manually iterate, just use the room
-    io.to(receiverId).emit('chat:deleted', { chatId });
-  });
-
-  socket.on('error', (error) => {
-    console.error(`[Socket] Error for ${socket.id}:`, error);
-  });
-});
-
-// Authenticate decorator
-fastify.decorate("authenticate", async function(request: FastifyRequest, reply: FastifyReply) {
-  try {
-    await request.jwtVerify();
-    
-    // Проверка активности пользователя
-    const user = request.user as any;
-    if (user && user.id) {
-      const dbUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { isActive: true }
-      });
-      
-      if (dbUser && !dbUser.isActive) {
-        return reply.status(403).send({ 
-          message: 'Доступ к системе Вам ограничен, обратитесь к администратору систем доступов',
-          code: 'USER_DEACTIVATED'
+    socket.on('disconnect', async (reason) => {
+        clientCount--;
+        console.log(`[Socket] Disconnected: ${socket.id}, reason: ${reason} (Total: ${clientCount})`);
+        let disconnectedUserId = null;
+        const activeUsersManager = fastify.activeUsers;
+        for (const [userId, sockets] of activeUsers.entries()) {
+            if (sockets.has(socket.id)) {
+                disconnectedUserId = userId;
+                const wasLast = activeUsersManager.delete(userId, socket.id);
+                if (wasLast) {
+                    console.log(`[Socket] User ${userId} is now completely offline`);
+                    io.emit('user_status_change', { userId, isOnline: false });
+                    await prisma_js_1.default.user.update({
+                        where: { id: userId },
+                        data: { isOnline: false }
+                    }).catch(e => console.error('Failed to update offline status:', e));
+                }
+                break;
+            }
+        }
+        getDbStats().then(stats => {
+            cachedDbStats = stats;
         });
-      }
-    }
-  } catch (err: any) {
-    reply.status(401).send({ message: 'Ошибка авторизации: токен недействителен или отсутствует' });
-  }
+    });
+    socket.on('logout', async (token) => {
+        try {
+            const decoded = fastify.jwt.decode(token);
+            if (decoded && decoded.id) {
+                const activeUsersManager = fastify.activeUsers;
+                activeUsersManager.delete(decoded.id, socket.id);
+                await prisma_js_1.default.user.update({
+                    where: { id: decoded.id },
+                    data: { isOnline: false }
+                }).catch(e => console.error('Failed to update offline status on logout:', e));
+                io.emit('user_status_change', { userId: decoded.id, isOnline: false });
+                console.log(`[Socket] User ${decoded.id} logged out explicitly`);
+            }
+        }
+        catch (err) {
+            console.error('[Socket] Logout error:', err);
+        }
+    });
+    socket.on('chat:delete', ({ chatId, receiverId }) => {
+        console.log(`[Socket] Received chat:delete request for chatId: ${chatId}`);
+        // No need to manually iterate, just use the room
+        io.to(receiverId).emit('chat:deleted', { chatId });
+    });
+    socket.on('error', (error) => {
+        console.error(`[Socket] Error for ${socket.id}:`, error);
+    });
 });
-
+// Authenticate decorator
+fastify.decorate("authenticate", async function (request, reply) {
+    try {
+        await request.jwtVerify();
+        // Проверка активности пользователя
+        const user = request.user;
+        if (user && user.id) {
+            const dbUser = await prisma_js_1.default.user.findUnique({
+                where: { id: user.id },
+                select: { isActive: true }
+            });
+            if (dbUser && !dbUser.isActive) {
+                return reply.status(403).send({
+                    message: 'Доступ к системе Вам ограничен, обратитесь к администратору систем доступов',
+                    code: 'USER_DEACTIVATED'
+                });
+            }
+        }
+    }
+    catch (err) {
+        reply.status(401).send({ message: 'Ошибка авторизации: токен недействителен или отсутствует' });
+    }
+});
 // Debug hook to catch validation errors
- fastify.addHook('preValidation', async (request) => {
-   if (request.method === 'POST' && request.url.includes('/api/knowledge')) {
-     const logMsg = `DEBUG: preValidation hook | URL: ${request.url} | Body: ${JSON.stringify(request.body)}`;
-     fastify.log.info(logMsg);
-     io.emit('log', {
-       timestamp: new Date().toISOString(),
-       type: 'info',
-       user: 'System',
-       message: logMsg
-     });
-   }
- });
-
-// Extend FastifyInstance type for the decorator
-declare module 'fastify' {
-  interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-  }
-}
-
+fastify.addHook('preValidation', async (request) => {
+    if (request.method === 'POST' && request.url.includes('/api/knowledge')) {
+        const logMsg = `DEBUG: preValidation hook | URL: ${request.url} | Body: ${JSON.stringify(request.body)}`;
+        fastify.log.info(logMsg);
+        io.emit('log', {
+            timestamp: new Date().toISOString(),
+            type: 'info',
+            user: 'System',
+            message: logMsg
+        });
+    }
+});
 // Global hook to broadcast ALL server logs to dashboard
 fastify.addHook('onResponse', async (request, reply) => {
-  let user = 'Anonymous';
-  try {
-    const token = request.headers.authorization?.split(' ')[1];
-    if (token) {
-      const decoded: any = fastify.jwt.decode(token);
-      if (decoded && decoded.username) {
-        user = decoded.username;
-      }
+    let user = 'Anonymous';
+    try {
+        const token = request.headers.authorization?.split(' ')[1];
+        if (token) {
+            const decoded = fastify.jwt.decode(token);
+            if (decoded && decoded.username) {
+                user = decoded.username;
+            }
+        }
     }
-  } catch (err: any) {
-    // Ignore JWT decode errors for logs
-  }
-
-  // Filter sensitive data from body for logging
-  let bodyInfo = '';
-  let filteredBody = null;
-  if (request.body && typeof request.body === 'object') {
-    filteredBody = { ...(request.body as any) };
-    if (filteredBody.password) filteredBody.password = '********';
-    if (filteredBody.avatar) filteredBody.avatar = '(image data)';
-    if (filteredBody.file) filteredBody.file = '(file data)';
-    bodyInfo = ` | BODY: ${JSON.stringify(filteredBody)}`;
-  }
-
-  const queryInfo = Object.keys(request.query as any).length > 0 
-    ? ` | QUERY: ${JSON.stringify(request.query)}` 
-    : '';
-
-  const message = `${request.method} ${request.url}${queryInfo}${bodyInfo} - ${reply.statusCode} (${Math.round(reply.elapsedTime)}ms)`;
-  const type = reply.statusCode >= 400 ? 'error' : 'info';
-  
-  const logData = {
-    timestamp: new Date().toISOString(),
-    type,
-    user,
-    message,
-  };
-
-  io.emit('log', logData);
-
-  // Save to DB for persistence
-  try {
-    await prisma.systemLog.create({
-      data: {
+    catch (err) {
+        // Ignore JWT decode errors for logs
+    }
+    // Filter sensitive data from body for logging
+    let bodyInfo = '';
+    let filteredBody = null;
+    if (request.body && typeof request.body === 'object') {
+        filteredBody = { ...request.body };
+        if (filteredBody.password)
+            filteredBody.password = '********';
+        if (filteredBody.avatar)
+            filteredBody.avatar = '(image data)';
+        if (filteredBody.file)
+            filteredBody.file = '(file data)';
+        bodyInfo = ` | BODY: ${JSON.stringify(filteredBody)}`;
+    }
+    const queryInfo = Object.keys(request.query).length > 0
+        ? ` | QUERY: ${JSON.stringify(request.query)}`
+        : '';
+    const message = `${request.method} ${request.url}${queryInfo}${bodyInfo} - ${reply.statusCode} (${Math.round(reply.elapsedTime)}ms)`;
+    const type = reply.statusCode >= 400 ? 'error' : 'info';
+    const logData = {
+        timestamp: new Date().toISOString(),
         type,
-        message,
         user,
-        details: filteredBody || {},
-      }
-    });
-  } catch (err: any) {
-    fastify.log.error(err, 'Failed to save log to DB:');
-  }
-});
-
-// Global Error Handler (SECURITY: Don't leak internals)
-fastify.setErrorHandler(async (error: any, _request, reply) => {
-  const statusCode = error.statusCode || 500;
-  
-  // Log the full error internally
-  fastify.log.error(error);
-
-  const logData = {
-    timestamp: new Date().toISOString(),
-    type: 'error',
-    message: `ERROR: [${statusCode}] ${error.message} ${error.code ? '(' + error.code + ')' : ''}`,
-    user: 'System'
-  };
-
-  // If validation error, include details
-  if (error.validation) {
-    logData.message += ` | Validation: ${JSON.stringify(error.validation)}`;
-  }
-
-  // Emit to dashboard
-  io.emit('log', logData);
-
-  // Save error to DB
-  try {
-    await prisma.systemLog.create({
-      data: {
-        type: 'error',
-        message: `ERROR: ${error.message}`,
-        user: 'System',
-        details: { stack: error.stack, statusCode }
-      }
-    });
-  } catch (err: any) {
-    fastify.log.error(err, 'Failed to save error log to DB:');
-  }
-
-  // Send generic message to client in production
-  if (process.env.NODE_ENV === 'production') {
-    if (statusCode >= 500) {
-      return reply.status(500).send({ message: 'Внутренняя ошибка сервера' });
+        message,
+    };
+    io.emit('log', logData);
+    // Save to DB for persistence
+    try {
+        await prisma_js_1.default.systemLog.create({
+            data: {
+                type,
+                message,
+                user,
+                details: filteredBody || {},
+            }
+        });
     }
-  }
-
-  reply.status(statusCode).send({ 
-    message: error.message,
-    statusCode
-  });
+    catch (err) {
+        fastify.log.error(err, 'Failed to save log to DB:');
+    }
 });
-
+// Global Error Handler (SECURITY: Don't leak internals)
+fastify.setErrorHandler(async (error, _request, reply) => {
+    const statusCode = error.statusCode || 500;
+    // Log the full error internally
+    fastify.log.error(error);
+    const logData = {
+        timestamp: new Date().toISOString(),
+        type: 'error',
+        message: `ERROR: [${statusCode}] ${error.message} ${error.code ? '(' + error.code + ')' : ''}`,
+        user: 'System'
+    };
+    // If validation error, include details
+    if (error.validation) {
+        logData.message += ` | Validation: ${JSON.stringify(error.validation)}`;
+    }
+    // Emit to dashboard
+    io.emit('log', logData);
+    // Save error to DB
+    try {
+        await prisma_js_1.default.systemLog.create({
+            data: {
+                type: 'error',
+                message: `ERROR: ${error.message}`,
+                user: 'System',
+                details: { stack: error.stack, statusCode }
+            }
+        });
+    }
+    catch (err) {
+        fastify.log.error(err, 'Failed to save error log to DB:');
+    }
+    // Send generic message to client in production
+    if (process.env.NODE_ENV === 'production') {
+        if (statusCode >= 500) {
+            return reply.status(500).send({ message: 'Внутренняя ошибка сервера' });
+        }
+    }
+    reply.status(statusCode).send({
+        message: error.message,
+        statusCode
+    });
+});
 // Register Routes
 fastify.get('/api', async () => {
-  return { 
-    message: 'HelpDesk CRM API Server', 
-    version: '1.3.3 Stable',
-    status: 'running',
-    timestamp: new Date().toISOString(),
-    changelog: {
-      "1.1.9": "Исправлена ошибка дублирования уведомлений, оптимизирована работа сокетов, исправлен баг с бегунком в профиле и обновлен механизм seed.",
-      "1.1.5": "Исправлена ошибка дублирования маршрута чата, улучшена обработка завершающих слешей в URL (ignoreTrailingSlash), исправлена типизация тестовых скриптов.",
-      "1.1.4": "Оптимизация работы с Prisma Client, исправление проблем с отображением SystemLog в IDE, очистка неиспользуемых импортов и иконок.",
-      "1.1.3": "Стандартизация сигнатур маршрутов Fastify (удаление FastifyPluginOptions), исправление логики валидации в базе знаний.",
-      "1.1.2": "Добавлена поддержка Socket.io для чата, исправлен порядок аргументов в логгере ошибок, обновлены схемы валидации Zod.",
-      "1.1.1": "Стабильная версия 1.1.1."
-    }
-  };
+    return {
+        message: 'HelpDesk CRM API Server',
+        version: '1.2.9-FINAL-FIX-RELOAD',
+        status: 'running',
+        timestamp: new Date().toISOString(),
+        changelog: {
+            "1.1.9": "Исправлена ошибка дублирования уведомлений, оптимизирована работа сокетов, исправлен баг с бегунком в профиле и обновлен механизм seed.",
+            "1.1.5": "Исправлена ошибка дублирования маршрута чата, улучшена обработка завершающих слешей в URL (ignoreTrailingSlash), исправлена типизация тестовых скриптов.",
+            "1.1.4": "Оптимизация работы с Prisma Client, исправление проблем с отображением SystemLog в IDE, очистка неиспользуемых импортов и иконок.",
+            "1.1.3": "Стандартизация сигнатур маршрутов Fastify (удаление FastifyPluginOptions), исправление логики валидации в базе знаний.",
+            "1.1.2": "Добавлена поддержка Socket.io для чата, исправлен порядок аргументов в логгере ошибок, обновлены схемы валидации Zod.",
+            "1.1.1": "Стабильная версия 1.1.1."
+        }
+    };
 });
-
-fastify.register(authRoutes, { prefix: '/api/auth' });
-  fastify.register(userRoutes, { prefix: '/api/users' });
-  fastify.register(roleRoutes, { prefix: '/api/roles' });
-fastify.register(ticketRoutes, { prefix: '/api/tickets' });
-fastify.register(inventoryRoutes, { prefix: '/api/inventory' });
-fastify.register(directoryRoutes, { prefix: '/api/directory' });
-fastify.register(documentRoutes, { prefix: '/api/documents' });
-fastify.register(knowledgeRoutes, { prefix: '/api/knowledge' });
-fastify.register(chatRoutes, { prefix: '/api/chat', io });
-fastify.register(aiRoutes, { prefix: '/api/ai' });
-fastify.register(registryRoutes, { prefix: '/api/registry' });
-
+fastify.register(auth_js_1.default, { prefix: '/api/auth' });
+fastify.register(users_js_1.default, { prefix: '/api/users' });
+fastify.register(roles_js_1.default, { prefix: '/api/roles' });
+fastify.register(tickets_js_1.default, { prefix: '/api/tickets' });
+fastify.register(inventory_js_1.default, { prefix: '/api/inventory' });
+fastify.register(directory_js_1.default, { prefix: '/api/directory' });
+fastify.register(documents_js_1.default, { prefix: '/api/documents' });
+fastify.register(knowledge_js_1.default, { prefix: '/api/knowledge' });
+fastify.register(chat_js_1.default, { prefix: '/api/chat', io });
+fastify.register(ai_js_1.default, { prefix: '/api/ai' });
+fastify.register(registry_js_1.default, { prefix: '/api/registry' });
 // Health check endpoint
 fastify.get('/health', async (_request, _reply) => {
-  return { status: 'ok', uptime: process.uptime() };
+    return { status: 'ok', uptime: process.uptime() };
 });
-
 // API for logs (Dashboard history)
 fastify.get('/api/system-logs', {
-  onRequest: [fastify.authenticate]
+    onRequest: [fastify.authenticate]
 }, async (request, reply) => {
-  const user = request.user as any;
-  if (user.role !== 'admin') {
-    return reply.status(403).send({ message: 'Доступ запрещен' });
-  }
-
-  const { type, user: filterUser, startDate, endDate } = request.query as any;
-
-  const where: any = {};
-  if (type) where.type = type;
-  if (filterUser) where.user = { contains: filterUser, mode: 'insensitive' };
-  if (startDate || endDate) {
-    where.timestamp = {};
-    if (startDate) where.timestamp.gte = new Date(startDate);
-    if (endDate) where.timestamp.lte = new Date(endDate);
-  }
-
-  const logs = await prisma.systemLog.findMany({
-    where,
-    orderBy: { timestamp: 'desc' },
-    take: 500
-  });
-
-  return logs;
+    const user = request.user;
+    if (user.role !== 'admin') {
+        return reply.status(403).send({ message: 'Доступ запрещен' });
+    }
+    const { type, user: filterUser, startDate, endDate } = request.query;
+    const where = {};
+    if (type)
+        where.type = type;
+    if (filterUser)
+        where.user = { contains: filterUser, mode: 'insensitive' };
+    if (startDate || endDate) {
+        where.timestamp = {};
+        if (startDate)
+            where.timestamp.gte = new Date(startDate);
+        if (endDate)
+            where.timestamp.lte = new Date(endDate);
+    }
+    const logs = await prisma_js_1.default.systemLog.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        take: 500
+    });
+    return logs;
 });
-
 // Basic Dashboard Route (Web UI for logs)
 fastify.get('/dashboard', async (_request, reply) => {
-  const html = `
+    const html = `
     <!DOCTYPE html>
     <html lang="ru">
       <head>
@@ -887,130 +876,109 @@ fastify.get('/dashboard', async (_request, reply) => {
       </body>
     </html>
   `;
-  return reply.type('text/html; charset=utf-8').send(html);
+    return reply.type('text/html; charset=utf-8').send(html);
 });
-
-// Periodic stats broadcast
-
-interface DashboardStats {
-  tickets: number;
-  users: number;
-  inventory: number;
-  documents: number;
-  ticketStatus: Record<string, number>;
-  pendingRequests: any[];
-  activeUsersList: any[];
+async function getDbStats() {
+    try {
+        const [tickets, users, inventory, documents, ticketStatus, pendingRequests, activeUsersList] = await Promise.all([
+            prisma_js_1.default.ticket.count(),
+            prisma_js_1.default.user.count(),
+            prisma_js_1.default.inventoryItem.count(),
+            prisma_js_1.default.document.count(),
+            prisma_js_1.default.ticket.groupBy({
+                by: ['status'],
+                _count: true,
+            }),
+            prisma_js_1.default.registrationRequest.findMany({
+                where: { status: 'pending' },
+                take: 5,
+                orderBy: { createdAt: 'desc' },
+            }),
+            prisma_js_1.default.user.findMany({
+                where: { isOnline: true },
+                select: {
+                    id: true,
+                    name: true,
+                    username: true,
+                    position: true,
+                    lastLogin: true
+                },
+                take: 5,
+                orderBy: { lastLogin: 'desc' }
+            })
+        ]);
+        const statusMap = {};
+        ticketStatus.forEach((s) => {
+            statusMap[s.status] = s._count;
+        });
+        return {
+            tickets,
+            users,
+            inventory,
+            documents,
+            ticketStatus: statusMap,
+            pendingRequests,
+            activeUsersList,
+        };
+    }
+    catch (err) {
+        console.error('Error fetching DB stats:', err);
+        return {
+            tickets: 0,
+            users: 0,
+            inventory: 0,
+            documents: 0,
+            ticketStatus: {},
+            pendingRequests: [],
+            activeUsersList: [],
+        };
+    }
 }
-
-async function getDbStats(): Promise<DashboardStats> {
-  try {
-    const [tickets, users, inventory, documents, ticketStatus, pendingRequests, activeUsersList] = await Promise.all([
-      prisma.ticket.count(),
-      prisma.user.count(),
-      prisma.inventoryItem.count(),
-      prisma.document.count(),
-      prisma.ticket.groupBy({
-        by: ['status'],
-        _count: true,
-      }),
-      prisma.registrationRequest.findMany({
-        where: { status: 'pending' },
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.user.findMany({
-        where: { isOnline: true },
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          position: true,
-          lastLogin: true
-        },
-        take: 5,
-        orderBy: { lastLogin: 'desc' }
-      })
-    ]);
-
-    const statusMap: Record<string, number> = {};
-    (ticketStatus as any[]).forEach((s) => {
-      statusMap[s.status] = s._count;
-    });
-
-    return {
-      tickets,
-      users,
-      inventory,
-      documents,
-      ticketStatus: statusMap,
-      pendingRequests,
-      activeUsersList,
-    };
-  } catch (err: any) {
-    console.error('Error fetching DB stats:', err);
-    return {
-      tickets: 0,
-      users: 0,
-      inventory: 0,
-      documents: 0,
-      ticketStatus: {},
-      pendingRequests: [],
-      activeUsersList: [],
-    };
-  }
-}
-
-let cachedDbStats: DashboardStats = {
-  tickets: 0,
-  users: 0,
-  inventory: 0,
-  documents: 0,
-  ticketStatus: {},
-  pendingRequests: [],
-  activeUsersList: [],
+let cachedDbStats = {
+    tickets: 0,
+    users: 0,
+    inventory: 0,
+    documents: 0,
+    ticketStatus: {},
+    pendingRequests: [],
+    activeUsersList: [],
 };
-
 // Update DB stats every 10 seconds
 setInterval(async () => {
-  cachedDbStats = await getDbStats();
+    cachedDbStats = await getDbStats();
 }, 10000);
-
 // Initial fetch
 getDbStats().then(stats => cachedDbStats = stats);
-
 setInterval(() => {
-  const uptime = process.uptime();
-  const hours = Math.floor(uptime / 3600);
-  const minutes = Math.floor((uptime % 3600) / 60);
-  const seconds = Math.floor(uptime % 60);
-  const uptimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  
-  const cpus = os.cpus();
-  const cpuLoad = Math.round(os.loadavg()[0] * 100 / cpus.length);
-
-  io.emit('stats', {
-    clients: clientCount,
-    uptime: uptimeStr,
-    memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    cpu: cpuLoad,
-    os: `${os.type()} ${os.release()}`,
-    nodeVersion: process.version,
-    db: cachedDbStats,
-  });
+    const uptime = process.uptime();
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = Math.floor(uptime % 60);
+    const uptimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    const cpus = os_1.default.cpus();
+    const cpuLoad = Math.round(os_1.default.loadavg()[0] * 100 / cpus.length);
+    io.emit('stats', {
+        clients: clientCount,
+        uptime: uptimeStr,
+        memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        cpu: cpuLoad,
+        os: `${os_1.default.type()} ${os_1.default.release()}`,
+        nodeVersion: process.version,
+        db: cachedDbStats,
+    });
 }, 1000);
-
 // Reset all users to offline on server startup
 async function resetUserStatus() {
-  try {
-    await prisma.user.updateMany({
-      data: { isOnline: false }
-    });
-    console.log('[System] All users reset to offline status on startup');
-  } catch (err: any) {
-    console.error('[System] Failed to reset user statuses:', err);
-  }
+    try {
+        await prisma_js_1.default.user.updateMany({
+            data: { isOnline: false }
+        });
+        console.log('[System] All users reset to offline status on startup');
+    }
+    catch (err) {
+        console.error('[System] Failed to reset user statuses:', err);
+    }
 }
-
 // CRITICAL: Force clear terminal and log startup
 console.clear();
 console.log('=========================================');
@@ -1018,18 +986,17 @@ console.log('   HELPDESK CRM SERVER STARTING UP...    ');
 console.log('   VERSION: 1.3.6-HARD-SYNC-NAMES        ');
 console.log('   AI LOGIC: 2.0 ENABLED                 ');
 console.log('=========================================');
-
 const start = async () => {
-  try {
-    await resetUserStatus();
-    const port = parseInt(process.env.PORT || '3000');
-    await fastify.listen({ port, host: '0.0.0.0' });
-    console.log(`[Server] Fastify listening on 0.0.0.0:${port}`);
-    fastify.log.info(`Server started`);
-  } catch (err: any) {
-  fastify.log.error(err);
-    process.exit(1);
-  }
+    try {
+        await resetUserStatus();
+        const port = parseInt(process.env.PORT || '3000');
+        await fastify.listen({ port, host: '0.0.0.0' });
+        console.log(`[Server] Fastify listening on 0.0.0.0:${port}`);
+        fastify.log.info(`Server started`);
+    }
+    catch (err) {
+        fastify.log.error(err);
+        process.exit(1);
+    }
 };
-
 start();

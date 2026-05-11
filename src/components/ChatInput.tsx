@@ -41,6 +41,7 @@ export const ChatInput = React.memo(({ onSendMessage, disabled }: ChatInputProps
     if (!newMessage.trim() || disabled) return;
     onSendMessage(newMessage.trim());
     setNewMessage('');
+    setIsEmojiPickerOpen(false); // Закрываем окно смайлов при отправке
     if (textareaRef.current) {
       textareaRef.current.style.height = '40px';
     }

@@ -16,6 +16,47 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
 
   console.log('[ChatRoutes] Initializing chat routes version 1.3.0...');
 
+  // Helper to get current participants of a group chat
+  async function getGroupParticipants(chatId: string): Promise<string[]> {
+    if (chatId === 'public') {
+      const allUsers = await prisma.user.findMany({ select: { id: true } });
+      return allUsers.map(u => u.id);
+    }
+
+    // Find all system messages related to participants for this chat
+    const systemMessages = await prisma.chatMessage.findMany({
+      where: {
+        chatId: chatId,
+        isSystem: true,
+        OR: [
+          { text: { startsWith: '[GROUP_CREATED]|' } },
+          { text: { startsWith: '[GROUP_UPDATED]|' } },
+          { text: { startsWith: '[USER_LEFT_GROUP]|' } }
+        ]
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    let participants: string[] = [];
+
+    for (const msg of systemMessages) {
+      if (msg.text.startsWith('[GROUP_CREATED]|') || msg.text.startsWith('[GROUP_UPDATED]|')) {
+        const parts = msg.text.split('|');
+        if (parts.length >= 3) {
+          participants = parts[2].split(',');
+        }
+      } else if (msg.text.startsWith('[USER_LEFT_GROUP]|')) {
+        // If a user left, remove them from the list
+        // Note: msg.senderId is the ID of the user who left
+        if (msg.senderId) {
+          participants = participants.filter(id => id !== msg.senderId);
+        }
+      }
+    }
+
+    return Array.from(new Set(participants));
+  }
+
   // 1. PURGE Chat (Using flat path to avoid parameter conflicts)
   fastify.post('/purge', {
     onRequest: [fastify.authenticate]
@@ -193,8 +234,13 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
           const consistentChatId = `chat_${[user.id, receiverId].sort().join('_')}`;
           io.to(receiverId).to(user.id).emit('chat:message', { ...messageToEmit, chatId: consistentChatId });
         } else if (chatId && chatId.startsWith('group_')) {
-          io.emit('chat:message', messageToEmit);
+          // Send ONLY to current group members
+          const members = await getGroupParticipants(chatId);
+          members.forEach(mId => {
+            io.to(mId).emit('chat:message', messageToEmit);
+          });
         } else {
+          // Public chat - broadcast to everyone
           io.emit('chat:message', { ...messageToEmit, chatId: 'public' });
         }
       }
@@ -211,11 +257,12 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
     try {
-      const { chatId, type, participants, name } = request.body as { 
+      const { chatId, type, participants, name, isUpdate } = request.body as { 
         chatId: string, 
         type: 'direct' | 'group', 
         participants: string[], 
-        name: string 
+        name: string,
+        isUpdate?: boolean
       };
       const user = request.user as any;
 
@@ -225,10 +272,31 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
       });
       const creatorName = dbUser?.name || dbUser?.username || 'Пользователь';
 
-      // Create a system message about chat creation
-      const systemText = type === 'group' 
-        ? `[GROUP_CREATED]|${name}|${participants.join(',')}|${creatorName}`
-        : `[DIRECT_CREATED]|${creatorName}`;
+      // Smart check: if chat already has messages OR was already created, it's an update
+      const existingMessagesCount = await prisma.chatMessage.count({
+        where: { chatId: chatId }
+      });
+      
+      const isExistingGroup = await prisma.chatMessage.findFirst({
+        where: { 
+          chatId: chatId,
+          isSystem: true,
+          text: { startsWith: '[GROUP_CREATED]' }
+        }
+      });
+      
+      const effectiveIsUpdate = isUpdate || existingMessagesCount > 0 || !!isExistingGroup || (chatId === 'public');
+      
+      let systemText = '';
+      if (type === 'group') {
+        if (effectiveIsUpdate) {
+          systemText = `[GROUP_UPDATED]|${name}|${participants.join(',')}|${creatorName}`;
+        } else {
+          systemText = `[GROUP_CREATED]|${name}|${participants.join(',')}|${creatorName}`;
+        }
+      } else {
+        systemText = `[DIRECT_CREATED]|${creatorName}`;
+      }
 
       const systemMessage = await prisma.chatMessage.create({
         data: {
@@ -248,9 +316,11 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
           chatName: name,
           participants: participants // ВАЖНО: передаем полный список ID участников
         };
-        // For groups, broadcast to everyone. For direct, broadcast to participants' rooms.
+        // For groups, broadcast only to current participants. For direct, broadcast to participants' rooms.
         if (type === 'group') {
-          io.emit('chat:message', messageToEmit);
+          participants.forEach(pId => {
+            io.to(pId).emit('chat:message', messageToEmit);
+          });
         } else {
           participants.forEach(pId => {
             io.to(pId).emit('chat:message', messageToEmit);
@@ -265,7 +335,59 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
     }
   });
 
-  // 6. Update Chat Avatar
+  // 6. Leave Group
+  fastify.post('/leave/:chatId', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { chatId } = request.params as { chatId: string };
+      const user = request.user as any;
+
+      if (!chatId.startsWith('group_') && chatId !== 'public') {
+        return reply.status(400).send({ message: 'Можно покинуть только групповой чат' });
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { name: true, username: true }
+      });
+
+      // Создаем системное сообщение о выходе пользователя
+      const systemMessage = await prisma.chatMessage.create({
+        data: {
+          text: `[USER_LEFT_GROUP]|${dbUser?.name || dbUser?.username || 'Пользователь'}`,
+          senderId: user.id,
+          chatId: chatId,
+          isSystem: true
+        },
+        include: {
+          sender: { select: { id: true, name: true, avatar: true, role: true } }
+        }
+      });
+
+      if (io) {
+        const members = await getGroupParticipants(chatId);
+        // Include the user who just left in the notification so they see the system message before it disappears
+        const notifyList = Array.from(new Set([...members, user.id]));
+        
+        notifyList.forEach(mId => {
+          io.to(mId).emit('chat:message', systemMessage);
+        });
+        
+        // Также можно отправить специальное событие для обновления списка участников у других
+        members.forEach(mId => {
+          io.to(mId).emit('chat:participant_left', { chatId, userId: user.id });
+        });
+      }
+
+      return reply.status(200).send({ success: true });
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.status(500).send({ message: 'Ошибка при выходе из группы' });
+    }
+  });
+
+  // 7. Update Chat Avatar
   fastify.patch('/avatar/:chatId', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {

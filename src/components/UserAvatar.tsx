@@ -13,7 +13,7 @@ interface UserAvatarProps {
 }
 
 export function UserAvatar({ 
-  avatarUrl, 
+  avatarUrl: rawAvatarUrl, 
   name, 
   userRole, 
   sizeClass = "w-12 h-12", 
@@ -22,13 +22,22 @@ export function UserAvatar({
   isGroup = false
 }: UserAvatarProps) {
   
+  // Normalize null/undefined strings from backend very aggressively
+  const avatarUrl = (
+    !rawAvatarUrl || 
+    rawAvatarUrl === 'null' || 
+    rawAvatarUrl === 'undefined' || 
+    String(rawAvatarUrl).trim() === '' ||
+    rawAvatarUrl === '[object Object]'
+  ) ? null : rawAvatarUrl;
+  
   // Neutral group avatar
-  if (isGroup && (!avatarUrl || avatarUrl === '')) {
+  if (isGroup && !avatarUrl) {
     return (
       <div 
         className={cn(
           sizeClass, 
-          "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 aspect-square",
+          "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-800 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 aspect-square",
           className
         )}
       >
@@ -38,18 +47,18 @@ export function UserAvatar({
   }
 
   // Fallback for no avatar
-  if (!avatarUrl || avatarUrl === '') {
+  if (!avatarUrl) {
     return (
       <div 
         className={cn(
           sizeClass, 
-          "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 aspect-square",
+          "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-800 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 aspect-square",
           className
         )}
         style={{ backgroundColor: userRole?.color || '#3B82F6' }}
       >
         <span className={cn("font-bold text-white uppercase", textClass)}>
-          {name ? name.charAt(0) : '?'}
+          {name && name !== 'null' ? name.charAt(0) : '?'}
         </span>
       </div>
     );
@@ -61,12 +70,12 @@ export function UserAvatar({
     return (
       <div className={cn(
         sizeClass, 
-        "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden text-white font-bold uppercase shrink-0 aspect-square", 
+        "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-800 shadow-sm overflow-hidden text-white font-bold uppercase shrink-0 aspect-square", 
         colorClass, 
         textClass,
         className
       )}>
-        {name ? name.charAt(0) : '?'}
+        {name && name !== 'null' ? name.charAt(0) : '?'}
       </div>
     );
   }
@@ -76,7 +85,7 @@ export function UserAvatar({
     return (
       <div className={cn(
         sizeClass, 
-        "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 aspect-square", 
+        "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-800 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 aspect-square", 
         textClass,
         className
       )}>
@@ -89,7 +98,7 @@ export function UserAvatar({
   return (
     <div className={cn(
       sizeClass, 
-      "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 aspect-square",
+      "rounded-full flex items-center justify-center border-2 border-white dark:border-slate-800 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 aspect-square",
       className
     )}>
       <img 

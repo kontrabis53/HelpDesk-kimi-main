@@ -11,8 +11,7 @@ import {
   ArrowLeft,
   Pin,
   PinOff,
-  Eye,
-  EyeOff,
+
   Bell,
   BellOff,
   Trash2,
@@ -29,6 +28,7 @@ import {
   X,
   Sparkles,
   Loader2,
+  LogOut as LogOutIcon,
   Image as ImageIcon
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -49,6 +49,16 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -66,6 +76,7 @@ import {
 import { toast } from 'sonner';
 import { ChatSecurityModal } from '@/components/ChatSecurityModal';
 import { ChatInput } from '@/components/ChatInput';
+import { GroupSettingsModal } from '@/components/GroupSettingsModal'; // New import
 import { VList } from 'virtua';
 
 // --- Optimized Sub-components ---
@@ -80,6 +91,12 @@ const MessageItem = React.memo(({ msg, isMe, showSender, sender }: any) => {
     if (displayText.startsWith('[GROUP_CREATED]|')) {
       const parts = displayText.split('|');
       displayText = `Пользователь ${parts[3] || 'Пользователь'} создал группу "${parts[1]}"`;
+    } else if (displayText.startsWith('[GROUP_UPDATED]|')) {
+      const parts = displayText.split('|');
+      displayText = `Пользователь ${parts[3] || 'Пользователь'} добавил участников в "${parts[1]}"`;
+    } else if (displayText.startsWith('[USER_LEFT_GROUP]|')) {
+      const parts = displayText.split('|');
+      displayText = `Пользователь ${parts[1]} покинул группу`;
     } else if (displayText.startsWith('[DIRECT_CREATED]|')) {
       displayText = `Пользователь ${displayText.split('|')[1] || 'Пользователь'} начал с вами чат`;
     }
@@ -114,7 +131,7 @@ const MessageItem = React.memo(({ msg, isMe, showSender, sender }: any) => {
 
 MessageItem.displayName = 'MessageItem';
 
-const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onRename, onTogglePin, onToggleMute, onToggleHide, onDelete }: any) => {
+const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onRename, onTogglePin, onToggleMute, onDelete, onLeave }: any) => {
   const formatChatName = (name: string, type: 'direct' | 'group') => {
     if (type === 'direct') return name || 'Чат';
     return (name || 'Групповой чат').replace(/^Групповой чат:\s*/, '');
@@ -123,6 +140,8 @@ const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onR
   const otherUser = useMemo(() => {
     return users.find((u: any) => u.id === chat.participants.find((p: string) => p !== currentUser?.id) || (u.name && chat.name && u.name.trim().toLowerCase() === chat.name.trim().toLowerCase()));
   }, [chat, users, currentUser]);
+
+  const isGroup = chat.type === 'group';
 
   return (
     <ContextMenu>
@@ -133,8 +152,7 @@ const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onR
             "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative border-2",
             isActive 
               ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30 scale-[1.02] z-10" 
-              : "hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-transparent",
-            chat.isHidden && "opacity-50 grayscale-[0.5]"
+              : "hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-transparent"
           )}
         >
           <div className="relative flex-shrink-0">
@@ -215,20 +233,26 @@ const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onR
           {chat.isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Открепить</> : <><Pin className="w-4 h-4 mr-2" /> Закрепить</>}
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onToggleMute(chat.id)}>
-          {chat.isMuted ? <><Bell className="w-4 h-4 mr-2" /> Включить звук</> : <><BellOff className="w-4 h-4 mr-2" /> Без звука</>}
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => onToggleHide(chat.id)}>
-          {chat.isHidden ? <><Eye className="w-4 h-4 mr-2" /> Показать</> : <><EyeOff className="w-4 h-4 mr-2" /> Скрыть</>}
+          {chat.isMuted ? <><Bell className="w-4 h-4 mr-2" /> Включить уведомления</> : <><BellOff className="w-4 h-4 mr-2" /> Выключить уведомления</>}
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onRename({ id: chat.id, name: chat.name })}>
           <Edit2 className="w-4 h-4 mr-2" /> Переименовать
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem className="text-red-600 focus:text-red-600" onClick={() => {
-          if (confirm('Вы уверены?')) { onDelete(chat.id); }
-        }}>
-          <Trash2 className="w-4 h-4 mr-2" /> Удалить
-        </ContextMenuItem>
+        
+        {isGroup ? (
+          <ContextMenuItem className="text-red-600 focus:text-red-600" onClick={() => {
+            if (confirm('Вы уверены, что хотите выйти из группы?')) { onLeave(chat.id); }
+          }}>
+            <LogOutIcon className="w-4 h-4 mr-2" /> Выйти из группы
+          </ContextMenuItem>
+        ) : (
+          <ContextMenuItem className="text-red-600 focus:text-red-600" onClick={() => {
+            if (confirm('Вы уверены, что хотите удалить чат?')) { onDelete(chat.id); }
+          }}>
+            <Trash2 className="w-4 h-4 mr-2" /> Удалить
+          </ContextMenuItem>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -247,11 +271,9 @@ export function ChatScreen() {
   const fetchMessages = useChatStore(s => s.fetchMessages);
   const clearUnread = useChatStore(s => s.clearUnread);
   const togglePinChat = useChatStore(s => s.togglePinChat);
-  const toggleHideChat = useChatStore(s => s.toggleHideChat);
   const toggleMuteChat = useChatStore(s => s.toggleMuteChat);
   const deleteChat = useChatStore(s => s.deleteChat);
-  const showHiddenChats = useChatStore(s => s.showHiddenChats);
-  const setShowHiddenChats = useChatStore(s => s.setShowHiddenChats);
+  const leaveChat = useChatStore(s => s.leaveChat);
   const showDirectoryUsers = useChatStore(s => s.showDirectoryUsers);
   const setShowDirectoryUsers = useChatStore(s => s.setShowDirectoryUsers);
 
@@ -301,6 +323,9 @@ export function ChatScreen() {
 
   // Security Modal State
   const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [isGroupAdminSettingsModalOpen, setIsGroupAdminSettingsModalOpen] = useState(false); // New state for group admin modal
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [chatToDeleteId, setChatToDeleteId] = useState<string | null>(null);
   
   useEffect(() => {
     const lastShowTime = localStorage.getItem('chat_security_modal_last_show');
@@ -333,7 +358,7 @@ export function ChatScreen() {
     'bg-rose-500', 'bg-violet-500', 'bg-slate-700'
   ];
   
-  const scrollRef = useRef<HTMLDivElement>(null);
+
   const viewportRef = useRef<HTMLDivElement>(null);
   const activeChat = (chats || []).find(c => c.id === activeChatId);
   const chatMessages = (messages || []).filter(m => m.chatId === activeChatId);
@@ -369,9 +394,28 @@ export function ChatScreen() {
   const isOtherUserOnline = activeChatInfo.isOnline;
 
   useEffect(() => {
-    if (viewportRef.current) {
-      // scrollToIndex can be used here for more reliable scrolling with virtualization
-      viewportRef.current.scrollTo(viewportRef.current.scrollHeight);
+    if (viewportRef.current && chatMessages.length > 0) {
+      // При получении новых сообщений в активном чате - обнуляем счетчик
+      if (activeChatId) {
+        clearUnread(activeChatId);
+      }
+
+      // Сначала скрываем контейнер, если это переключение чата
+      const el = document.querySelector('.virtua-list-container');
+      if (el) (el as HTMLElement).style.opacity = '0';
+
+      // Используем небольшую задержку, чтобы виртуальный список успел рассчитать размеры
+      const timer = setTimeout(() => {
+        requestAnimationFrame(() => {
+          // Мгновенный скролл к концу
+          (viewportRef.current as any)?.scrollToIndex(chatMessages.length + 1, { align: 'end' });
+          
+          // После скролла плавно показываем
+          if (el) (el as HTMLElement).style.opacity = '1';
+        });
+      }, 30); // 30мс достаточно для подавления визуального прыжка
+      
+      return () => clearTimeout(timer);
     }
   }, [chatMessages.length, activeChatId]);
 
@@ -444,7 +488,7 @@ export function ChatScreen() {
       setIsGroupMode(false);
       setSelectedParticipants([]);
       setGroupName('');
-      toast.success(`Группа создана`);
+      toast.success(existingGroupId ? 'Участники добавлены' : 'Группа создана');
     } else {
       toast.error('Не удалось создать группу');
     }
@@ -537,7 +581,7 @@ export function ChatScreen() {
       .filter(c => {
         const chatName = c.name || '';
         const matchesSearch = chatName.toLowerCase().includes(query);
-        return matchesSearch && (showHiddenChats || !c.isHidden);
+        return matchesSearch;
       })
       .sort((a, b) => {
         if (a.isPinned && !b.isPinned) return -1;
@@ -546,7 +590,7 @@ export function ChatScreen() {
         const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : Date.now();
         return timeB - timeA;
       });
-  }, [chats, searchQuery, showHiddenChats]);
+  }, [chats, searchQuery]);
 
   const filteredDirectoryEntries = useMemo(() => {
     const userPeople = users.map(user => ({
@@ -615,9 +659,6 @@ export function ChatScreen() {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>Настройки чата</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowHiddenChats(!showHiddenChats)}>
-                    {showHiddenChats ? <><EyeOff className="w-4 h-4 mr-2" /> Скрыть скрытые чаты</> : <><Eye className="w-4 h-4 mr-2" /> Показать скрытые чаты</>}
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowDirectoryUsers(!showDirectoryUsers)}>
                     {showDirectoryUsers ? <><Users className="w-4 h-4 mr-2" /> Скрыть сотрудников</> : <><Users className="w-4 h-4 mr-2" /> Показать сотрудников</>}
                   </DropdownMenuItem>
@@ -656,8 +697,8 @@ export function ChatScreen() {
                 }}
                 onTogglePin={togglePinChat}
                 onToggleMute={toggleMuteChat}
-                onToggleHide={toggleHideChat}
                 onDelete={deleteChat}
+                onLeave={leaveChat}
               />
             ))}
           </div>
@@ -727,38 +768,50 @@ export function ChatScreen() {
                   </div>
                 </div>
                 <div className="flex gap-1">
+
+                  {/* MoreVertical button - now toggles quick actions */}
                   <Button variant="ghost" size="icon" className={cn("text-slate-400", isQuickActionsOpen && "text-blue-600 bg-blue-50 dark:bg-blue-900/20")} onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}>
-                    <Settings className="w-5 h-5" />
+                    <MoreVertical className="w-5 h-5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="text-slate-400"><MoreVertical className="w-5 h-5" /></Button>
                 </div>
               </div>
 
               {/* Messages Area */}
               <div className="flex-1 min-h-0 relative h-full overflow-hidden">
                 <VList 
-                  className="h-full px-4 custom-scrollbar"
-                  style={{ overflowY: 'auto' }}
-                  onScroll={() => {
-                    const viewport = viewportRef.current;
-                    if (!viewport || !activeChatId || chatMessages.length === 0) return;
-                    const isNearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
-                    if (isNearBottom) clearUnread(activeChatId);
+                  key={activeChatId} // Force fresh state when switching chats
+                  className="h-full px-4 custom-scrollbar transition-opacity duration-300 virtua-list-container"
+                  style={{ overflowY: 'auto', opacity: 0 }}
+                  onScroll={(offset) => {
+                    const list = viewportRef.current as any;
+                    if (!list || !activeChatId || chatMessages.length === 0) return;
+                    
+                    // Оптимизация: проверяем unreadCount перед вызовом clearUnread
+                    const currentChat = chats.find(c => c.id === activeChatId);
+                    if (currentChat && currentChat.unreadCount > 0) {
+                      const isNearBottom = list.scrollSize - offset - list.viewportSize < 150;
+                      if (isNearBottom) clearUnread(activeChatId);
+                    }
                   }}
                   ref={viewportRef as any}
+
                 >
-                  <div className="py-4 space-y-4">
-                    {chatMessages.map((msg, i) => (
+                  {/* Top padding */}
+                  <div className="h-4" />
+                  
+                  {chatMessages.map((msg, i) => (
+                    <div key={msg.id} className="mb-4">
                       <MessageItem 
-                        key={msg.id}
                         msg={msg}
                         isMe={msg.senderId === currentUser?.id}
                         showSender={msg.senderId !== currentUser?.id && (!chatMessages[i - 1] || chatMessages[i - 1].senderId !== msg.senderId)}
                         sender={msg.senderId === currentUser?.id ? currentUser : ((msg as any).sender || users.find((u: any) => u.id === msg.senderId))}
                       />
-                    ))}
-                    <div ref={scrollRef} />
-                  </div>
+                    </div>
+                  ))}
+                  
+                  {/* Bottom padding */}
+                  <div className="h-4" />
                 </VList>
               </div>
 
@@ -770,12 +823,36 @@ export function ChatScreen() {
             </div>
 
             {/* Right Sidebar Column */}
+
             {isQuickActionsOpen && (
               <div className="flex-none w-64 border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-4 hidden lg:flex flex-col gap-6 overflow-y-auto h-full">
                 <div>
                   <div className="flex items-center justify-between mb-3 px-1">
                     <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Участники</h3>
-                    <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 gap-1" onClick={() => { setIsGroupMode(true); setSelectedParticipants(activeChat.participants.filter(id => id !== currentUser?.id)); setIsNewChatModalOpen(true); }}><UserPlus className="w-3 h-3" /> Добавить</Button>
+
+                    <div className="flex items-center gap-1">
+                      {activeChat?.type === 'group' && (
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 gap-1"
+                          onClick={() => setIsGroupAdminSettingsModalOpen(true)}>
+                          <Settings className="w-3 h-3" /> Настройки
+                        </Button>
+                      )}
+                      {activeChat?.type === 'direct' && activeChatId && (
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 gap-1"
+                          onClick={() => {
+                            setChatToDeleteId(activeChatId);
+                            setIsDeleteDialogOpen(true);
+                          }}>
+                          <Trash2 className="w-3 h-3" /> Удалить
+                        </Button>
+                      )}
+                      {activeChat?.type === 'group' && (
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 gap-1"
+                          onClick={() => { setIsGroupMode(true); setSelectedParticipants(activeChat.participants.filter(id => id !== currentUser?.id)); setIsNewChatModalOpen(true); }}>
+                          <UserPlus className="w-3 h-3" /> Добавить
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   {activeChat.type === 'group' ? (
                     <div className="space-y-2">
@@ -1184,10 +1261,41 @@ export function ChatScreen() {
             </div>
           </DialogContent>
          </Dialog>
+      {activeChatId && (
+       <GroupSettingsModal
+          isOpen={isGroupAdminSettingsModalOpen}
+          onClose={() => setIsGroupAdminSettingsModalOpen(false)}
+          chatId={activeChatId}
+        />
+      )}
+
        <ChatSecurityModal 
          isOpen={showSecurityModal} 
          onClose={handleCloseSecurityModal} 
        />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Вы уверены, что хотите удалить этот чат?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя отменить. Вся история переписки будет безвозвратно удалена.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              if (chatToDeleteId) {
+                await deleteChat(chatToDeleteId);
+                setIsDeleteDialogOpen(false);
+                setChatToDeleteId(null);
+              }
+            }} className="bg-red-600 hover:bg-red-700">
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
      </div>
    );
  }

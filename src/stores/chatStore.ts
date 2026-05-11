@@ -19,6 +19,7 @@ export interface ChatMessage {
   createdAt: string;
   timestamp?: string;
   isSystem?: boolean;
+  creatorId?: string; // Добавляем creatorId
 }
 
 interface Chat {
@@ -31,9 +32,10 @@ interface Chat {
   unreadCount: number;
   avatar?: string | null;
   isPinned?: boolean;
-  isHidden?: boolean;
   isMuted?: boolean;
   isAutoNamed?: boolean;
+  creatorId?: string; // Добавляем creatorId
+  adminIds?: string[]; // Добавляем adminIds для группы
 }
 
 interface ChatStore {
@@ -42,7 +44,6 @@ interface ChatStore {
   activeChatId: string | null;
   socket: Socket | null;
   isLoading: boolean;
-  showHiddenChats: boolean;
   showDirectoryUsers: boolean;
   
   initSocket: () => void;
@@ -56,14 +57,15 @@ interface ChatStore {
   addMessage: (message: ChatMessage) => void;
   clearUnread: (chatId: string) => void;
   togglePinChat: (chatId: string) => void;
-  toggleHideChat: (chatId: string) => void;
   toggleMuteChat: (chatId: string) => void;
-  deleteChat: (chatId: string) => void;
+  leaveChat: (chatId: string) => Promise<void>;
+  deleteChat: (chatId: string) => Promise<void>;
+  deleteGroup: (chatId: string) => Promise<void>;
   renameChat: (chatId: string, newName: string) => Promise<boolean>;
   updateChatAvatar: (chatId: string, avatar: string | null) => Promise<boolean>;
   deleteChatLocally: (chatId: string) => void;
-  setShowHiddenChats: (show: boolean) => void;
   setShowDirectoryUsers: (show: boolean) => void;
+  setGroupAdmin: (chatId: string, userId: string) => Promise<boolean>;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -74,7 +76,6 @@ export const useChatStore = create<ChatStore>()(
   activeChatId: null,
   socket: null,
   isLoading: false,
-  showHiddenChats: false,
   showDirectoryUsers: false,
 
   initSocket: () => {
@@ -126,17 +127,26 @@ export const useChatStore = create<ChatStore>()(
       }
 
       // SECURITY: Check if this message is actually for us (if it's a direct message)
-      const msgReceiverId = (message as any).receiverId;
-      if (msgReceiverId && msgReceiverId !== currentUser.id && message.senderId !== currentUser.id) {
-        console.warn('[Socket] Security Alert: Received message intended for another user!', {
-          receiverId: msgReceiverId,
-          myId: currentUser.id
-        });
-        return;
-      }
+          const msgReceiverId = (message as any).receiverId;
+          if (msgReceiverId && msgReceiverId !== currentUser.id && message.senderId !== currentUser.id) {
+            console.warn('[Socket] Security Alert: Received message intended for another user!', {
+              receiverId: msgReceiverId,
+              myId: currentUser.id
+            });
+            return;
+          }
 
-      // Check for duplicate messages to avoid multiple notifications
-      const isDuplicate = get().messages.some(m => m.id === message.id);
+          // SECURITY: If it's a group message, check if we are still a participant
+          if (message.chatId && message.chatId.startsWith('group_')) {
+            const chat = get().chats.find(c => c.id === message.chatId);
+            if (chat && !chat.participants.includes(currentUser.id)) {
+              console.log('[Socket] Ignoring message for group user has left:', message.chatId);
+              return;
+            }
+          }
+
+          // Check for duplicate messages to avoid multiple notifications
+          const isDuplicate = get().messages.some(m => m.id === message.id);
       if (isDuplicate) {
         console.log('[Socket] Duplicate message ignored:', message.id);
         return;
@@ -155,7 +165,23 @@ export const useChatStore = create<ChatStore>()(
         // Мы не санитизируем зашифрованный блоб, санитизация должна быть перед шифрованием на стороне отправителя
         // Но для безопасности можно санитизировать результат расшифровки
         displayText = cryptoUtils.decryptMessage(displayText, message.chatId);
-      } else {
+      } else if (message.isSystem && displayText) {
+            // Handle system messages early to avoid unnecessary sanitization or issues
+            if (displayText.startsWith('[GROUP_CREATED]|')) {
+              const parts = displayText.split('|');
+              displayText = `Группа "${parts[1]}" создана`;
+            } else if (displayText.startsWith('[GROUP_UPDATED]|')) {
+              const parts = displayText.split('|');
+              displayText = `Участники добавлены в "${parts[1]}"`;
+            } else if (displayText.startsWith('[USER_LEFT_GROUP]|')) {
+              const parts = displayText.split('|');
+              displayText = `Пользователь ${parts[1]} покинул группу`;
+            } else if (displayText.startsWith('[DIRECT_CREATED]|')) {
+              displayText = `Чат начат`;
+            } else if (displayText.startsWith('[GROUP_AVATAR_CHANGED]|')) {
+              displayText = `Аватар группы изменен`;
+            }
+          } else {
         // Если не зашифровано, санитизируем обычный текст
         displayText = sanitizeText(displayText);
       }
@@ -177,10 +203,33 @@ export const useChatStore = create<ChatStore>()(
       // Add message to state (this now handles chat creation and unread counting)
       get().addMessage({ ...normalizedMessage, chatId: targetChatId });
       
+      // ПРОВЕРКА: Если нас нет в списке участников этого чата (и это не общий чат), не показываем уведомление
+      const chat = get().chats.find(c => c.id === targetChatId);
+      const isUserParticipant = targetChatId === 'public' || chat?.participants.includes(currentUser.id);
+      
+      if (!isUserParticipant) {
+        console.log('[Socket] User is not a participant of this chat, skipping notification');
+        return;
+      }
+
       // Add notification for new message if it's from someone else AND not the active chat
       if (normalizedMessage.senderId !== currentUser.id && get().activeChatId !== targetChatId) {
+        // ПРОВЕРКА: Если чат на беззвучном режиме, уведомление не показываем
+        if (chat?.isMuted) {
+          console.log('[Socket] Chat is muted, skipping notification');
+          return;
+        }
+
         console.log('[Socket] Triggering notification for:', normalizedMessage.senderName);
         
+        // Throttling notifications for the same message ID to avoid duplicates
+        const lastNotifyId = (window as any)._lastNotifyId;
+        if (lastNotifyId === message.id) {
+          console.log('[Socket] Notification already shown for this message ID');
+          return;
+        }
+        (window as any)._lastNotifyId = message.id;
+
         sonnerToast(normalizedMessage.senderName || 'Новое сообщение', {
           description: normalizedMessage.text,
           duration: 5000,
@@ -244,6 +293,25 @@ export const useChatStore = create<ChatStore>()(
           set(state => ({
             chats: state.chats.map(c => c.id === chatId ? { ...c, name: newName, isAutoNamed: false } : c)
           }));
+        });
+
+        socket.on('chat:participant_left', ({ chatId, userId }: { chatId: string, userId: string }) => {
+          console.log(`[Socket] User ${userId} left chat ${chatId}`);
+          
+          const currentUser = (window as any).useAuthStore?.getState()?.user;
+          if (currentUser?.id === userId) {
+            // Если это МЫ вышли, удаляем чат из нашего списка
+            get().deleteChatLocally(chatId);
+          } else {
+            // Если вышел кто-то другой, обновляем список участников
+            set(state => ({
+              chats: state.chats.map(c => 
+                c.id === chatId 
+                  ? { ...c, participants: c.participants.filter(p => p !== userId) } 
+                  : c
+              )
+            }));
+          }
         });
 
     socket.on('chat:avatar_updated', ({ chatId, avatar }: { chatId: string, avatar: string | null }) => {
@@ -450,7 +518,7 @@ export const useChatStore = create<ChatStore>()(
                   chatAvatarsFromSystemMessages.set(chatId, avatarData);
                   (m as any)._avatarTime = msgTime;
                 }
-              } else if (m.text.startsWith('[GROUP_CREATED]|')) {
+              } else if (m.text.startsWith('[GROUP_CREATED]|') || m.text.startsWith('[GROUP_UPDATED]|')) {
                 const parts = m.text.split('|');
                 if (parts.length >= 3) {
                   const groupName = parts[1];
@@ -461,6 +529,13 @@ export const useChatStore = create<ChatStore>()(
                     chatParticipantsFromSystemMessages.set(chatId, participants);
                     (m as any)._nameTime = msgTime;
                   }
+                }
+              } else if (m.text.startsWith('[USER_LEFT_GROUP]|')) {
+                // Handle user leaving in history pass
+                const participants = chatParticipantsFromSystemMessages.get(chatId) || [];
+                if (participants.length > 0 && m.senderId) {
+                  const updatedParticipants = participants.filter(id => id !== m.senderId);
+                  chatParticipantsFromSystemMessages.set(chatId, updatedParticipants);
                 }
               } else if (m.text.includes('создал группу "')) {
                 // Legacy format support
@@ -520,7 +595,7 @@ export const useChatStore = create<ChatStore>()(
                   type: 'direct',
                   participants: [currentUser.id, participantId],
                   // Preserve unread count from state if it exists, otherwise 0
-                  unreadCount: existingChatInState?.unreadCount || 0,
+                  unreadCount: chatId === get().activeChatId ? 0 : (existingChatInState?.unreadCount || 0),
                   avatar: chatAvatarsFromSystemMessages.get(chatId) || m.chatAvatar || existingChatInState?.avatar,
                   lastMessage: m.text,
                   lastMessageTime: lastMessageTime
@@ -580,18 +655,52 @@ export const useChatStore = create<ChatStore>()(
                 ...(existingChatInState?.participants || [])
               ])).filter(Boolean);
 
+              // Resolve last message text for preview
+              let lastMessageText = m.text;
+              if (m.isSystem && m.text) {
+                if (m.text.startsWith('[GROUP_CREATED]|')) {
+                  const parts = m.text.split('|');
+                  lastMessageText = `Группа "${parts[1]}" создана`;
+                } else if (m.text.startsWith('[GROUP_UPDATED]|')) {
+                   const parts = m.text.split('|');
+                   lastMessageText = `Участники добавлены в "${parts[1]}"`;
+                 } else if (m.text.startsWith('[USER_LEFT_GROUP]|')) {
+                   const parts = m.text.split('|');
+                   lastMessageText = `Пользователь ${parts[1]} покинул группу`;
+                 } else if (m.text.startsWith('[DIRECT_CREATED]|')) {
+                  lastMessageText = `Чат начат`;
+                } else if (m.text.startsWith('[GROUP_AVATAR_CHANGED]|')) {
+                  lastMessageText = `Аватар группы изменен`;
+                }
+                
+                // ВАЖНО: Обновляем текст самого сообщения, чтобы в истории тоже был нормальный текст
+                m.text = lastMessageText;
+              }
+
               if (!existingChatInMap || new Date(lastMessageTime) > new Date(existingChatInMap.lastMessageTime)) {
-                newChatsMap.set(chatId, {
-                  id: chatId,
-                  name: chatName,
-                  type: isPublic ? 'group' : 'group',
-                  participants: allParticipants,
-                  unreadCount: existingChatInState?.unreadCount || 0,
-                  avatar: chatAvatarsFromSystemMessages.get(chatId) || m.chatAvatar || existingChatInState?.avatar,
-                  lastMessage: m.text,
-                  lastMessageTime: lastMessageTime,
-                  isAutoNamed: isAutoNamed
-                });
+                let effectiveAvatar = chatAvatarsFromSystemMessages.get(chatId) || m.chatAvatar || existingChatInState?.avatar;
+                if (effectiveAvatar === 'null' || effectiveAvatar === 'undefined') effectiveAvatar = undefined;
+
+                // ВАЖНО: Добавляем чат только если текущий пользователь является его участником (или это общий чат)
+                const isUserParticipant = isPublic || allParticipants.includes(currentUser.id);
+                
+                if (isUserParticipant) {
+                  newChatsMap.set(chatId, {
+                    id: chatId,
+                    name: chatName,
+                    type: isPublic ? 'group' : 'group',
+                    participants: allParticipants,
+                    unreadCount: chatId === get().activeChatId ? 0 : (existingChatInState?.unreadCount || 0),
+                    avatar: effectiveAvatar,
+                    lastMessage: lastMessageText,
+                    lastMessageTime: lastMessageTime,
+                    isAutoNamed: isAutoNamed,
+                    creatorId: m.creatorId || undefined // Добавляем creatorId
+                  });
+                } else {
+                  // Если пользователя нет в списке участников, удаляем чат из карты (если он там был)
+                  newChatsMap.delete(chatId);
+                }
               } else if (allParticipants.length > existingChatInMap.participants.length) {
                 // Если мы нашли больше участников в текущем сообщении, обновляем только их
                 newChatsMap.set(chatId, {
@@ -644,7 +753,12 @@ export const useChatStore = create<ChatStore>()(
         }
       },
 
-  setActiveChat: (chatId) => set({ activeChatId: chatId }),
+  setActiveChat: (chatId) => {
+    set({ activeChatId: chatId });
+    if (chatId) {
+      get().clearUnread(chatId);
+    }
+  },
 
   sendMessage: async (chatId, text, senderId, _senderName, _recipientName) => {
         try {
@@ -802,7 +916,8 @@ export const useChatStore = create<ChatStore>()(
               type: 'group',
               participants: uniqueParticipantIds,
               unreadCount: 0,
-              isAutoNamed
+              isAutoNamed,
+              creatorId: currentUser.id, // Добавляем creatorId
             };
 
             set(state => ({
@@ -815,7 +930,9 @@ export const useChatStore = create<ChatStore>()(
 
           // Notify server and all participants about group (new or updated)
           try {
-            await chatService.notifyCreation(groupId, 'group', uniqueParticipantIds, finalName);
+            // Если чат уже существовал, значит мы добавляем участников
+            const isUpdate = !!existingChatId || !!existingChatInState || (groupId === 'public');
+            await (chatService as any).notifyCreation(groupId, 'group', uniqueParticipantIds, finalName, isUpdate, currentUser.id);
           } catch (error) {
             console.error('Failed to notify group creation/update:', error);
           }
@@ -851,6 +968,21 @@ export const useChatStore = create<ChatStore>()(
           let displayText = message.text;
           if (message.text && message.text.startsWith('[ENC]')) {
             displayText = cryptoUtils.decryptMessage(message.text, effectiveChatId);
+          } else if (message.isSystem && message.text) {
+            if (message.text.startsWith('[GROUP_CREATED]|')) {
+              const parts = message.text.split('|');
+              displayText = `Группа "${parts[1]}" создана`;
+            } else if (message.text.startsWith('[GROUP_UPDATED]|')) {
+              const parts = message.text.split('|');
+              displayText = `Участники добавлены в "${parts[1]}"`;
+            } else if (message.text.startsWith('[USER_LEFT_GROUP]|')) {
+              const parts = message.text.split('|');
+              displayText = `Пользователь ${parts[1]} покинул группу`;
+            } else if (message.text.startsWith('[DIRECT_CREATED]|')) {
+              displayText = `Чат начат`;
+            } else if (message.text.startsWith('[GROUP_AVATAR_CHANGED]|')) {
+              displayText = `Аватар группы изменен`;
+            }
           }
           
           const normalizedMessage = { ...msgWithFixedId, text: displayText };
@@ -891,7 +1023,7 @@ export const useChatStore = create<ChatStore>()(
                 if (message.text.includes('Группа переименована в "')) {
                   const match = message.text.match(/Группа переименована в "([^"]+)"/);
                   if (match && match[1]) chatName = match[1];
-                } else if (message.text.startsWith('[GROUP_CREATED]|')) {
+                } else if (message.text.startsWith('[GROUP_CREATED]|') || message.text.startsWith('[GROUP_UPDATED]|')) {
                   const parts = message.text.split('|');
                   if (parts.length >= 2) chatName = parts[1];
                 }
@@ -900,16 +1032,29 @@ export const useChatStore = create<ChatStore>()(
 
             const isAutoNamed = chatName === 'Групповой чат' || (effectiveChatId.startsWith('group_') && !message.chatName);
 
-            updatedChats.unshift({
-              id: effectiveChatId,
-              name: chatName,
-              type: effectiveChatId.startsWith('group_') ? 'group' : ((message as any).receiverId || effectiveChatId.startsWith('chat_') ? 'direct' : 'group'),
-              participants: (message as any).participants || (currentUser ? Array.from(new Set([currentUser.id, otherId, message.senderId].filter(Boolean))) : []),
-              unreadCount: 0, 
-              lastMessage: displayText,
-              lastMessageTime: message.timestamp || message.createdAt,
-              isAutoNamed: isAutoNamed
-            });
+            const currentActiveId = get().activeChatId;
+            const isCurrentlyActive = effectiveChatId === currentActiveId || 
+                                     (effectiveChatId === 'public' && currentActiveId === 'public') ||
+                                     (effectiveChatId && currentActiveId && effectiveChatId.startsWith('group_') && effectiveChatId === currentActiveId);
+
+            const allParticipants = (message as any).participants || (currentUser ? Array.from(new Set([currentUser.id, otherId, message.senderId].filter(Boolean))) : []);
+            
+            // ВАЖНО: Создаем чат локально только если текущий пользователь в списке участников
+            const isUserParticipant = effectiveChatId === 'public' || allParticipants.includes(currentUser?.id);
+
+            if (isUserParticipant) {
+              updatedChats.unshift({
+                id: effectiveChatId,
+                name: chatName,
+                type: effectiveChatId.startsWith('chat_') ? 'direct' : 'group',
+                participants: allParticipants,
+                unreadCount: isCurrentlyActive ? 0 : 1, 
+                lastMessage: displayText,
+                lastMessageTime: message.timestamp || message.createdAt,
+                isAutoNamed: isAutoNamed,
+                creatorId: message.creatorId || undefined // Добавляем creatorId
+              });
+            }
           }
 
           // 2. Update the chat data and increment unread if needed
@@ -925,7 +1070,7 @@ export const useChatStore = create<ChatStore>()(
                 if (message.text.includes('Группа переименована в "')) {
                   const match = message.text.match(/Группа переименована в "([^"]+)"/);
                   if (match && match[1]) resolvedName = match[1];
-                } else if (message.text.startsWith('[GROUP_CREATED]|')) {
+                } else if (message.text.startsWith('[GROUP_CREATED]|') || message.text.startsWith('[GROUP_UPDATED]|')) {
                   const parts = message.text.split('|');
                   if (parts.length >= 2) resolvedName = parts[1];
                 }
@@ -955,10 +1100,32 @@ export const useChatStore = create<ChatStore>()(
               let newParticipants = (message as any).participants;
               
               // Handle participants from new system message format
-              if (message.isSystem && message.text.startsWith('[GROUP_CREATED]|')) {
+              if (message.isSystem && (message.text.startsWith('[GROUP_CREATED]|') || message.text.startsWith('[GROUP_UPDATED]|'))) {
                 const parts = message.text.split('|');
                 if (parts.length >= 3) {
                   newParticipants = parts[2].split(',');
+                }
+              }
+
+              // Handle user leaving group in system message
+              if (message.isSystem && message.text.startsWith('[USER_LEFT_GROUP]|')) {
+                const leftUserId = message.senderId;
+                
+                // Если ЭТО МЫ ВЫШЛИ, удаляем чат из списка полностью
+                if (leftUserId === currentUser?.id) {
+                  return null; // Будет отфильтровано ниже
+                }
+
+                if (leftUserId && c.participants.includes(leftUserId)) {
+                  // Мы НЕ используем newParticipants здесь, так как это системное сообщение о выходе,
+                  // а не полный список. Просто удаляем одного.
+                  const updatedParticipants = c.participants.filter(id => id !== leftUserId);
+                  return {
+                    ...c,
+                    participants: updatedParticipants,
+                    lastMessage: displayText,
+                    lastMessageTime: message.timestamp || message.createdAt
+                  };
                 }
               }
 
@@ -970,6 +1137,11 @@ export const useChatStore = create<ChatStore>()(
 
               if (message.senderId && !participants.includes(message.senderId)) {
                 participants.push(message.senderId);
+              }
+
+              // ВАЖНО: Если ЭТО МЫ ВЫШЛИ (проверка на случай, если мы получили сообщение в чат, из которого вышли)
+              if (!participants.includes(currentUser?.id) && c.id !== 'public') {
+                return null; // Удаляем чат из списка
               }
 
               // ВАЖНО: Если это авто-имя, пересчитываем его на основе актуальных участников
@@ -987,17 +1159,22 @@ export const useChatStore = create<ChatStore>()(
                }
               }
 
+              const currentActiveId = get().activeChatId;
+              const isCurrentlyActive = effectiveChatId === currentActiveId || 
+                                       (effectiveChatId === 'public' && currentActiveId === 'public') ||
+                                       (effectiveChatId && currentActiveId && effectiveChatId.startsWith('group_') && effectiveChatId === currentActiveId);
+
               return {
                 ...c,
                 name: resolvedName,
                 participants: participants,
                 lastMessage: displayText,
                 lastMessageTime: message.timestamp || message.createdAt,
-                unreadCount: effectiveChatId === state.activeChatId ? 0 : (c.unreadCount || 0) + 1
+                unreadCount: isCurrentlyActive ? 0 : (c.unreadCount || 0) + 1
               };
             }
             return c;
-          });
+          }).filter(Boolean) as Chat[]; // Фильтруем удаленные чаты
 
           // Sort messages by creation time
           const newMessages = [...state.messages, normalizedMessage].sort((a, b) => {
@@ -1014,8 +1191,17 @@ export const useChatStore = create<ChatStore>()(
       },
 
   clearUnread: (chatId) => {
+    if (!chatId) return;
     set(state => ({
-      chats: state.chats.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c)
+      chats: state.chats.map(c => {
+        if (!c) return c;
+        // Strict ID matching + special case for public chat
+        const isMatch = c.id === chatId || 
+                       (c.id === 'public' && chatId === 'public') ||
+                       (c.id.startsWith('group_') && chatId === c.id);
+        
+        return isMatch ? { ...c, unreadCount: 0 } : c;
+      })
     }));
   },
 
@@ -1025,16 +1211,32 @@ export const useChatStore = create<ChatStore>()(
     }));
   },
 
-  toggleHideChat: (chatId) => {
-    set(state => ({
-      chats: state.chats.map(c => c.id === chatId ? { ...c, isHidden: !c.isHidden } : c)
-    }));
+  leaveChat: async (chatId: string) => {
+    try {
+      await chatService.leaveGroup(chatId);
+      get().deleteChatLocally(chatId);
+      sonnerToast.success('Вы покинули группу');
+    } catch (error) {
+      console.error('Failed to leave group:', error);
+      sonnerToast.error('Не удалось выйти из группы');
+    }
   },
 
-  toggleMuteChat: (chatId) => {
-    set(state => ({
-      chats: state.chats.map(c => c.id === chatId ? { ...c, isMuted: !c.isMuted } : c)
-    }));
+  toggleMuteChat: (chatId: string) => {
+    set(state => {
+      const updatedChats = state.chats.map(c => {
+        if (c.id === chatId) {
+          const newMutedStatus = !c.isMuted;
+          sonnerToast(newMutedStatus ? 'Уведомления выключены' : 'Уведомления включены', {
+            description: `Для чата "${c.name}"`,
+            duration: 3000
+          });
+          return { ...c, isMuted: newMutedStatus };
+        }
+        return c;
+      });
+      return { chats: updatedChats };
+    });
   },
 
   deleteChat: async (chatId) => {
@@ -1063,10 +1265,28 @@ export const useChatStore = create<ChatStore>()(
   deleteChatLocally: (chatId) => {
     set(state => {
       const isActive = state.activeChatId === chatId;
+      const filteredChats = state.chats.filter(c => c && c.id !== chatId);
+      const filteredMessages = state.messages.filter(m => m.chatId !== chatId);
+
+      let newActiveChatId: string | null = state.activeChatId;
+      if (isActive) {
+        // If the active chat was deleted, try to find a new one
+        const publicChat = filteredChats.find(c => c.id === 'public');
+        if (publicChat) {
+          newActiveChatId = 'public';
+        } else if (filteredChats.length > 0) {
+          newActiveChatId = filteredChats[0].id; // Set to the first available chat
+        } else {
+          newActiveChatId = null; // No chats left
+        }
+      }
+
+      console.log(`[ChatStore] Locally deleted chat ${chatId}. Remaining chats: ${filteredChats.length}. New activeChatId: ${newActiveChatId}`);
+
       return {
-        chats: state.chats.filter(c => c && c.id !== chatId),
-        messages: state.messages.filter(m => m.chatId !== chatId),
-        activeChatId: isActive ? null : state.activeChatId
+        chats: filteredChats,
+        messages: filteredMessages,
+        activeChatId: newActiveChatId
       };
     });
   },
@@ -1112,7 +1332,54 @@ export const useChatStore = create<ChatStore>()(
     }
   },
 
-  setShowHiddenChats: (show) => set({ showHiddenChats: show }),
+  deleteGroup: async (chatId: string) => {
+    const currentUser = (window as any).useAuthStore?.getState()?.user;
+    if (!currentUser) {
+      sonnerToast.error('Для удаления группы необходимо авторизоваться.');
+      return;
+    }
+
+    const chatToDelete = get().chats.find(c => c.id === chatId);
+
+    if (!chatToDelete) {
+      sonnerToast.error('Группа не найдена.');
+      return;
+    }
+
+    if (chatToDelete.creatorId !== currentUser.id) {
+      sonnerToast.error('Вы не являетесь создателем этой группы и не можете ее удалить.');
+      return;
+    }
+
+    try {
+      await chatService.deleteGroup(chatId);
+      get().deleteChatLocally(chatId);
+      sonnerToast.success('Группа успешно удалена.');
+    } catch (error) {
+      console.error('Failed to delete group:', error);
+      sonnerToast.error('Не удалось удалить группу.');
+    }
+  },
+
+  setGroupAdmin: async (chatId: string, userId: string) => {
+    try {
+      await chatService.setGroupAdmin(chatId, userId);
+      set(state => ({
+        chats: state.chats.map(chat =>
+          chat.id === chatId
+            ? { ...chat, adminIds: Array.from(new Set([...(chat.adminIds || []), userId])) }
+            : chat
+        ),
+      }));
+      sonnerToast.success('Пользователь назначен администратором группы');
+      return true;
+    } catch (error) {
+      console.error('Failed to set group admin:', error);
+      sonnerToast.error('Не удалось назначить администратора группы');
+      return false;
+    }
+  },
+
   setShowDirectoryUsers: (show) => set({ showDirectoryUsers: show })
     }),
     {
@@ -1120,7 +1387,6 @@ export const useChatStore = create<ChatStore>()(
       partialize: (state) => ({
         chats: state.chats,
         messages: state.messages,
-        showHiddenChats: state.showHiddenChats,
         showDirectoryUsers: state.showDirectoryUsers,
       }),
     }

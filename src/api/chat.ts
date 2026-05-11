@@ -26,8 +26,23 @@ export const chatService = {
     return response.data;
   },
 
-  notifyCreation: async (chatId: string, type: 'direct' | 'group', participants: string[], name: string) => {
-    const response = await apiClient.post('/chat/notify-creation', { chatId, type, participants, name });
+  leaveGroup: async (chatId: string) => {
+    const response = await apiClient.post(`/chat/leave/${chatId}`);
+    return response.data;
+  },
+
+  notifyCreation: async (chatId: string, type: 'direct' | 'group', participants: string[], name: string, isUpdate: boolean = false, creatorId?: string) => {
+    const response = await apiClient.post('/chat/notify-creation', { chatId, type, participants, name, isUpdate, creatorId });
+    return response.data;
+  },
+
+  deleteGroup: async (chatId: string) => {
+    const response = await apiClient.delete(`/chat/delete-group/${chatId}`);
+    return response.data;
+  },
+
+  setGroupAdmin: async (chatId: string, userId: string) => {
+    const response = await apiClient.post(`/chat/set-admin/${chatId}`, { userId });
     return response.data;
   }
 };

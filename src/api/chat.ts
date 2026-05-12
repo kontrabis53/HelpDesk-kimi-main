@@ -36,13 +36,18 @@ export const chatService = {
     return response.data;
   },
 
-  deleteGroup: async (chatId: string) => {
-    const response = await apiClient.delete(`/chat/delete-group/${chatId}`);
+  deleteGroup: async (chatId: string, masterPassword?: string) => {
+    const response = await apiClient.post('/chat/purge', { chatId, masterPassword });
     return response.data;
   },
 
   setGroupAdmin: async (chatId: string, userId: string) => {
     const response = await apiClient.post(`/chat/set-admin/${chatId}`, { userId });
+    return response.data;
+  },
+
+  removeParticipant: async (chatId: string, userIdToRemove: string, masterPassword?: string) => {
+    const response = await apiClient.post(`/chat/remove-participant/${chatId}`, { userIdToRemove, masterPassword });
     return response.data;
   }
 };

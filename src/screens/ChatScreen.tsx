@@ -276,6 +276,8 @@ export function ChatScreen() {
   const leaveChat = useChatStore(s => s.leaveChat);
   const showDirectoryUsers = useChatStore(s => s.showDirectoryUsers);
   const setShowDirectoryUsers = useChatStore(s => s.setShowDirectoryUsers);
+  const setGroupAdmin = useChatStore(s => s.setGroupAdmin);
+  const removeParticipant = useChatStore(s => s.removeParticipant);
 
   const { entries: directoryEntries, fetchEntries: fetchDirectoryEntries } = useDirectoryStore();
 
@@ -320,6 +322,14 @@ export function ChatScreen() {
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [groupName, setGroupName] = useState('');
+
+  // State for updating existing group chats
+  const [chatIdToUpdate, setChatIdToUpdate] = useState<string | undefined>(undefined);
+
+  // State for removing participants
+  const [isRemoveParticipantModalOpen, setIsRemoveParticipantModalOpen] = useState(false);
+  const [participantToRemoveId, setParticipantToRemoveId] = useState<string | null>(null);
+  const [masterPasswordForRemoval, setMasterPasswordForRemoval] = useState('');
 
   // Security Modal State
   const [showSecurityModal, setShowSecurityModal] = useState(false);
@@ -479,16 +489,15 @@ export function ChatScreen() {
     
     // Если мы уже в групповом чате и открыли модалку "Добавить", 
     // передаем ID текущего чата, чтобы обновить его, а не создавать новый
-    const existingGroupId = activeChat?.type === 'group' ? activeChat.id : undefined;
-    
-    const id = await createGroupChat(selectedParticipants, generatedName, existingGroupId);
+    const id = await createGroupChat(selectedParticipants, generatedName, chatIdToUpdate);
     if (id) {
       setActiveChat(id);
       setIsNewChatModalOpen(false);
       setIsGroupMode(false);
       setSelectedParticipants([]);
       setGroupName('');
-      toast.success(existingGroupId ? 'Участники добавлены' : 'Группа создана');
+      setChatIdToUpdate(undefined); // Reset after use
+      toast.success(chatIdToUpdate ? 'Участники добавлены' : 'Группа создана');
     } else {
       toast.error('Не удалось создать группу');
     }
@@ -555,6 +564,35 @@ export function ChatScreen() {
       toast.error('Не удалось сбросить аватар');
     } finally {
       setIsUpdatingAvatar(false);
+    }
+  };
+
+  const handleRemoveParticipant = async () => {
+    if (!activeChatId || !participantToRemoveId) return;
+    
+    // Check if current user is owner
+    const isOwner = activeChat?.creatorId === currentUser?.id;
+
+    try {
+      // If current user is not owner, require master password
+      if (!isOwner) {
+        if (!masterPasswordForRemoval.trim()) {
+          toast.error('Введите мастер-пароль для исключения участника.');
+          return;
+        }
+        await removeParticipant(activeChatId, participantToRemoveId, masterPasswordForRemoval);
+      } else {
+        // Owner doesn't need master password
+        await removeParticipant(activeChatId, participantToRemoveId);
+      }
+      
+      toast.success('Участник успешно исключен');
+      setIsRemoveParticipantModalOpen(false);
+      setParticipantToRemoveId(null);
+      setMasterPasswordForRemoval('');
+    } catch (error: any) {
+      console.error('Failed to remove participant:', error);
+      toast.error('Не удалось исключить участника', { description: error.message || 'Неизвестная ошибка' });
     }
   };
 
@@ -848,7 +886,7 @@ export function ChatScreen() {
                       )}
                       {activeChat?.type === 'group' && (
                         <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 gap-1"
-                          onClick={() => { setIsGroupMode(true); setSelectedParticipants(activeChat.participants.filter(id => id !== currentUser?.id)); setIsNewChatModalOpen(true); }}>
+                          onClick={() => { setIsGroupMode(true); setSelectedParticipants(activeChat.participants.filter(id => id !== currentUser?.id)); setChatIdToUpdate(activeChat.id); setIsNewChatModalOpen(true); }}>
                           <UserPlus className="w-3 h-3" /> Добавить
                         </Button>
                       )}
@@ -860,10 +898,32 @@ export function ChatScreen() {
                         const participant = users.find(u => u.id === participantId);
                         if (!participant) return null;
                         return (
-                          <div key={participantId} className="flex items-center gap-2 p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-all">
-                            <UserAvatar avatarUrl={participant.avatar} name={participant.name} sizeClass="w-8 h-8" textClass="text-[10px]" />
-                            <div className="min-w-0"><p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{participant.name}</p><p className="text-[10px] text-slate-500 truncate">{participant.position || 'Пользователь'}</p></div>
-                          </div>
+                          <ContextMenu>
+                          <ContextMenuTrigger>
+                            <div key={participantId} className="flex items-center gap-2 p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-all">
+                              <UserAvatar avatarUrl={participant.avatar} name={participant.name} sizeClass="w-8 h-8" textClass="text-[10px]" />
+                              <div className="min-w-0"><p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{participant.name}</p><p className="text-[10px] text-slate-500 truncate">{participant.position || 'Пользователь'}</p></div>
+                            </div>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent className="w-48">
+                            {activeChat?.creatorId === currentUser?.id && participant.id !== currentUser?.id && (
+                              <ContextMenuItem className="text-red-600 focus:text-red-600" onClick={() => {
+                                setParticipantToRemoveId(participant.id);
+                                setIsRemoveParticipantModalOpen(true);
+                              }}>
+                                <Trash2 className="w-4 h-4 mr-2" /> Исключить
+                              </ContextMenuItem>
+                            )}
+                            {activeChat?.creatorId !== currentUser?.id && (
+                               <ContextMenuItem className="text-red-600 focus:text-red-600" onClick={() => {
+                                 setParticipantToRemoveId(participant.id);
+                                 setIsRemoveParticipantModalOpen(true);
+                               }}>
+                                <Trash2 className="w-4 h-4 mr-2" /> Исключить (Мастер-пароль)
+                               </ContextMenuItem>
+                            )}
+                          </ContextMenuContent>
+                        </ContextMenu>
                         );
                       })}
                     </div>
@@ -905,8 +965,11 @@ export function ChatScreen() {
         )}
       </div>
 
-      <Dialog open={isNewChatModalOpen} onOpenChange={(open) => { setIsNewChatModalOpen(open); if (!open) { setExpandedPersonId(null); setIsGroupMode(false); setSelectedParticipants([]); setGroupName(''); } }}>
+      <Dialog open={isNewChatModalOpen} onOpenChange={(open) => { setIsNewChatModalOpen(open); if (!open) { setExpandedPersonId(null); setIsGroupMode(false); setSelectedParticipants([]); setGroupName(''); setChatIdToUpdate(undefined); } }}>
         <DialogContent className="max-w-[440px] bg-white dark:bg-slate-900 p-0 overflow-hidden border-0 shadow-2xl rounded-[32px] gap-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Новое сообщение или группа</DialogTitle>
+          </DialogHeader>
           <div className="p-6 pb-4 flex flex-col items-center relative">
             <h2 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 uppercase mt-2">
               Новое сообщение или группа
@@ -917,7 +980,7 @@ export function ChatScreen() {
             {/* Toggle Tabs */}
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl shadow-inner">
               <button 
-                onClick={() => { setIsGroupMode(false); setSelectedParticipants([]); }}
+                onClick={() => { setIsGroupMode(false); setSelectedParticipants([]); setChatIdToUpdate(undefined); }}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
                   !isGroupMode ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md" : "text-slate-500"
@@ -926,7 +989,7 @@ export function ChatScreen() {
                 <MessageSquare className="w-4 h-4" /> Чат
               </button>
               <button 
-                onClick={() => setIsGroupMode(true)}
+                onClick={() => { setIsGroupMode(true); setChatIdToUpdate(undefined); }}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
                   isGroupMode ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md" : "text-slate-500"
@@ -1292,6 +1355,40 @@ export function ChatScreen() {
               }
             }} className="bg-red-600 hover:bg-red-700">
               Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={isRemoveParticipantModalOpen} onOpenChange={(open) => {
+        setIsRemoveParticipantModalOpen(open);
+        if (!open) {
+          setParticipantToRemoveId(null);
+          setMasterPasswordForRemoval('');
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Исключить участника?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы собираетесь исключить участника из группы. Это действие нельзя отменить.
+            </AlertDialogDescription>
+            {activeChat?.creatorId !== currentUser?.id && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Мастер-пароль</label>
+                <Input
+                  type="password"
+                  placeholder="Введите мастер-пароль"
+                  value={masterPasswordForRemoval}
+                  onChange={(e) => setMasterPasswordForRemoval(e.target.value)}
+                  className="bg-slate-100 dark:bg-slate-700 border-0 h-10 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveParticipant} className="bg-red-600 hover:bg-red-700">
+              Исключить
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -60,12 +60,13 @@ interface ChatStore {
   toggleMuteChat: (chatId: string) => void;
   leaveChat: (chatId: string) => Promise<void>;
   deleteChat: (chatId: string) => Promise<void>;
-  deleteGroup: (chatId: string) => Promise<void>;
+  deleteGroup: (chatId: string, masterPassword?: string) => Promise<void>;
   renameChat: (chatId: string, newName: string) => Promise<boolean>;
   updateChatAvatar: (chatId: string, avatar: string | null) => Promise<boolean>;
   deleteChatLocally: (chatId: string) => void;
   setShowDirectoryUsers: (show: boolean) => void;
   setGroupAdmin: (chatId: string, userId: string) => Promise<boolean>;
+  removeParticipant: (chatId: string, userIdToRemove: string, masterPassword?: string) => Promise<boolean>;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -84,8 +85,7 @@ export const useChatStore = create<ChatStore>()(
     }
 
     // NUCLEAR OPTION: Ignore .env and use browser location for everything
-    const currentHost = window.location.hostname;
-    const socketUrl = `http://${currentHost}:3000`;
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || `http://localhost:3000`; // Fallback for dev
 
     console.log('[Socket] NUCLEAR CONNECT:', socketUrl);
     const socket = io(socketUrl, {
@@ -845,31 +845,36 @@ export const useChatStore = create<ChatStore>()(
         return newChat.id;
       },
 
-  createGroupChat: async (participantIds, name, existingChatId) => {
+  createGroupChat: async (newParticipantIds, name, existingChatId) => {
         const currentUser = (window as any).useAuthStore?.getState()?.user;
         if (!currentUser) return '';
 
         try {
+          let currentParticipants: string[] = [];
+          // If existingChatId is provided, retrieve current participants from the existing chat
+          if (existingChatId) {
+            const existingChatInState = get().chats.find(c => c.id === existingChatId);
+            if (existingChatInState) {
+              currentParticipants = existingChatInState.participants;
+            } else {
+              // If existingChatId is provided but chat not found in state, this is an error or a fresh creation attempt for an existing chat.
+              // For now, we'll treat it as if no participants exist, and proceed to add only the new ones.
+              // A more robust solution might involve fetching participants from the backend if not found locally.
+              console.warn(`[chatStore] existingChatId ${existingChatId} provided but chat not found in local state.`);
+            }
+          }
+          
           // 1. Ensure currentUser is added but NOT duplicated
-          const uniqueParticipantIds = Array.from(new Set([currentUser.id, ...participantIds])).sort();
+          const allUniqueParticipantIds = Array.from(new Set([
+            currentUser.id,
+            ...currentParticipants,
+            ...newParticipantIds
+          ])).sort();
           
           // 2. IMPORTANT: If existingChatId is provided, use it instead of searching/creating
           let groupId = existingChatId;
           
           if (!groupId) {
-            // Check if a group with EXACTLY these participants already exists
-            const existingGroup = get().chats.find(c => 
-              c.type === 'group' && 
-              c.participants.length === uniqueParticipantIds.length &&
-              uniqueParticipantIds.every(id => c.participants.includes(id))
-            );
-
-            if (existingGroup) {
-              console.log(`[Chat] Found existing group ${existingGroup.id} for these participants`);
-              set({ activeChatId: existingGroup.id });
-              return existingGroup.id;
-            }
-            
             // Generate a stable unique ID if no existing group
             groupId = `group_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
           }
@@ -884,7 +889,7 @@ export const useChatStore = create<ChatStore>()(
           if (!finalName) {
             isAutoNamed = true;
             const users = (window as any).useRoleStore?.getState()?.users || [];
-            const names = uniqueParticipantIds
+            const names = allUniqueParticipantIds
               .map(id => {
                 const u = users.find((user: any) => user.id === id);
                 return u?.name?.split(' ')[0] || null;
@@ -901,7 +906,7 @@ export const useChatStore = create<ChatStore>()(
               chats: state.chats.map(c => c.id === groupId ? {
                 ...c,
                 name: finalName,
-                participants: uniqueParticipantIds,
+                participants: allUniqueParticipantIds,
                 isAutoNamed
               } : c),
               activeChatId: groupId,
@@ -914,7 +919,7 @@ export const useChatStore = create<ChatStore>()(
               id: groupId,
               name: finalName,
               type: 'group',
-              participants: uniqueParticipantIds,
+              participants: allUniqueParticipantIds,
               unreadCount: 0,
               isAutoNamed,
               creatorId: currentUser.id, // Добавляем creatorId
@@ -932,7 +937,7 @@ export const useChatStore = create<ChatStore>()(
           try {
             // Если чат уже существовал, значит мы добавляем участников
             const isUpdate = !!existingChatId || !!existingChatInState || (groupId === 'public');
-            await (chatService as any).notifyCreation(groupId, 'group', uniqueParticipantIds, finalName, isUpdate, currentUser.id);
+            await (chatService as any).notifyCreation(groupId, 'group', allUniqueParticipantIds, finalName, isUpdate, currentUser.id);
           } catch (error) {
             console.error('Failed to notify group creation/update:', error);
           }
@@ -1281,7 +1286,7 @@ export const useChatStore = create<ChatStore>()(
         }
       }
 
-      console.log(`[ChatStore] Locally deleted chat ${chatId}. Remaining chats: ${filteredChats.length}. New activeChatId: ${newActiveChatId}`);
+      console.log(`[ChatStore] Locally deleted chat ${chatId}. Remaining chats: ${filteredChats.length}. New activeChatId: ${newActiveChatId}. Filtered chats IDs: ${filteredChats.map(c => c.id).join(', ')}`);
 
       return {
         chats: filteredChats,
@@ -1332,7 +1337,7 @@ export const useChatStore = create<ChatStore>()(
     }
   },
 
-  deleteGroup: async (chatId: string) => {
+  deleteGroup: async (chatId: string, masterPassword?: string) => {
     const currentUser = (window as any).useAuthStore?.getState()?.user;
     if (!currentUser) {
       sonnerToast.error('Для удаления группы необходимо авторизоваться.');
@@ -1346,18 +1351,50 @@ export const useChatStore = create<ChatStore>()(
       return;
     }
 
-    if (chatToDelete.creatorId !== currentUser.id) {
-      sonnerToast.error('Вы не являетесь создателем этой группы и не можете ее удалить.');
+    // If not creator, and no master password, show error. Otherwise, proceed to API call.
+    if (chatToDelete.creatorId !== currentUser.id && !masterPassword) {
+      sonnerToast.error('Вы не являетесь создателем этой группы и не можете ее удалить без мастер-пароля.');
       return;
     }
 
     try {
-      await chatService.deleteGroup(chatId);
+      await chatService.deleteGroup(chatId, masterPassword);
       get().deleteChatLocally(chatId);
       sonnerToast.success('Группа успешно удалена.');
     } catch (error) {
       console.error('Failed to delete group:', error);
       sonnerToast.error('Не удалось удалить группу.');
+    }
+  },
+
+  removeParticipant: async (chatId, userIdToRemove, masterPassword) => {
+    try {
+      const response = await chatService.removeParticipant(chatId, userIdToRemove, masterPassword);
+      if (response.success) {
+        // If the group was deleted (no participants left)
+        if (response.message === 'Группа удалена, так как не осталось участников.') {
+          get().deleteChatLocally(chatId);
+          sonnerToast.success(response.message);
+          return true;
+        }
+
+        // Otherwise, update the participants list locally
+        set(state => ({
+          chats: state.chats.map(c =>
+            c.id === chatId
+              ? { ...c, participants: c.participants.filter(p => p !== userIdToRemove) }
+              : c
+          )
+        }));
+        sonnerToast.success(response.message);
+        return true;
+      } else {
+        sonnerToast.error('Ошибка', { description: response.message });
+        return false;
+      }
+    } catch (error: any) {
+      sonnerToast.error('Ошибка при исключении участника', { description: error.message || 'Неизвестная ошибка' });
+      return false;
     }
   },
 

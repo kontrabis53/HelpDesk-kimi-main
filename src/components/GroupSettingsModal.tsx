@@ -38,7 +38,9 @@ interface GroupAdminSettingsModalProps {
 export function GroupSettingsModal({ isOpen, onClose, chatId }: GroupAdminSettingsModalProps) {
   const { deleteGroup, chats, renameChat, updateChatAvatar, leaveChat, toggleMuteChat, togglePinChat } = useChatStore();
   const currentUser = useAuthStore(state => state.user);
-  const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false); // Новое состояние для AlertDialog
+  const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false); // Состояние для AlertDialog подтверждения удаления
+  const [isMasterPasswordModalOpen, setIsMasterPasswordModalOpen] = useState(false); // Состояние для AlertDialog запроса мастер-пароля
+  const [masterPassword, setMasterPassword] = useState(''); // Состояние для хранения мастер-пароля
 
   const activeChat = chats.find(c => c.id === chatId);
   const isCreator = currentUser?.id === activeChat?.creatorId;
@@ -62,21 +64,32 @@ export function GroupSettingsModal({ isOpen, onClose, chatId }: GroupAdminSettin
   const handleDeleteGroup = async () => {
     if (!activeChat) return;
 
-    if (activeChat.participants.length > 1) {
-      // Если в группе есть другие участники, кроме создателя
-      setIsAlertDialogOpen(true); // Открываем AlertDialog для подтверждения
+    if (isCreator) {
+      if (activeChat.participants.length > 1) {
+        setIsAlertDialogOpen(true); // Открываем AlertDialog для подтверждения
+      } else {
+        await deleteGroup(chatId);
+        onClose();
+      }
     } else {
-      // Если только создатель или группа пуста, удаляем сразу
-      await deleteGroup(chatId);
-      onClose();
+      setIsMasterPasswordModalOpen(true); // Открываем модальное окно для мастер-пароля
     }
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (mp?: string) => {
     if (!chatId) return;
-    await deleteGroup(chatId);
+    await deleteGroup(chatId, mp);
     setIsAlertDialogOpen(false);
+    setIsMasterPasswordModalOpen(false);
     onClose();
+  };
+
+  const handleMasterPasswordDelete = () => {
+    if (!masterPassword.trim()) {
+      toast.error('Введите мастер-пароль');
+      return;
+    }
+    confirmDelete(masterPassword);
   };
 
   const handleRenameGroup = async () => {
@@ -244,17 +257,21 @@ export function GroupSettingsModal({ isOpen, onClose, chatId }: GroupAdminSettin
                   </div>
                 </div>
               </div>
-
-              {/* Кнопка Удалить группу */}
-              <Button
-                variant="destructive"
-                className="w-full h-12 rounded-xl text-base font-bold flex items-center gap-2 mt-4"
-                onClick={handleDeleteGroup}
-              >
-                <Trash2 className="w-5 h-5" /> Удалить группу
-              </Button>
             </div>
           )}
+
+          {/* ОПАСНАЯ ЗОНА (для всех) */}
+          <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <h4 className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Опасная зона</h4>
+            {/* Кнопка Удалить группу */}
+            <Button
+              variant="destructive"
+              className="w-full h-12 rounded-xl text-base font-bold flex items-center gap-2 mt-4"
+              onClick={handleDeleteGroup}
+            >
+              <Trash2 className="w-5 h-5" /> Удалить группу
+            </Button>
+          </div>
 
           {/* Кнопка Покинуть группу (для всех) */}
           <Button
@@ -283,8 +300,33 @@ export function GroupSettingsModal({ isOpen, onClose, chatId }: GroupAdminSettin
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction onClick={() => confirmDelete()} className="bg-red-600 hover:bg-red-700">
               Удалить для всех
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog для подтверждения удаления группы с мастер-паролем */}
+      <AlertDialog open={isMasterPasswordModalOpen} onOpenChange={setIsMasterPasswordModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить группу "{activeChat.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы не являетесь создателем этой группы. Для удаления введите мастер-пароль.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            type="password"
+            placeholder="Мастер-пароль"
+            value={masterPassword}
+            onChange={(e) => setMasterPassword(e.target.value)}
+            className="mt-4"
+          />
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel onClick={() => setMasterPassword('')}>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMasterPasswordDelete} className="bg-red-600 hover:bg-red-700">
+              Удалить
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

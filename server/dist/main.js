@@ -350,7 +350,7 @@ fastify.setErrorHandler(async (error, _request, reply) => {
 fastify.get('/api', async () => {
     return {
         message: 'HelpDesk CRM API Server',
-        version: '1.2.9-FINAL-FIX-RELOAD',
+        version: '1.3.4 Stable',
         status: 'running',
         timestamp: new Date().toISOString(),
         changelog: {

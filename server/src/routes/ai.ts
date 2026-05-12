@@ -4,7 +4,7 @@ import prisma from '../lib/prisma.js';
 // --- ИЗОЛЯЦИЯ ЛОГИКИ ИИ ---
 const AI_UTILS = {
   levenshtein: (a: string, b: string): number => {
-    const matrix = [];
+    const matrix: number[][] = [];
     for (let i = 0; i <= b.length; i++) matrix[i] = [i];
     for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
     for (let i = 1; i <= b.length; i++) {
@@ -18,16 +18,34 @@ const AI_UTILS = {
 
   getRandom: (arr: string[]) => arr[Math.floor(Math.random() * arr.length)],
 
+  /** Все разделы CRM — единая карта для Medini */
   crmKnowledge: {
-    tickets: "Раздел **Заявки** — здесь вы создаете тикеты на ремонт или обслуживание. Можно назначать ответственных, менять статусы и приоритеты.",
-    inventory: "Модуль **Склад** — учет расходных материалов (бумага, картриджи). Я вижу остатки в реальном времени.",
-    registry: "Раздел **Клиника Live** (Реестр) — здесь вся структура клиники: здания, этажи, кабинеты и закрепленное за ними оборудование.",
-    knowledge: "Модуль **База знаний** — инструкции, регламенты и полезные статьи для сотрудников.",
-    guides: "Раздел **Инструкции** — пошаговые руководства по работе с оборудованием и ПО.",
-    documents: "Модуль **Документы** — здесь хранятся акты выполненных работ, списания и другие отчеты.",
-    directory: "Раздел **Справочник** — контакты всех сотрудников клиники, их должности и внутренние номера.",
-    chat: "Внутренний **Чат** — для оперативного общения между сотрудниками.",
-    admin: "Панель **Управление** — только для администраторов: настройка ролей, прав доступа и управление структурой клиники."
+    tickets:
+      '**Заявки** — создание тикетов на ремонт и обслуживание, назначение исполнителя, статусы и приоритеты. Отсюда ведётся вся «линейка» ИТ-поддержки.',
+    inventory:
+      '**Склад** — учёт расходников (бумага, картриджи и т.д.), остатки и списание. Удобно проверять, чего не хватает до заказа.',
+    registry:
+      '**Клиника Live / Реестр** — структура клиники: здания, этажи, кабинеты и привязанное оборудование. Карта помещений «как в жизни».',
+    knowledge:
+      '**База знаний** — статьи, регламенты и ответы на частые вопросы. То, что должно жить дольше одного тикета.',
+    guides:
+      '**Инструкции** — пошаговые сценарии по оборудованию и ПО. Короче и практичнее, чем полные статьи.',
+    documents:
+      '**Документы** — акты, отчёты, списания: формальная «бумага» по выполненным работам.',
+    directory:
+      '**Справочник** — контакты сотрудников, должности, отделы и внутренние телефоны.',
+    chat:
+      '**Чат** — внутренняя переписка между сотрудниками, в том числе групповые обсуждения.',
+    admin:
+      '**Управление (админка)** — роли, права доступа, пользователи и настройки системы (по политике клиники).',
+    profile:
+      '**Профиль** — ваши данные, аватар, настройки уведомлений и персональные параметры аккаунта.',
+    parser:
+      '**Парсер** — разбор и импорт данных из файлов (при включённом модуле и правах доступа).',
+    users:
+      '**Пользователи** — учётные записи персонала (часто в связке с админкой): кто во что может заходить.',
+    decryptor:
+      '**Расшифровка** — инструмент для работы с защищённым содержимым в рамках политики безопасности (доступ по ролям).'
   } as Record<string, string>,
 
   stopWords: ['привет', 'здравствуй', 'телефон', 'номер', 'найди', 'подскажи', 'узнай', 'сотрудник', 'контакт', 'справочник'],
@@ -35,11 +53,95 @@ const AI_UTILS = {
   stem: (word: string) => {
     if (word.length <= 4) return word;
     return word.replace(/(а|я|о|е|и|ы|ь|ю|у|ой|ей|ий|ый|ов|ев|их|ых|ую|юю|ая|яя|ое|ее)$/g, '');
-  }
+  },
+
+  livelyCloser: [
+    'Если нужно — уточните формулировку, я подстроюсь.',
+    'Напишите одним предложением, что ищете — разверну ответ.',
+    'Могу сузить поиск: справочник, техника или база знаний.',
+    'Я рядом — спросите ещё раз чуть конкретнее, если что-то упустила.'
+  ],
+
+  moduleTeasers: [
+    'Коротко и по делу:',
+    'Смотрите, как это устроено:',
+    'В двух словах про раздел:',
+    'Вот что важно знать:'
+  ]
 };
 
+function wantsModuleExplanation(msg: string): boolean {
+  return /расскажи|объясни|что такое|зачем (нужен|это)|как (работает|пользоваться|открыть|найти)|инструкция|опиши|где (лежит|находится|вкладка)|модуль|раздел|экран|вкладк|про функционал|для чего|назначение/i.test(
+    msg
+  );
+}
+
+function contactShouldWin(
+  relevantContacts: { searchScore: number }[],
+  isContactQuery: boolean
+): boolean {
+  if (relevantContacts.length === 0) return false;
+  const top = relevantContacts[0].searchScore;
+  return isContactQuery || top >= 480;
+}
+
+function formatModuleAnswer(moduleKey: string, firstName?: string): string {
+  const body = AI_UTILS.crmKnowledge[moduleKey];
+  if (!body) return '';
+  const teaser = AI_UTILS.getRandom(AI_UTILS.moduleTeasers);
+  const closer = AI_UTILS.getRandom(AI_UTILS.livelyCloser);
+  const nod = firstName ? `${firstName}, ` : '';
+  return `${teaser}\n\n${body}\n\n✨ ${nod}${closer}`;
+}
+
+/** Имя для обращения: при «Фамилия Имя …» — второе слово (как в русском ФИО). */
+function givenNameFromFull(fullName?: string | null): string | undefined {
+  if (!fullName?.trim()) return undefined;
+  const p = fullName.trim().split(/\s+/).filter(Boolean);
+  if (p.length >= 2) return p[1];
+  return p[0];
+}
+
+function buildModulesOverviewLine(stats: {
+  tickets: number;
+  kb: number;
+  equip: number;
+  docs: number;
+  sku: number;
+}): string {
+  const order = [
+    'tickets',
+    'inventory',
+    'registry',
+    'knowledge',
+    'guides',
+    'documents',
+    'directory',
+    'chat',
+    'profile',
+    'parser',
+    'users',
+    'admin',
+    'decryptor'
+  ] as const;
+  const lines = order
+    .map((k, i) => {
+      const text = AI_UTILS.crmKnowledge[k];
+      return text ? `${i + 1}. ${text}` : '';
+    })
+    .filter(Boolean);
+
+  const digest =
+    `📊 **Краткая сводка по базе:** открытых заявок — **${stats.tickets}**, статей в базе знаний — **${stats.kb}**, единиц оборудования в реестре — **${stats.equip}**, документов — **${stats.docs}**, позиций на складе — **${stats.sku}**.`;
+
+  return (
+    `Я **Medini** — штатный помощник CRM. Вижу не только справочник, но и заявки, склад, реестр, документы и базу знаний.\n\n` +
+    `**Карта модулей:**\n\n${lines.join('\n\n')}\n\n${digest}\n\n` +
+    `Спросите **конкретно** — например фамилию, инвентарный номер, «остаток бумаги» или «что такое заявки» — и я вытащу данные или объясню раздел.`
+  );
+}
+
 export default async function aiRoutes(fastify: FastifyInstance) {
-  // Get AI history for current user
   fastify.get('/history', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
@@ -47,7 +149,7 @@ export default async function aiRoutes(fastify: FastifyInstance) {
     try {
       const history = await (prisma as any).aIHistory.findMany({
         where: { userId: requestUser.id },
-        orderBy: { createdAt: 'asc' }, // От старых к новым для чата
+        orderBy: { createdAt: 'asc' },
         take: 50
       });
       return history;
@@ -57,7 +159,6 @@ export default async function aiRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Chat with local AI
   fastify.post('/chat', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
@@ -67,16 +168,25 @@ export default async function aiRoutes(fastify: FastifyInstance) {
     try {
       console.log(`[AI DEBUG] User ${requestUser.id} sent message: "${rawMessage}"`);
 
-      // --- 1. ПОДГОТОВКА КОНТЕКСТА ---
       const cleanMsg = rawMessage.toLowerCase().replace(/[.,!?;:]/g, ' ').trim();
-      
+
       const searchWords = cleanMsg.split(/\s+/).filter(w => w.length > 2 && !AI_UTILS.stopWords.includes(w));
       const stemmedWords = searchWords.map(AI_UTILS.stem).filter(w => w.length > 2);
-      
+
       console.log(`[AI Search] Original: "${rawMessage}", Words: ${searchWords}, Stemmed: ${stemmedWords}`);
 
-      const [dbUser, userHistory] = await Promise.all([
-        (prisma.user as any).findUnique({
+      const [
+        dbUser,
+        userHistory,
+        kbArticleHits,
+        statsTickets,
+        statsKb,
+        statsEquip,
+        statsDocs,
+        statsSku,
+        allDirectory
+      ] = await Promise.all([
+        prisma.user.findUnique({
           where: { id: requestUser.id },
           include: { roleRelation: true, departmentRelation: true }
         }),
@@ -84,51 +194,56 @@ export default async function aiRoutes(fastify: FastifyInstance) {
           where: { userId: requestUser.id },
           orderBy: { createdAt: 'desc' },
           take: 5
-        })
+        }),
+        searchWords.length > 0
+          ? prisma.kBArticle.findMany({
+              where: {
+                OR: searchWords.flatMap(w => [
+                  { title: { contains: w, mode: 'insensitive' as const } },
+                  { description: { contains: w, mode: 'insensitive' as const } }
+                ])
+              },
+              take: 5,
+              select: { title: true, category: true }
+            })
+          : Promise.resolve([]),
+        prisma.ticket.count({ where: { status: { notIn: ['closed', 'resolved'] } } }).catch(() => 0),
+        prisma.kBArticle.count().catch(() => 0),
+        prisma.equipment.count().catch(() => 0),
+        prisma.document.count().catch(() => 0),
+        prisma.inventoryItem.count().catch(() => 0),
+        (prisma as any).directoryEntry.findMany({ take: 1000 })
       ]);
 
-      // --- 2. ПОИСК В БД ---
-      // Поиск контактов (Самый важный поиск)
-      const allDirectory = await (prisma as any).directoryEntry.findMany({ take: 1000 });
-      
       let relevantContacts = allDirectory.map((c: any) => {
         const fullName = c.name.toLowerCase();
         const nameParts = fullName.split(/\s+/);
         const surname = nameParts[0];
         let score = 0;
 
-        // Проверяем каждое слово из запроса пользователя
         searchWords.forEach(word => {
-          // 1. Точное совпадение с фамилией (первое слово в ФИО) - ВЫСШИЙ ПРИОРИТЕТ
           if (surname === word) score += 1000;
-          // 2. Фамилия начинается на это слово
           else if (surname.startsWith(word)) score += 500;
-          // 3. Совпадение с Именем (второе слово)
           else if (nameParts[1] === word) score += 300;
-          // 4. Слово есть где-то в отчестве (самый низкий приоритет)
           else if (nameParts[2] && nameParts[2].toLowerCase().includes(word)) score += 10;
         });
 
-        // Проверяем корни слов (для окончаний)
         stemmedWords.forEach(stem => {
           if (surname.startsWith(stem)) score += 400;
         });
 
-        // Если в запросе была вся фраза целиком (например, "Андреева Алина")
         if (fullName === cleanMsg) score += 2000;
         else if (fullName.includes(cleanMsg) && cleanMsg.length > 3) score += 500;
 
         return { ...c, searchScore: score };
       })
-      .filter((c: { searchScore: number }) => c.searchScore > 0)
-      .sort((a: { searchScore: number }, b: { searchScore: number }) => b.searchScore - a.searchScore);
+        .filter((c: { searchScore: number }) => c.searchScore > 0)
+        .sort((a: { searchScore: number }, b: { searchScore: number }) => b.searchScore - a.searchScore);
 
-      // ЖЕСТКИЙ ФИЛЬТР: Если есть один явный лидер, убираем всех остальных
       if (relevantContacts.length > 1) {
         const bestScore = relevantContacts[0].searchScore;
         const secondBestScore = relevantContacts[1].searchScore;
-        
-        // Если первый результат значительно лучше второго, оставляем только его
+
         if (bestScore >= secondBestScore + 100) {
           relevantContacts = [relevantContacts[0]];
         } else {
@@ -138,22 +253,26 @@ export default async function aiRoutes(fastify: FastifyInstance) {
 
       console.log(`[AI DEBUG] Found ${relevantContacts.length} contacts. Best: ${relevantContacts[0]?.name} (Score: ${relevantContacts[0]?.searchScore})`);
 
-      // 2.1 ПОИСК ПРЕДЛОЖЕНИЙ (Если нет точного лидера)
       let aiSuggestions: string[] = [];
       if (relevantContacts.length === 0 || (relevantContacts.length > 1 && relevantContacts[0].searchScore < 500)) {
         const fuzzyMatches = allDirectory
-          .map((c: any) => ({ 
-            name: c.name, 
-            score: Math.max(...searchWords.map((w: string) => 1 - AI_UTILS.levenshtein(c.name.toLowerCase().split(' ')[0], w) / Math.max(c.name.split(' ')[0].length, w.length)))
+          .map((c: any) => ({
+            name: c.name,
+            score: Math.max(
+              ...searchWords.map((w: string) =>
+                1 -
+                AI_UTILS.levenshtein(c.name.toLowerCase().split(' ')[0], w) /
+                  Math.max(c.name.split(' ')[0].length, w.length)
+              )
+            )
           }))
           .filter((c: { name: string; score: number }) => c.score > 0.6)
           .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
           .slice(0, 3);
-        
+
         aiSuggestions = fuzzyMatches.map((m: { name: string; score: number }) => m.name);
       }
 
-      // Поиск оборудования
       const relevantEquipment = await (prisma as any).equipment.findMany({
         where: {
           OR: [
@@ -166,34 +285,31 @@ export default async function aiRoutes(fastify: FastifyInstance) {
         take: 5
       });
 
-      // Поиск на складе
-      const relevantInventory = await (prisma as any).inventoryItem.findMany({
+      const relevantInventory = await prisma.inventoryItem.findMany({
         where: {
           OR: [
-            { name: { contains: cleanMsg, mode: 'insensitive' } },
-            ...searchWords.map(word => ({ name: { contains: word, mode: 'insensitive' } }))
+            { name: { contains: cleanMsg, mode: 'insensitive' as const } },
+            ...searchWords.map(word => ({ name: { contains: word, mode: 'insensitive' as const } }))
           ]
         },
         take: 3
       });
 
-      // --- 3. ФОРМИРОВАНИЕ ОТВЕТА ---
       let aiReply = '';
       let prefix = '';
       const msg = cleanMsg;
-      
+
       console.log(`[AI] Processing message: "${msg}" (User: ${dbUser?.name})`);
 
-      // 9.1 Проверка подтверждения предложения (если пользователь написал "да")
       const isConfirmation = /^(да|ага|давай|верно|точно|yes|yep)/i.test(msg);
       const lastInteraction = userHistory[0];
-      
+
       if (isConfirmation && lastInteraction && lastInteraction.reply.includes('Возможно, вы имели в виду:')) {
         const match = lastInteraction.reply.match(/•\s*([^(\n]+)/);
         if (match && match[1]) {
           const suggestedName = match[1].trim();
           const confirmedContact = allDirectory.find((c: any) => c.name.includes(suggestedName));
-          
+
           if (confirmedContact) {
             aiReply = `Отлично! Вот информация по сотруднику:\n👤 **${confirmedContact.name}**\n💼 ${confirmedContact.position}\n🏢 ${confirmedContact.department || '—'}\n📞 Внутр: **${confirmedContact.internalPhone || '—'}**\n📱 Моб: **${confirmedContact.mobilePhone || '—'}**`;
             await (prisma as any).aIHistory.create({
@@ -204,25 +320,64 @@ export default async function aiRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Проверка контекста из истории
-      const isContextFollowUp = /(подробн|еще|повтори|что там|дальше)/i.test(msg);
+      const isGreeting =
+        /^(привет|здравствуй|ку|хай|добрый (день|вечер|утро)|hello|hi|салам|здорово|прив|дратути|приветик|приветствую)/i.test(
+          cleanMsg.trim()
+        );
 
-      // Распознавание интентов
-      const isGreeting = /^(привет|здравствуй|ку|хай|добрый (день|вечер|утро)|hello|hi|салам|здорово|прив|дратути|приветик|приветствую)/i.test(cleanMsg);
-      const isCapabilityQuery = /(что (ты )?умеешь|что (ты )?можешь|помощь|как пользоваться|функции|\?)/i.test(cleanMsg);
-      
-      // Более гибкое определение модуля (нечеткое)
-      const findCrmModule = () => {
-        const modules: any = {
-          'заявк': 'tickets', 'тикет': 'tickets', 'тикеты': 'tickets',
-          'склад': 'inventory', 'расход': 'inventory', 'товар': 'inventory',
-          'реестр': 'registry', 'клиник': 'registry', 'здан': 'registry', 'кабин': 'registry',
-          'баз': 'knowledge', 'стать': 'knowledge',
-          'инструкц': 'guides', 'гайд': 'guides',
-          'документ': 'documents', 'акт': 'documents',
-          'справочник': 'directory', 'контакт': 'directory', 'сотрудн': 'directory',
-          'чат': 'chat', 'сообщен': 'chat',
-          'админ': 'admin', 'управлен': 'admin', 'права': 'admin'
+      const isOverviewQuery =
+        /все модули|весь функционал|какие разделы|карта (приложения|системы)|обзор системы|что (за |)crm|что здесь есть|что умеет система|навигац|полный список/i.test(
+          msg
+        );
+
+      const isCapabilityQuery =
+        /что (ты )?умеешь|что (ты )?можешь|чем можешь помочь|чем полезен|ваши возможности|функции системы|как пользоваться (crm|систем)/i.test(
+          msg
+        ) || /^(помощь|help)$/i.test(msg.trim());
+
+      const findCrmModule = (): string | null => {
+        const modules: Record<string, string> = {
+          заявк: 'tickets',
+          тикет: 'tickets',
+          тикеты: 'tickets',
+          склад: 'inventory',
+          расход: 'inventory',
+          товар: 'inventory',
+          остат: 'inventory',
+          реестр: 'registry',
+          клиник: 'registry',
+          здан: 'registry',
+          кабин: 'registry',
+          оборудован: 'registry',
+          баз: 'knowledge',
+          знан: 'knowledge',
+          стать: 'knowledge',
+          регламент: 'knowledge',
+          инструкц: 'guides',
+          гайд: 'guides',
+          документ: 'documents',
+          акт: 'documents',
+          справочник: 'directory',
+          контакт: 'directory',
+          сотрудн: 'directory',
+          фио: 'directory',
+          чат: 'chat',
+          сообщен: 'chat',
+          переписк: 'chat',
+          админ: 'admin',
+          управлен: 'admin',
+          прав: 'admin',
+          рол: 'admin',
+          профил: 'profile',
+          аватар: 'profile',
+          личн: 'profile',
+          парсер: 'parser',
+          parser: 'parser',
+          пользовател: 'users',
+          учётн: 'users',
+          юзер: 'users',
+          расшиф: 'decryptor',
+          шифр: 'decryptor'
         };
         for (const key in modules) {
           if (msg.includes(key)) return modules[key];
@@ -231,69 +386,105 @@ export default async function aiRoutes(fastify: FastifyInstance) {
       };
 
       const matchedModule = findCrmModule();
-      const isCrmGuideQuery = /(как|что|зачем|расскажи|инструкция|помоги)/i.test(msg) && matchedModule;
+      const isCrmGuideQuery =
+        /(как|что|зачем|расскажи|инструкция|помоги|объясни|опиши|где найти|для чего)/i.test(msg) && !!matchedModule;
 
-      const isEquipmentQuery = /(где|найти|оборудован|аппарат|инвентар|номер|hamilton|монитор|принтер|пк|компьютер)/i.test(cleanMsg);
-      const isInventoryQuery = /(сколько|остаток|склад|картридж|бумаг|есть ли|расходники)/i.test(cleanMsg);
-      const isContactQuery = /(телефон|номер|кто это|сотрудник|контакт|найти|тел)/i.test(cleanMsg) || (relevantContacts.length > 0 && cleanMsg.length > 2);
+      const isEquipmentQuery =
+        /(где|найти|оборудован|аппарат|инвентар|номер|hamilton|монитор|принтер|пк|компьютер)/i.test(cleanMsg);
+      const isInventoryQuery =
+        /(сколько|остаток|склад|картридж|бумаг|есть ли|расходники)/i.test(cleanMsg);
+      const isContactQuery =
+        /(телефон|номер|кто это|сотрудник|контакт|найти|позвонить|внутренн|мобильн|звонок|фио|кто такой|кто такая)/i.test(
+          msg
+        );
 
-      // Если есть приветствие - добавляем его как префикс
+      const wantsKb =
+        /база знаний|стать|регламент|kb|инструкц (в базе|из баз)/i.test(rawMessage) ||
+        (matchedModule === 'knowledge' && wantsModuleExplanation(msg));
+
       if (isGreeting) {
-        const greetings = [
-          `Здравствуйте, ${dbUser?.name?.split(' ')[0]}! `,
-          `Приветствую! Чем могу помочь? `,
-          `На связи ИИ MEDIN. `,
-          `Добрый день! Слушаю вас. `
-        ];
+        const gn = givenNameFromFull(dbUser?.name);
+        const greetings = gn
+          ? [
+              `Здравствуйте, ${gn}! `,
+              `Приветствую, ${gn}! `,
+              `На связи Medini ✨ ${gn}, `,
+              `Добрый день, ${gn}! `
+            ]
+          : [`Здравствуйте! `, `Приветствую! `, `На связи Medini ✨ `, `Добрый день! `];
         prefix = AI_UTILS.getRandom(greetings);
       }
 
-      // Основная логика ответа
-      if (isCapabilityQuery) {
-        aiReply = `Я — ваш интеллектуальный помощник MEDIN (Версия логики: 2.0). Вот что я умею:\n` +
-          `1. 📞 **Поиск контактов**: Спросите "Телефон Иванова" или просто фамилию.\n` +
-          `2. 🏥 **Поиск оборудования**: Спросите "Где Hamilton?" или по инв. номеру.\n` +
-          `3. 📦 **Склад**: Спросите "Сколько бумаги на складе?" или "Остатки картриджей".\n` +
-          `4. 💡 **Консультации**: Расскажу про любой модуль (Заявки, Реестр, Документы).`;
-      } 
-      else if (relevantContacts.length > 0) {
+      const statsBundle = {
+        tickets: statsTickets,
+        kb: statsKb,
+        equip: statsEquip,
+        docs: statsDocs,
+        sku: statsSku
+      };
+
+      const firstName = givenNameFromFull(dbUser?.name);
+
+      if (isCapabilityQuery || isOverviewQuery) {
+        aiReply = buildModulesOverviewLine(statsBundle);
+      } else if (
+        matchedModule &&
+        (wantsModuleExplanation(msg) || isCrmGuideQuery) &&
+        !contactShouldWin(relevantContacts, isContactQuery)
+      ) {
+        aiReply = formatModuleAnswer(matchedModule, firstName);
+        if (matchedModule === 'knowledge' && kbArticleHits.length > 0) {
+          aiReply +=
+            `\n\n📚 **Похожие статьи в базе:**\n` +
+            kbArticleHits.map((a: { title: string; category: string }) => `• **${a.title}** (${a.category})`).join('\n');
+        }
+      } else if (kbArticleHits.length > 0 && wantsKb && !contactShouldWin(relevantContacts, isContactQuery)) {
+        aiReply =
+          `Нашла материалы в **базе знаний** по вашим словам:\n\n` +
+          kbArticleHits.map((a: { title: string; category: string }) => `• **${a.title}** — ${a.category}`).join('\n') +
+          `\n\nОткройте раздел **База знаний** в меню, чтобы прочитать полностью.`;
+      } else if (relevantContacts.length > 0 && contactShouldWin(relevantContacts, isContactQuery)) {
         if (relevantContacts.length === 1) {
           const c = relevantContacts[0];
-          aiReply = `Нашел точное совпадение по фамилии:\n👤 **${c.name}**\n💼 ${c.position}\n🏢 ${c.department || '—'}\n📞 Внутр: **${c.internalPhone || '—'}**\n📱 Моб: **${c.mobilePhone || '—'}**`;
+          aiReply = `Нашла совпадение в справочнике:\n👤 **${c.name}**\n💼 ${c.position}\n🏢 ${c.department || '—'}\n📞 Внутр: **${c.internalPhone || '—'}**\n📱 Моб: **${c.mobilePhone || '—'}**`;
         } else {
-          aiReply = `Нашел нескольких сотрудников (уточните фамилию):\n` + 
+          aiReply =
+            `Несколько человек подходят — уточните фамилию:\n` +
             relevantContacts.map((c: any) => `• **${c.name}** (${c.position}) — тел: ${c.internalPhone || 'нет'}`).join('\n');
         }
-      }
-      else if (relevantEquipment.length > 0 && (isEquipmentQuery || searchWords.some(w => w === 'hamilton'))) {
+      } else if (relevantEquipment.length > 0 && (isEquipmentQuery || searchWords.some(w => w === 'hamilton'))) {
         if (relevantEquipment.length === 1) {
           const eq = relevantEquipment[0];
-          const loc = eq.cabinet 
+          const loc = eq.cabinet
             ? `${eq.cabinet.building?.name || ''}, этаж ${eq.cabinet.floor?.number || ''}, каб. ${eq.cabinet.name}`
             : 'местоположение не указано';
-          aiReply = `Оборудование **${eq.name}** (${eq.model}) находится здесь: ${loc}.\n📍 Инв. номер: \`${eq.inventoryNumber || 'нет'}\`.`;
+          aiReply = `Оборудование **${eq.name}** (${eq.model}) — ${loc}.\n📍 Инв. номер: \`${eq.inventoryNumber || 'нет'}\`.`;
         } else {
-          aiReply = `Найдено несколько устройств:\n` + 
+          aiReply =
+            `Нашла несколько устройств:\n` +
             relevantEquipment.map((eq: any) => `• **${eq.name}** — ${eq.cabinet?.name || 'не указано'}`).join('\n');
         }
-      }
-      else if (relevantInventory.length > 0 && isInventoryQuery) {
+      } else if (relevantInventory.length > 0 && isInventoryQuery) {
         if (relevantInventory.length === 1) {
           const i = relevantInventory[0];
           aiReply = `На складе **${i.name}**: **${i.quantity} ${i.unit}**. (SKU: ${i.sku})`;
         } else {
-          aiReply = `Остатки на складе:\n` + 
-            relevantInventory.map((i: any) => `• **${i.name}**: ${i.quantity} ${i.unit}`).join('\n');
+          aiReply =
+            `Остатки:\n` + relevantInventory.map((i: any) => `• **${i.name}**: ${i.quantity} ${i.unit}`).join('\n');
         }
-      }
-      else if (isGreeting) {
-        aiReply = "Я на связи и готов искать информацию по сотрудникам, технике или складу. О чем хотите узнать?";
-      }
-      else {
+      } else if (matchedModule && !contactShouldWin(relevantContacts, isContactQuery)) {
+        aiReply = formatModuleAnswer(matchedModule, firstName);
+      } else if (isGreeting) {
+        aiReply = AI_UTILS.getRandom([
+          'Я на связи — могу провести по модулям CRM, найти контакт, технику или остатки на складе. Что ищем?',
+          'Рада помочь: справочник, заявки, реестр, база знаний, документы — спросите в своих словах.',
+          'Задайте вопрос про раздел или фамилию — разложу по полочкам.'
+        ]);
+      } else {
         const notFound = [
-          "К сожалению, по этому запросу ничего не нашлось. Попробуйте уточнить фамилию или название.",
-          "Я просмотрел базу данных, но совпадений нет. Может, опечатка?",
-          "Хм, не вижу такого в системе. Попробуйте спросить иначе."
+          'Пока не нашла точного совпадения. Попробуйте фамилию из справочника, инв. номер или название раздела («заявки», «склад»…).',
+          'В базе такого нет — возможно, опечатка? Или спросите про конкретный модуль.',
+          'Не вижу совпадения. Могу показать **карту модулей** — напишите «что ты умеешь» или «все модули».'
         ];
         aiReply = AI_UTILS.getRandom(notFound);
         if (aiSuggestions.length > 0) {
@@ -302,8 +493,7 @@ export default async function aiRoutes(fastify: FastifyInstance) {
       }
 
       const finalReply = prefix + aiReply;
-      
-      // 4. СОХРАНЕНИЕ В ИСТОРИЮ
+
       await (prisma as any).aIHistory.create({
         data: {
           message: rawMessage,
@@ -313,7 +503,6 @@ export default async function aiRoutes(fastify: FastifyInstance) {
       });
 
       return { reply: finalReply };
-
     } catch (error: any) {
       console.error('[AI Route Error]:', error);
       return reply.status(500).send({ message: 'Внутренняя ошибка ИИ-сервиса' });

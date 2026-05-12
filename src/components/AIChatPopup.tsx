@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, Maximize2, Minimize2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import { cn, getGivenName } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { motion } from 'framer-motion';
 import { UserAvatar } from './UserAvatar';
@@ -14,6 +14,30 @@ interface Message {
 interface AIChatPopupProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+/** Простое форматирование ответа Medini: **жирный**, переносы строк */
+function FormattedAssistantText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  return (
+    <>
+      {lines.map((line, li) => (
+        <span key={li}>
+          {li > 0 && <br />}
+          {line.split(/(\*\*[^*]+\*\*)/g).map((part, pi) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              return (
+                <strong key={pi} className="font-semibold text-slate-900 dark:text-slate-100">
+                  {part.slice(2, -2)}
+                </strong>
+              );
+            }
+            return <span key={pi}>{part}</span>;
+          })}
+        </span>
+      ))}
+    </>
+  );
 }
 
 export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
@@ -67,7 +91,7 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
                 { role: 'assistant', content: '--- Новая сессия ---' },
                 { 
                   role: 'assistant', 
-                  content: `С возвращением, ${user?.name?.split(' ')[1] || user?.name?.split(' ')[0] || 'пользователь'}! Я восстановил историю нашего общения. О чем хочешь узнать сейчас?` 
+                  content: `С возвращением, ${getGivenName(user?.name)}! История на месте. Напомню: могу подсказать по любому модулю, найти контакт в справочнике или технику в реестре. О чём разберёмся?` 
                 }
               ]);
             } else {
@@ -75,7 +99,7 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
               setMessages([
                 { 
                   role: 'assistant', 
-                  content: `Привет, ${user?.name?.split(' ')[1] || user?.name?.split(' ')[0] || 'пользователь'}! Я твой персональный ИИ-помощник Medini (Логика v2.0). Я знаю всё о заявках, оборудовании и регламентах нашей клиники. Чем могу помочь?` 
+                  content: `Привет, ${getGivenName(user?.name)}! Я **Medini** — помощник по всей CRM: заявки, реестр и оборудование, склад, документы, база знаний, справочник, чат и профиль. Спроси как удобнее — одной фразой. Чем помочь?` 
                 }
               ]);
             }
@@ -154,8 +178,8 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
               Medini
             </h3>
             <div className="flex items-center gap-1">
-              <span className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-medium text-slate-400 tracking-wide">Advanced AI</span>
+              <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-[10px] font-medium text-slate-400 tracking-wide">CRM · все модули</span>
             </div>
           </div>
         </div>
@@ -204,12 +228,12 @@ export function AIChatPopup({ isOpen, onClose }: AIChatPopupProps) {
               )}
             </div>
             <div className={cn(
-              "p-3 rounded-2xl text-sm leading-relaxed tracking-tight",
+              "p-3 rounded-2xl text-sm leading-relaxed tracking-tight whitespace-pre-wrap",
               msg.role === 'user' 
                 ? "bg-blue-600 text-white rounded-tr-none shadow-md" 
                 : "bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-800 rounded-tl-none font-sans"
             )}>
-              {msg.content}
+              {msg.role === 'assistant' ? <FormattedAssistantText text={msg.content} /> : msg.content}
             </div>
           </div>
         ))}

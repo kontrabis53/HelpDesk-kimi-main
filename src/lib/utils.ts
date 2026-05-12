@@ -41,3 +41,14 @@ export function isOnlyEmojis(text: string): boolean {
   
   return emojiRegex.test(cleanText);
 }
+
+/**
+ * Имя для обращения (не фамилия). Для формата ФИО «Фамилия Имя Отчество» берётся второе слово;
+ * если слово одно — используется оно.
+ */
+export function getGivenName(fullName?: string | null, fallback = 'коллега'): string {
+  if (!fullName?.trim()) return fallback;
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return parts[1];
+  return parts[0];
+}

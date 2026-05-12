@@ -681,7 +681,7 @@ export function ChatScreen() {
     <div className="flex h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
       {/* Sidebar List */}
       <div className={cn(
-        "w-full md:w-[380px] flex-shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-all h-full",
+        "w-full md:w-[410px] flex-shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-all h-full",
         activeChatId ? "hidden md:flex" : "flex"
       )}>
         <div className="p-4 border-b border-slate-100 dark:border-slate-700">
@@ -751,7 +751,7 @@ export function ChatScreen() {
         {activeChat ? (
           <div className={cn(
             "h-full grid min-h-0 overflow-hidden relative",
-            isQuickActionsOpen ? "grid-cols-[1fr_256px]" : "grid-cols-1"
+            isQuickActionsOpen ? "grid-cols-[1fr_280px]" : "grid-cols-1"
           )}>
             {/* Main Chat Column */}
             <div className="h-full grid grid-rows-[64px_1fr_auto] min-h-0 overflow-hidden relative">
@@ -863,7 +863,7 @@ export function ChatScreen() {
             {/* Right Sidebar Column */}
 
             {isQuickActionsOpen && (
-              <div className="flex-none w-64 border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-4 hidden lg:flex flex-col gap-6 overflow-y-auto h-full">
+              <div className="flex-none w-[280px] border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-4 hidden lg:flex flex-col gap-6 overflow-y-auto h-full">
                 <div>
                   <div className="flex items-center justify-between mb-3 px-1">
                     <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Участники</h3>

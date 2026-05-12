@@ -55,7 +55,7 @@ export const ChatInput = React.memo(({ onSendMessage, disabled }: ChatInputProps
   };
 
   return (
-    <div className="flex-none px-4 pb-6 pt-2 bg-transparent z-20">
+    <div className="flex-none z-20 px-4 pb-5 pt-2 bg-gradient-to-t from-slate-50/90 via-slate-50/40 to-transparent dark:from-slate-900/85 dark:via-slate-900/40 dark:to-transparent pointer-events-none [&>*]:pointer-events-auto">
       <div className="w-full relative">
         {isEmojiPickerOpen && (
           <div ref={emojiPickerRef} className="absolute bottom-[calc(100%+12px)] left-0 mb-2 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-2 z-50 w-full max-w-[450px]">
@@ -75,7 +75,7 @@ export const ChatInput = React.memo(({ onSendMessage, disabled }: ChatInputProps
             </div>
           </div>
         )}
-        <div className="flex items-end gap-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-2 rounded-[24px] border border-slate-200 dark:border-slate-700 shadow-lg ring-1 ring-black/5 dark:ring-white/5 transition-all focus-within:ring-0 focus-within:ring-transparent focus-within:border-slate-300 dark:focus-within:border-slate-600">
+        <div className="flex items-end gap-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-2xl p-2 rounded-[28px] border border-slate-200/70 dark:border-slate-600/50 shadow-[0_12px_40px_-8px_rgba(15,23,42,0.25),0_4px_12px_-4px_rgba(15,23,42,0.12)] dark:shadow-[0_16px_48px_-10px_rgba(0,0,0,0.55),0_6px_16px_-6px_rgba(0,0,0,0.35)] transition-shadow focus-within:shadow-[0_16px_48px_-8px_rgba(59,130,246,0.22),0_8px_20px_-6px_rgba(15,23,42,0.15)] dark:focus-within:shadow-[0_18px_52px_-10px_rgba(59,130,246,0.18),0_8px_20px_-8px_rgba(0,0,0,0.45)] focus-within:border-blue-300/80 dark:focus-within:border-blue-500/50">
           <div className="flex items-center gap-1 px-1">
             <Button 
               variant="ghost" 

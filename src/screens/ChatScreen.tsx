@@ -149,9 +149,9 @@ const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onR
         <button
           onClick={() => onSelect(chat.id)}
           className={cn(
-            "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative border-2",
+            "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative border-2 text-left min-w-0",
             isActive 
-              ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30 scale-[1.02] z-10" 
+              ? "bg-blue-600 text-white border-blue-600 ring-2 ring-white/30 ring-inset z-10" 
               : "hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-transparent"
           )}
         >
@@ -186,19 +186,19 @@ const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onR
               </div>
             )}
           </div>
-          <div className="flex-1 min-w-0 text-left">
-            <div className="flex justify-between items-center mb-1 gap-3">
-              <div className="flex-1 min-w-0 flex items-center gap-1">
+          <div className="flex-1 min-w-0 text-left overflow-hidden">
+            <div className="flex justify-between items-start gap-2 mb-1">
+              <div className="flex-1 min-w-0 flex items-start gap-1.5">
                 <div className={cn(
-                  "font-bold text-sm text-fade flex-1",
+                  "font-bold text-sm leading-snug break-words line-clamp-2 min-w-0",
                   isActive ? "text-white" : "text-slate-900 dark:text-slate-100",
                   chat.unreadCount > 0 && !isActive && "font-black"
                 )}>
                   {formatChatName(chat.name, chat.type)}
                 </div>
-                {chat.isMuted && <BellOff className={cn("w-3 h-3 flex-shrink-0", isActive ? "text-white/70" : "text-slate-400")} />}
+                {chat.isMuted && <BellOff className={cn("w-3 h-3 flex-shrink-0 mt-0.5", isActive ? "text-white/70" : "text-slate-400")} />}
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+              <div className="flex flex-col items-end gap-0.5 flex-shrink-0 pt-0.5">
                 {chat.unreadCount > 0 && !isActive && (
                   <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-bold bg-blue-600 text-white shadow-sm">
                     {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
@@ -206,8 +206,8 @@ const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onR
                 )}
                 {chat.lastMessageTime && (
                   <span className={cn(
-                    "text-[10px] whitespace-nowrap",
-                    isActive ? "text-white/80" : "text-slate-400",
+                    "text-[10px] whitespace-nowrap tabular-nums",
+                    isActive ? "text-white/85" : "text-slate-400",
                     chat.unreadCount > 0 && !isActive && "text-blue-600 dark:text-blue-400 font-bold"
                   )}>
                     {format(new Date(chat.lastMessageTime), 'HH:mm')}
@@ -216,16 +216,13 @@ const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onR
               </div>
             </div>
             <p className={cn(
-              "text-xs truncate leading-tight",
+              "text-xs leading-tight min-w-0 block w-full truncate",
               isActive ? "text-white/90 font-medium" : "text-slate-500 dark:text-slate-400",
               chat.unreadCount > 0 && !isActive && "text-slate-900 dark:text-slate-100 font-bold"
             )}>
-              {chat.lastMessage || 'Нет сообщений'}
+              {chatListLastPreview(chat.lastMessage)}
             </p>
           </div>
-          {isActive && (
-            <div className="absolute left-[-2px] top-1/4 bottom-1/4 w-1 bg-white rounded-r-full" />
-          )}
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
@@ -260,6 +257,13 @@ const ChatItem = React.memo(({ chat, isActive, currentUser, users, onSelect, onR
 
 ChatItem.displayName = 'ChatItem';
 
+/** Превью последнего сообщения в списке чатов (скрывает системные маркеры) */
+function chatListLastPreview(lastMessage: string | undefined): string {
+  if (!lastMessage?.trim()) return 'Нет сообщений';
+  if (lastMessage.startsWith('[DIRECT_CREATED]|')) return 'Чат начат';
+  return lastMessage;
+}
+
 export function ChatScreen() {
   const chats = useChatStore(s => s.chats);
   const messages = useChatStore(s => s.messages);
@@ -267,6 +271,7 @@ export function ChatScreen() {
   const setActiveChat = useChatStore(s => s.setActiveChat);
   const sendMessage = useChatStore(s => s.sendMessage);
   const createDirectChat = useChatStore(s => s.createDirectChat);
+  const promoteDirectToGroup = useChatStore(s => s.promoteDirectToGroup);
   const createGroupChat = useChatStore(s => s.createGroupChat);
   const fetchMessages = useChatStore(s => s.fetchMessages);
   const clearUnread = useChatStore(s => s.clearUnread);
@@ -325,6 +330,9 @@ export function ChatScreen() {
 
   // State for updating existing group chats
   const [chatIdToUpdate, setChatIdToUpdate] = useState<string | undefined>(undefined);
+
+  /** Модалка: превратить текущую личку в группу (выбор новых участников) */
+  const [isPromoteDirectMode, setIsPromoteDirectMode] = useState(false);
 
   // State for removing participants
   const [isRemoveParticipantModalOpen, setIsRemoveParticipantModalOpen] = useState(false);
@@ -503,6 +511,35 @@ export function ChatScreen() {
     }
   };
 
+  const handlePromoteDirectToGroupSubmit = async () => {
+    if (!activeChatId || !activeChat || activeChat.type !== 'direct') return;
+    if (selectedParticipants.length < 1) {
+      toast.error('Выберите хотя бы одного нового участника');
+      return;
+    }
+    const newParticipantNames = selectedParticipants.map(id => {
+      const u = users.find(user => user.id === id);
+      return u?.name?.split(' ')[0] || id;
+    });
+    const mergedLabel = [...new Set([
+      ...(activeChat.name ? [activeChat.name.split(',')[0]?.trim()].filter(Boolean) : []),
+      ...newParticipantNames
+    ])].filter(Boolean).join(', ');
+    const generatedName = groupName.trim() || mergedLabel || newParticipantNames.join(', ');
+
+    const id = await promoteDirectToGroup(activeChatId, selectedParticipants, generatedName);
+    if (id) {
+      setActiveChat(id);
+      setIsNewChatModalOpen(false);
+      setIsPromoteDirectMode(false);
+      setIsGroupMode(false);
+      setSelectedParticipants([]);
+      setGroupName('');
+      setUserSearchQuery('');
+      toast.success('Чат преобразован в группу');
+    }
+  };
+
   const handleRenameChat = async () => {
     if (!chatToRename || !newChatName.trim()) return;
     const { renameChat } = useChatStore.getState();
@@ -668,20 +705,26 @@ export function ChatScreen() {
     return result
       .filter(person => person.id !== currentUser?.id) // Исключаем текущего пользователя
       .filter(person => {
+        if (isPromoteDirectMode && activeChat?.type === 'direct' && activeChat.participants?.includes(person.id)) {
+          return false;
+        }
+        return true;
+      })
+      .filter(person => {
         const query = userSearchQuery.toLowerCase();
         return (person.name || '').toLowerCase().includes(query) || 
                (person.position || '').toLowerCase().includes(query) ||
                (person.department || '').toLowerCase().includes(query);
       });
-  }, [directoryEntries, users, userSearchQuery, showDirectoryUsers, currentUser]);
+  }, [directoryEntries, users, userSearchQuery, showDirectoryUsers, currentUser, isPromoteDirectMode, activeChat]);
 
   const isUserRegistered = (person: any) => person.isRegistered;
 
   return (
-    <div className="flex h-full bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
+    <div className="flex h-full bg-slate-200/70 dark:bg-slate-950 overflow-hidden relative">
       {/* Sidebar List */}
       <div className={cn(
-        "w-full md:w-[410px] flex-shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-all h-full",
+        "w-full md:w-[410px] flex-shrink-0 bg-slate-100 dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700/80 flex flex-col transition-all h-full shadow-inner",
         activeChatId ? "hidden md:flex" : "flex"
       )}>
         <div className="p-4 border-b border-slate-100 dark:border-slate-700">
@@ -718,8 +761,8 @@ export function ChatScreen() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar [scrollbar-gutter:stable]">
+          <div className="px-2 py-2 pb-3 space-y-1">
             {filteredChats.map((chat) => (
               <ChatItem 
                 key={chat.id}
@@ -740,12 +783,12 @@ export function ChatScreen() {
               />
             ))}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Active Chat Section */}
       <div className={cn(
-        "flex-1 min-w-0 h-full grid bg-white dark:bg-slate-900 overflow-hidden relative",
+        "flex-1 min-w-0 h-full grid bg-slate-50 dark:bg-slate-800/60 overflow-hidden relative",
         !activeChatId && "hidden md:flex items-center justify-center"
       )}>
         {activeChat ? (
@@ -754,9 +797,9 @@ export function ChatScreen() {
             isQuickActionsOpen ? "grid-cols-[1fr_280px]" : "grid-cols-1"
           )}>
             {/* Main Chat Column */}
-            <div className="h-full grid grid-rows-[64px_1fr_auto] min-h-0 overflow-hidden relative">
+            <div className="h-full grid grid-rows-[64px_1fr_auto] min-h-0 overflow-hidden relative bg-slate-50 dark:bg-slate-800/60">
               {/* Header */}
-              <div className="flex-none h-16 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-10">
+              <div className="flex-none h-16 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md z-10">
                 <div className="flex items-center gap-3">
                   <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setActiveChat(null)}>
                     <ArrowLeft className="w-5 h-5" />
@@ -815,7 +858,7 @@ export function ChatScreen() {
               </div>
 
               {/* Messages Area */}
-              <div className="flex-1 min-h-0 relative h-full overflow-hidden">
+              <div className="flex-1 min-h-0 relative h-full overflow-hidden bg-slate-50 dark:bg-slate-800/50">
                 <VList 
                   key={activeChatId} // Force fresh state when switching chats
                   className="h-full px-4 custom-scrollbar transition-opacity duration-300 virtua-list-container"
@@ -863,7 +906,7 @@ export function ChatScreen() {
             {/* Right Sidebar Column */}
 
             {isQuickActionsOpen && (
-              <div className="flex-none w-[280px] border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-4 hidden lg:flex flex-col gap-6 overflow-y-auto h-full">
+              <div className="flex-none w-[280px] border-l-2 border-slate-300 dark:border-slate-700/80 bg-slate-100 dark:bg-slate-900 p-4 hidden lg:flex flex-col gap-6 overflow-y-auto h-full shadow-inner">
                 <div>
                   <div className="flex items-center justify-between mb-3 px-1">
                     <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Участники</h3>
@@ -873,6 +916,20 @@ export function ChatScreen() {
                         <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 gap-1"
                           onClick={() => setIsGroupAdminSettingsModalOpen(true)}>
                           <Settings className="w-3 h-3" /> Настройки
+                        </Button>
+                      )}
+                      {activeChat?.type === 'direct' && activeChatId && (
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 gap-1"
+                          onClick={() => {
+                            setIsPromoteDirectMode(true);
+                            setIsGroupMode(true);
+                            setSelectedParticipants([]);
+                            setGroupName('');
+                            setChatIdToUpdate(undefined);
+                            setExpandedPersonId(null);
+                            setIsNewChatModalOpen(true);
+                          }}>
+                          <UserPlus className="w-3 h-3" /> В группу
                         </Button>
                       )}
                       {activeChat?.type === 'direct' && activeChatId && (
@@ -965,39 +1022,46 @@ export function ChatScreen() {
         )}
       </div>
 
-      <Dialog open={isNewChatModalOpen} onOpenChange={(open) => { setIsNewChatModalOpen(open); if (!open) { setExpandedPersonId(null); setIsGroupMode(false); setSelectedParticipants([]); setGroupName(''); setChatIdToUpdate(undefined); } }}>
+      <Dialog open={isNewChatModalOpen} onOpenChange={(open) => { setIsNewChatModalOpen(open); if (!open) { setExpandedPersonId(null); setIsGroupMode(false); setIsPromoteDirectMode(false); setSelectedParticipants([]); setGroupName(''); setChatIdToUpdate(undefined); } }}>
         <DialogContent className="max-w-[440px] bg-white dark:bg-slate-900 p-0 overflow-hidden border-0 shadow-2xl rounded-[32px] gap-0">
           <DialogHeader className="sr-only">
-            <DialogTitle>Новое сообщение или группа</DialogTitle>
+            <DialogTitle>{isPromoteDirectMode ? 'Преобразование в группу' : 'Новое сообщение или группа'}</DialogTitle>
           </DialogHeader>
           <div className="p-6 pb-4 flex flex-col items-center relative">
-            <h2 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 uppercase mt-2">
-              Новое сообщение или группа
+            <h2 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 uppercase mt-2 text-center leading-tight">
+              {isPromoteDirectMode ? 'Чат → группа' : 'Новое сообщение или группа'}
             </h2>
+            {isPromoteDirectMode && (
+              <p className="text-[11px] text-slate-500 mt-3 text-center max-w-[340px] leading-relaxed">
+                Выберите новых участников. История с собеседником сохранится; чат станет общим для всех.
+              </p>
+            )}
           </div>
 
           <div className="px-6 space-y-4">
             {/* Toggle Tabs */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl shadow-inner">
-              <button 
-                onClick={() => { setIsGroupMode(false); setSelectedParticipants([]); setChatIdToUpdate(undefined); }}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
-                  !isGroupMode ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md" : "text-slate-500"
-                )}
-              >
-                <MessageSquare className="w-4 h-4" /> Чат
-              </button>
-              <button 
-                onClick={() => { setIsGroupMode(true); setChatIdToUpdate(undefined); }}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
-                  isGroupMode ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md" : "text-slate-500"
-                )}
-              >
-                <Users className="w-4 h-4" /> Группа
-              </button>
-            </div>
+            {!isPromoteDirectMode && (
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl shadow-inner">
+                <button 
+                  onClick={() => { setIsGroupMode(false); setSelectedParticipants([]); setChatIdToUpdate(undefined); }}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
+                    !isGroupMode ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md" : "text-slate-500"
+                  )}
+                >
+                  <MessageSquare className="w-4 h-4" /> Чат
+                </button>
+                <button 
+                  onClick={() => { setIsGroupMode(true); setChatIdToUpdate(undefined); }}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
+                    isGroupMode ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md" : "text-slate-500"
+                  )}
+                >
+                  <Users className="w-4 h-4" /> Группа
+                </button>
+              </div>
+            )}
 
             {/* Search */}
             <div className="relative">
@@ -1011,7 +1075,7 @@ export function ChatScreen() {
             </div>
 
             {/* Selected Participants Row */}
-            {isGroupMode && (
+            {(isGroupMode || isPromoteDirectMode) && (
               <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="flex flex-wrap gap-2 items-center">
                   {selectedParticipants.map(id => {
@@ -1034,7 +1098,9 @@ export function ChatScreen() {
                   })}
                 </div>
                 <p className="text-[11px] font-medium text-slate-500 pl-1">
-                  Участников выбрано: {selectedParticipants.length}
+                  {isPromoteDirectMode
+                    ? `Новых участников: ${selectedParticipants.length}`
+                    : `Участников выбрано: ${selectedParticipants.length}`}
                 </p>
               </div>
             )}
@@ -1059,7 +1125,7 @@ export function ChatScreen() {
                       )}
                       onClick={(e) => {
                         e.preventDefault();
-                        if (isGroupMode) {
+                        if (isGroupMode || isPromoteDirectMode) {
                           if (reg) toggleParticipant(entry.id);
                         } else {
                           if (reg) setExpandedPersonId(isExpanded ? null : entry.id);
@@ -1129,7 +1195,7 @@ export function ChatScreen() {
             >
               Закрыть
             </Button>
-            {isGroupMode ? (
+            {isGroupMode || isPromoteDirectMode ? (
               <Button 
                 className={cn(
                   "h-12 px-8 rounded-full font-bold text-sm text-white shadow-xl transition-all flex items-center gap-2",
@@ -1137,11 +1203,15 @@ export function ChatScreen() {
                     ? "bg-gradient-to-r from-blue-600 to-blue-500 hover:scale-105 shadow-blue-500/30" 
                     : "bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-50"
                 )}
-                onClick={handleCreateGroupChat} 
+                onClick={isPromoteDirectMode ? handlePromoteDirectToGroupSubmit : handleCreateGroupChat} 
                 disabled={selectedParticipants.length < 1}
               >
                 <UserPlus className="w-5 h-5" />
-                {activeChat?.type === 'group' ? 'Добавить участника' : 'Создать группу'}
+                {isPromoteDirectMode
+                  ? 'Преобразовать в группу'
+                  : activeChat?.type === 'group'
+                    ? 'Добавить участника'
+                    : 'Создать группу'}
                 <Sparkles className="w-3 h-3 text-blue-100" />
               </Button>
             ) : null}

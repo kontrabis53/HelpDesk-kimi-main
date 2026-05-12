@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import { z } from 'zod';
 import { Server } from 'socket.io';
+import { transcryptMessage } from '../lib/chatCrypto.js';
 
 const chatMessageSchema = z.object({
   text: z.string().min(1).max(4096),
@@ -9,6 +10,24 @@ const chatMessageSchema = z.object({
   chatId: z.string().optional(),
   chatName: z.string().optional(),
   isSystem: z.boolean().optional(),
+});
+
+/** chat_<idA>_<idB> — два id без '_' внутри (как у личных чатов в клиенте) */
+function parseDirectParticipantIds(sourceChatId: string): [string, string] | null {
+  if (!sourceChatId.startsWith('chat_')) return null;
+  const rest = sourceChatId.slice('chat_'.length);
+  const sep = rest.indexOf('_');
+  if (sep === -1) return null;
+  const id1 = rest.slice(0, sep);
+  const id2 = rest.slice(sep + 1);
+  if (!id1 || !id2) return null;
+  return [id1, id2];
+}
+
+const upgradeDirectSchema = z.object({
+  sourceChatId: z.string().min(1),
+  additionalParticipantIds: z.array(z.string().min(1)).min(1),
+  groupName: z.string().optional(),
 });
 
 export default async function chatRoutes(fastify: FastifyInstance, options: { io: Server }) {
@@ -297,6 +316,12 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
       });
       const creatorName = dbUser?.name || dbUser?.username || 'Пользователь';
 
+      // For direct chats, set receiverId to the other participant so both users receive the row in GET /chat
+      const otherDirectParticipantId =
+        type === 'direct' && Array.isArray(participants)
+          ? participants.find((pid: string) => pid && pid !== user.id)
+          : undefined;
+
       // Smart check: if chat already has messages OR was already created, it's an update
       const existingMessagesCount = await prisma.chatMessage.count({
         where: { chatId: chatId }
@@ -327,6 +352,7 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
         data: {
           text: systemText,
           senderId: user.id,
+          receiverId: otherDirectParticipantId ?? undefined,
           chatId: chatId,
           isSystem: true
         },
@@ -353,19 +379,21 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
         }
       }
 
-        // Проверяем, остались ли участники в группе
-      const remainingParticipants = await getGroupParticipants(chatId);
-      if (remainingParticipants.length === 0) {
-        console.log(`[Chat] Group ${chatId} is empty. Deleting all messages.`);
-        await prisma.chatMessage.deleteMany({
-          where: { chatId: chatId }
-        });
-        if (io) {
-          io.emit('chat:deleted', { 
-            chatId, 
-            deletedBy: 'Система',
-            deletedById: 'system'
+      // Только для групп: пустой список участников → очистка. Для личных чатов getGroupParticipants всегда пустой — нельзя вызывать.
+      if (type === 'group' && chatId.startsWith('group_')) {
+        const remainingParticipants = await getGroupParticipants(chatId);
+        if (remainingParticipants.length === 0) {
+          console.log(`[Chat] Group ${chatId} is empty. Deleting all messages.`);
+          await prisma.chatMessage.deleteMany({
+            where: { chatId: chatId }
           });
+          if (io) {
+            io.emit('chat:deleted', { 
+              chatId, 
+              deletedBy: 'Система',
+              deletedById: 'system'
+            });
+          }
         }
       }
     return reply.status(200).send({ success: true });
@@ -375,7 +403,132 @@ export default async function chatRoutes(fastify: FastifyInstance, options: { io
     }
   });
 
-  // 6. Leave Group
+  // 6. Личный чат → группа: миграция сообщений и перешифрование под новый chatId
+  fastify.post('/upgrade-direct', {
+    onRequest: [fastify.authenticate]
+  }, async (request, reply) => {
+    try {
+      const body = upgradeDirectSchema.parse(request.body);
+      const user = request.user as any;
+
+      const pair = parseDirectParticipantIds(body.sourceChatId);
+      if (!pair) {
+        return reply.status(400).send({ message: 'Неверный id личного чата' });
+      }
+      const [a, b] = pair;
+      if (user.id !== a && user.id !== b) {
+        return reply.status(403).send({ message: 'Вы не участник этого чата' });
+      }
+
+      const uniqueAdds = [...new Set(body.additionalParticipantIds)];
+      for (const id of uniqueAdds) {
+        const exists = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+        if (!exists) {
+          return reply.status(400).send({ message: `Пользователь не найден: ${id}` });
+        }
+      }
+      if (uniqueAdds.some(id => id === a || id === b)) {
+        return reply.status(400).send({ message: 'Участники чата уже в переписке' });
+      }
+
+      const allParticipants = Array.from(new Set([a, b, ...uniqueAdds]));
+      const newGroupId = `group_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { name: true, username: true }
+      });
+      const creatorName = dbUser?.name || dbUser?.username || 'Пользователь';
+
+      let finalName = (body.groupName || '').trim();
+      if (!finalName) {
+        const usersRows = await prisma.user.findMany({
+          where: { id: { in: allParticipants } },
+          select: { id: true, name: true, username: true }
+        });
+        const nameById = new Map(usersRows.map(u => [u.id, u.name || u.username || '?']));
+        finalName = allParticipants
+          .map(id => (nameById.get(id) || '?').split(' ')[0])
+          .filter(Boolean)
+          .join(', ');
+        if (!finalName) finalName = 'Групповой чат';
+      }
+
+      const systemText = `[GROUP_CREATED]|${finalName}|${allParticipants.join(',')}|${creatorName}`;
+
+      const systemMessage = await prisma.$transaction(async (tx) => {
+        await tx.chatMessage.deleteMany({
+          where: {
+            chatId: body.sourceChatId,
+            isSystem: true,
+            text: { startsWith: '[DIRECT_CREATED]' }
+          }
+        });
+
+        const remaining = await tx.chatMessage.findMany({
+          where: { chatId: body.sourceChatId }
+        });
+
+        for (const m of remaining) {
+          const newText = transcryptMessage(m.text, body.sourceChatId, newGroupId);
+          await tx.chatMessage.update({
+            where: { id: m.id },
+            data: {
+              chatId: newGroupId,
+              receiverId: null,
+              text: newText
+            }
+          });
+        }
+
+        return tx.chatMessage.create({
+          data: {
+            text: systemText,
+            senderId: user.id,
+            chatId: newGroupId,
+            isSystem: true
+          },
+          include: {
+            sender: { select: { id: true, name: true, avatar: true, role: true } }
+          }
+        });
+      });
+
+      if (io && systemMessage) {
+        const messageToEmit = {
+          ...systemMessage,
+          chatName: finalName,
+          participants: allParticipants,
+          creatorId: user.id
+        };
+        for (const pId of allParticipants) {
+          io.to(pId).emit('chat:message', messageToEmit);
+          io.to(pId).emit('chat:direct_upgraded', {
+            sourceChatId: body.sourceChatId,
+            newGroupId,
+            name: finalName,
+            participants: allParticipants,
+            upgradeByUserId: user.id
+          });
+        }
+      }
+
+      return reply.status(200).send({
+        success: true,
+        newGroupId,
+        name: finalName,
+        participants: allParticipants
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ message: 'Ошибка валидации', errors: error.errors });
+      }
+      fastify.log.error(error);
+      return reply.status(500).send({ success: false, message: error.message });
+    }
+  });
+
+  // 7. Leave Group
   fastify.post('/leave/:chatId', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {

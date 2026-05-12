@@ -53,6 +53,12 @@ interface ChatStore {
   setActiveChat: (chatId: string | null) => void;
   sendMessage: (chatId: string, text: string, senderId: string, senderName: string, recipientName: string) => Promise<void>;
   createDirectChat: (participantId: string, name: string) => Promise<string>;
+  /** Личный чат → группа с сохранением истории */
+  promoteDirectToGroup: (
+    sourceChatId: string,
+    additionalParticipantIds: string[],
+    groupName?: string
+  ) => Promise<string>;
   createGroupChat: (participantIds: string[], name: string, existingChatId?: string) => Promise<string>;
   addMessage: (message: ChatMessage) => void;
   clearUnread: (chatId: string) => void;
@@ -67,6 +73,19 @@ interface ChatStore {
   setShowDirectoryUsers: (show: boolean) => void;
   setGroupAdmin: (chatId: string, userId: string) => Promise<boolean>;
   removeParticipant: (chatId: string, userIdToRemove: string, masterPassword?: string) => Promise<boolean>;
+}
+
+/** Разбор chat_<id1>_<id2> — id собеседника (в т.ч. для системных сообщений без receiverId). */
+function otherParticipantFromDirectChatId(chatId: string, myId: string): string | null {
+  if (!chatId.startsWith('chat_')) return null;
+  const rest = chatId.slice('chat_'.length);
+  const sep = rest.indexOf('_');
+  if (sep === -1) return null;
+  const id1 = rest.slice(0, sep);
+  const id2 = rest.slice(sep + 1);
+  if (id1 === myId) return id2;
+  if (id2 === myId) return id1;
+  return null;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -280,6 +299,34 @@ export const useChatStore = create<ChatStore>()(
             });
           }
         });
+
+        socket.on(
+          'chat:direct_upgraded',
+          async (payload: {
+            sourceChatId: string;
+            newGroupId: string;
+            name: string;
+            participants: string[];
+            upgradeByUserId?: string;
+          }) => {
+            const me = (window as any).useAuthStore?.getState()?.user?.id;
+            set(state => ({
+              chats: state.chats.filter(c => c && c.id !== payload.sourceChatId),
+              messages: state.messages.filter(m => m.chatId !== payload.sourceChatId),
+              activeChatId:
+                state.activeChatId === payload.sourceChatId
+                  ? payload.newGroupId
+                  : state.activeChatId
+            }));
+            await get().fetchMessages();
+            if (payload.upgradeByUserId && payload.upgradeByUserId !== me) {
+              sonnerToast.info('Чат преобразован в группу', {
+                description: payload.name,
+                duration: 4500
+              });
+            }
+          }
+        );
 
         socket.on('chat:renamed', ({ chatId, newName }: { chatId: string, newName: string }) => {
           console.log(`[Socket] Chat ${chatId} renamed to ${newName}`);
@@ -550,8 +597,13 @@ export const useChatStore = create<ChatStore>()(
 
           // Map raw messages to include chatId and DECRYPT them
           const messages = rawMessages.map((m: any) => {
-            // A message belongs to a direct chat ONLY if it has a receiverId
-            const participantId = m.senderId === currentUser.id ? m.receiverId : (m.receiverId ? m.senderId : null);
+            // Собеседник в личке: receiverId/senderId или разбор chat_ из БД (старые DIRECT_CREATED)
+            let participantId =
+              m.senderId === currentUser.id ? m.receiverId : m.receiverId ? m.senderId : null;
+            if (!participantId && m.chatId?.startsWith('chat_')) {
+              const other = otherParticipantFromDirectChatId(m.chatId, currentUser.id);
+              if (other) participantId = other;
+            }
             
             let chatId = m.chatId || 'public';
             if (participantId) {
@@ -584,6 +636,12 @@ export const useChatStore = create<ChatStore>()(
 
               const lastMessageTime = m.timestamp || m.createdAt;
 
+              // Превью в списке: не показывать сырое [DIRECT_CREATED]|...
+              let directListPreview = m.text;
+              if (m.text?.startsWith('[DIRECT_CREATED]|')) {
+                directListPreview = 'Чат начат';
+              }
+
               // Update newChatsMap with the LATEST data for this chatId
               const existingChatInState = get().chats.find(c => c.id === chatId);
               const existingChatInMap = newChatsMap.get(chatId);
@@ -597,7 +655,7 @@ export const useChatStore = create<ChatStore>()(
                   // Preserve unread count from state if it exists, otherwise 0
                   unreadCount: chatId === get().activeChatId ? 0 : (existingChatInState?.unreadCount || 0),
                   avatar: chatAvatarsFromSystemMessages.get(chatId) || m.chatAvatar || existingChatInState?.avatar,
-                  lastMessage: m.text,
+                  lastMessage: directListPreview,
                   lastMessageTime: lastMessageTime
                 });
               }
@@ -657,6 +715,7 @@ export const useChatStore = create<ChatStore>()(
 
               // Resolve last message text for preview
               let lastMessageText = m.text;
+              const rawSystemTextForMeta = m.isSystem ? m.text : '';
               if (m.isSystem && m.text) {
                 if (m.text.startsWith('[GROUP_CREATED]|')) {
                   const parts = m.text.split('|');
@@ -695,7 +754,7 @@ export const useChatStore = create<ChatStore>()(
                     lastMessage: lastMessageText,
                     lastMessageTime: lastMessageTime,
                     isAutoNamed: isAutoNamed,
-                    creatorId: m.creatorId || undefined // Добавляем creatorId
+                    creatorId: m.creatorId || (rawSystemTextForMeta.startsWith('[GROUP_CREATED]|') ? m.senderId || undefined : undefined)
                   });
                 } else {
                   // Если пользователя нет в списке участников, удаляем чат из карты (если он там был)
@@ -843,6 +902,39 @@ export const useChatStore = create<ChatStore>()(
         }
 
         return newChat.id;
+      },
+
+  promoteDirectToGroup: async (sourceChatId, additionalParticipantIds, groupName) => {
+        const currentUser = (window as any).useAuthStore?.getState()?.user;
+        if (!currentUser || additionalParticipantIds.length === 0) return '';
+
+        try {
+          const res = await chatService.upgradeDirectToGroup({
+            sourceChatId,
+            additionalParticipantIds,
+            groupName: groupName?.trim() || undefined
+          });
+          if (!res?.success || !res.newGroupId) {
+            sonnerToast.error('Не удалось преобразовать чат в группу');
+            return '';
+          }
+
+          set(state => ({
+            chats: state.chats.filter(c => c && c.id !== sourceChatId),
+            messages: state.messages.filter(m => m.chatId !== sourceChatId),
+            activeChatId:
+              state.activeChatId === sourceChatId ? res.newGroupId : state.activeChatId
+          }));
+
+          await get().fetchMessages();
+          return res.newGroupId;
+        } catch (error: any) {
+          console.error('promoteDirectToGroup:', error);
+          sonnerToast.error('Не удалось преобразовать чат в группу', {
+            description: error?.response?.data?.message || error?.message
+          });
+          return '';
+        }
       },
 
   createGroupChat: async (newParticipantIds, name, existingChatId) => {

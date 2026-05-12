@@ -49,5 +49,19 @@ export const chatService = {
   removeParticipant: async (chatId: string, userIdToRemove: string, masterPassword?: string) => {
     const response = await apiClient.post(`/chat/remove-participant/${chatId}`, { userIdToRemove, masterPassword });
     return response.data;
+  },
+
+  upgradeDirectToGroup: async (params: {
+    sourceChatId: string;
+    additionalParticipantIds: string[];
+    groupName?: string;
+  }) => {
+    const response = await apiClient.post('/chat/upgrade-direct', params);
+    return response.data as {
+      success: boolean;
+      newGroupId: string;
+      name: string;
+      participants: string[];
+    };
   }
 };
